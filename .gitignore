@@ -1,0 +1,93 @@
+# Database Migration Scripts - Version Control Rules
+
+# Keep migration scripts but ignore execution artifacts
+*.bak
+*.trn
+*.sqlplan
+*_ExecutionLog.txt
+*_Backup_*.sql
+
+# Ignore database connection files with sensitive information
+*Connection*.sql
+*Credentials*.sql
+*Config*.sql
+
+# Ignore temporary SQL files
+*.tmp.sql
+*.temp.sql
+~$*.sql
+
+# Ignore SQL Server generated files
+*.ndf
+*.ldf
+*.mdf
+*.sdf
+
+# Ignore execution results and logs
+*_Results.txt
+*_Output.txt
+migration_log_*.txt
+validation_report_*.txt
+
+# Ignore IDE and editor files
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Ignore OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Ignore build outputs
+bin/
+obj/
+[Oo]bj/
+[Bb]in/
+[Tt]est[Rr]esults*/
+
+# Ignore NuGet packages
+*.nupkg
+**/packages/*
+!**/packages/build/
+**/packages/repositories.config
+
+# Ignore node_modules (if any)
+node_modules/
+
+# Ignore log files
+*.log
+logs/
+
+# Ignore environment-specific configuration
+appsettings.*.json
+!appsettings.json
+.env
+.env.*
+!.env.example
+
+# Ignore documentation build artifacts
+docs/_build/
+docs/.doctrees/
+
+# Keep these migration scripts (they are version controlled)
+!DatabaseMigration_Comprehensive.sql
+!DatabaseMigration_Rollback.sql
+!DatabaseMigration_Validation.sql
+!DatabaseMigration_README.md
+
+# Ignore backup copies of migration scripts
+*DatabaseMigration_*.bak
+*DatabaseMigration_*.backup
+*DatabaseMigration_*.old
+
+# Ignore Claude Code docs/artifacts
+.claude/
+CLAUDE.md
+**/CLAUDE.md

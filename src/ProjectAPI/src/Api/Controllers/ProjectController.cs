@@ -1,0 +1,311 @@
+﻿using ProjectAPI.Api.Application.Common.Models;
+using ProjectAPI.Api.Application.EspacesTempsReel.CreateEspaceTempsReel;
+using ProjectAPI.Api.Application.EspacesTempsReel.GetEspaceTempsReelById;
+using ProjectAPI.Api.Application.Projects.AddProjectFratures;
+using ProjectAPI.Api.Application.Projects.CreateProjects;
+using ProjectAPI.Api.Application.Projects.GetAllProjects;
+using ProjectAPI.Api.Application.Projects.GetProjectFeatures;
+using ProjectAPI.Api.Application.Projects.LikedProjects.AddLikedProject;
+using ProjectAPI.Api.Application.Projects.LikedProjects.GetLikedProjects;
+using ProjectAPI.Api.Application.Projects.LikedProjects.RemoveLikedProject;
+using ProjectAPI.Api.Application.Projects.LikedProjects.UpdateLikedProject;
+using ProjectAPI.Api.Application.Projects.RemoveProject;
+using ProjectAPI.Api.Application.Projects.RemoveProjectFeatures;
+using ProjectAPI.Api.Application.Projects.UpdateProjects;
+using ProjectAPI.Api.Application.Purchases.GetUserPurchases;
+using ProjectAPI.Api.Application.Quartiers.CreateQuartier;
+using ProjectAPI.Api.Application.Quartiers.GetQuartierById;
+using ProjectAPI.Api.Application.Quartiers.GetQuartiers;
+using ProjectAPI.Api.Application.TypeBiens.AssociateToProject;
+using ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByProject;
+
+namespace ProjectAPI.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+//[Authorize(AuthenticationSchemes = "Bearer")]
+public class ProjectsController : ControllerBase
+{
+    private readonly IMediator _mediator;
+
+    public ProjectsController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    [HttpPost]
+    public async Task<IActionResult> CreateProject([FromBody] CreateProjectCommand command)
+    {
+        var result = await _mediator.Send(command);
+        return Ok(result);
+    }
+
+    [HttpGet]
+    //[CustomAuthorize("Agent")]
+    public async Task<IActionResult> GetAllProjects([FromQuery] GetAllProjectsQuery query)
+    {
+        /*var idClaims = User.FindFirst("userId")?.Value;
+        query.UserId = idClaims;*/
+        var result = await _mediator.Send(query);
+        return Ok(result);
+    }
+    /// <summary>
+    /// Updates an existing project by its ID.
+    /// </summary>
+    /// <param name="id">The ID of the project to update.</param>
+    /// <param name="command">The project update details.</param>
+    /// <returns>The updated project data.</returns>
+    [HttpPut("{id}")]
+    public async Task<ActionResult<ProjectResponse>> UpdateProject(Guid id, [FromBody] UpdateProjectCommand command)
+    {
+        if (id != command.Id)
+            return BadRequest("Project ID in the route does not match the body.");
+
+        var result = await _mediator.Send(command);
+        return Ok(result);
+    }
+    [HttpPost("Like")]
+    public async Task<IActionResult> AddLikedProject([FromBody] AddLikedProjectCommand command)
+    {
+        var response = await _mediator.Send(command);
+        return Ok(response);
+    }
+    /// <summary>
+    /// Remove user’s like from a project.
+    /// DELETE /api/projects/{projectId}/like?userId=...
+    /// </summary>
+    [HttpDelete("DisLikeProject")]
+    public async Task<IActionResult> DisLikeProject([FromBody] RemoveLikedProjectCommand command)
+    {
+        var res = await _mediator.Send(command);
+        if (!res.Success) return BadRequest(res.Message);
+        return NoContent();
+    }
+    [HttpGet("LikedProjects")]
+    public async Task<IActionResult> GetLikedProjects([FromQuery] GetLikedProjectsQuery query )
+    {
+        var response = await _mediator.Send(query);
+        return Ok(response);
+    }
+
+    [HttpPut("LikedProject")]
+    public async Task<IActionResult> UpdateLikedProject([FromBody] UpdateLikedProjectCommand command)
+    {
+        var response = await _mediator.Send(command);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Add features to a Project.
+    /// </summary>
+    /// <param name="command">The command containing the features to add.</param>
+    /// <returns>Success status.</returns>
+    [HttpPost("features")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> AddProjectFeatures([FromBody] AddProjectFeatureCommand command)
+    {
+        var result = await _mediator.Send(command);
+        return result ? Ok("Features added successfully.") : BadRequest("Failed to add features.");
+    }
+    /// <summary>
+    /// Remove one or more features from a project.
+    /// DELETE /api/projects/{projectId}/features
+    /// Body: [ "featureId1", "featureId2", … ]
+    /// </summary>
+    [HttpDelete("RemoveFeatures")]
+    public async Task<IActionResult> RemoveFeatures([FromBody] RemoveProjectFeatureCommand command)
+    {
+        await _mediator.Send(command);
+        return NoContent();
+    }
+    /// <summary>
+    /// Get all features for a specific Project.
+    /// </summary>
+    /// <param name="query">The query containing the Project ID.</param>
+    /// <returns>List of features.</returns>
+    [HttpGet("features")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProjectFeatures([FromQuery] GetProjectFeaturesQuery query)
+    {
+        var features = await _mediator.Send(query);
+        if (features == null || features.Count == 0)
+            return NotFound("No features found for the specified Project.");
+
+        return Ok(features);
+    }
+
+    /// <summary>
+    /// Creates a new quartier (district/area).
+    /// </summary>
+    /// <param name="command">The command containing quartier details (name, description, images).</param>
+    /// <returns>Returns a response containing the newly created quartier ID and a success message.</returns>
+    [HttpPost("quartiers")]
+    [ProducesResponseType(typeof(CreateQuartierResponse), 201)]
+    [ProducesResponseType(400)]
+    public async Task<IActionResult> CreateQuartier([FromBody] CreateQuartierCommand command)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var response = await _mediator.Send(command);
+        return CreatedAtAction(nameof(GetQuartierById), new { id = response.Id }, response);
+    }
+
+    [HttpGet("quartiers")]
+    [ProducesResponseType(typeof(PaginatedResponse<QuartierListItem>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetQuartiers([FromQuery] GetQuartiersQuery query)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        var response = await _mediator.Send(query);
+        return Ok(response);
+    }
+    /// <summary>
+    /// Retrieves a quartier by its unique identifier.
+    /// </summary>
+    /// <param name="id">The ID of the quartier to retrieve.</param>
+    /// <returns>The quartier details if found, otherwise a 404 Not Found.</returns>
+    [HttpGet("quartiers/{id}")]
+    [ProducesResponseType(typeof(GetQuartierByIdResponse), 200)]
+    [ProducesResponseType(404)]
+    public async Task<IActionResult> GetQuartierById(Guid id)
+    {
+        var query = new GetQuartierByIdQuery { Id = id };
+        var response = await _mediator.Send(query);
+
+        if (response == null)
+        {
+            return NotFound($"Quartier with ID {id} was not found.");
+        }
+
+        return Ok(response);
+    }
+    [HttpPost("{projectId}/videos")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateEspaceTempsReel(Guid projectId, [FromBody] CreateEspaceTempsReelCommand command)
+    {
+        if (!ModelState.IsValid)
+        {
+            return BadRequest(ModelState);
+        }
+
+        // Ensure the route ID matches the command's ProjectId
+        command.ProjectId = projectId;
+
+        var response = await _mediator.Send(command);
+        return CreatedAtAction(nameof(GetEspaceTempsReelById),
+                               new { id = response.Id },
+                               response);
+    }
+    /// <summary>
+    /// Retrieves a single EspaceTempsReel entry by its unique identifier.
+    /// </summary>
+    /// <param name="id">The ID of the EspaceTempsReel to retrieve.</param>
+    /// <returns>The EspaceTempsReel details if found, otherwise a 404.</returns>
+    [HttpGet("videos/{id}")]
+    public async Task<IActionResult> GetEspaceTempsReelById(Guid id)
+    {
+        var query = new GetEspaceTempsReelByIdQuery { Id = id };
+        var result = await _mediator.Send(query);
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves all videos (EspaceTempsReel) for a specific project.
+    /// </summary>
+    /// <param name="projectId">The ID of the project.</param>
+    /// <returns>A list of videos associated with the project.</returns>
+    [HttpGet("{projectId}/videos")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetVideosByProjectId(Guid projectId)
+    {
+        var query = new Application.EspacesTempsReel.GetVideosByProjectId.GetVideosByProjectIdQuery { ProjectId = projectId };
+        var result = await _mediator.Send(query);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Retrieves a paginated list of purchases for the specified user along with aggregated totals.
+    /// </summary>
+    /// <param name="userId">The ID of the user.</param>
+    /// <param name="pageNumber">The page number (default is 1).</param>
+    /// <param name="pageSize">The page size (default is 10).</param>
+    /// <returns>A paginated response containing purchase details and totals.</returns>
+    [HttpGet("user/{userId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetUserPurchases(string userId, int pageNumber = 1, int pageSize = 10)
+    {
+        var query = new GetUserPurchasesQuery
+        {
+            UserId = userId,
+            PageNumber = pageNumber,
+            PageSize = pageSize
+        };
+
+        var response = await _mediator.Send(query);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Removes a project by its ID.
+    /// </summary>
+    /// <param name="projectId">The ID of the project to remove.</param>
+    /// <returns>The result of the removal operation.</returns>
+    [HttpDelete("{projectId}")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveProject(Guid projectId)
+    {
+        var command = new RemoveProjectCommand { ProjectId = projectId };
+        var response = await _mediator.Send(command);
+        
+        if (!response.Success)
+            return BadRequest(response.Message);
+            
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Associates an existing TypeBien to a Project.
+    /// </summary>
+    [HttpPost("{projectId}/type-biens")]
+    public async Task<IActionResult> AssociateTypeBienToProject(Guid projectId, [FromBody] AssociateTypeBienToProjectCommand command)
+    {
+        command.ProjectId = projectId;
+        var response = await _mediator.Send(command);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Gets the list of TypeBiens associated with a specific Project.
+    /// </summary>
+    [HttpGet("{projectId}/type-biens")]
+    public async Task<IActionResult> GetTypeBiensByProject(Guid projectId)
+    {
+        var query = new GetTypeBiensByProjectQuery { ProjectId = projectId };
+        var response = await _mediator.Send(query);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Gets all TypeBiens (when no projectId is specified).
+    /// </summary>
+    [HttpGet("type-biens")]
+    public async Task<IActionResult> GetAllTypeBiens()
+    {
+        var query = new GetTypeBiensByProjectQuery { ProjectId = null };
+        var response = await _mediator.Send(query);
+        return Ok(response);
+    }
+}

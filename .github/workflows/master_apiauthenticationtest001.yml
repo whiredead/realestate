@@ -1,0 +1,73 @@
+name: Build and deploy ASP.Net Core app to Azure Web App - apiauthenticationtest001
+
+on:
+  push:    
+    paths:
+      - "src/AuthenticationAPI/**"
+    branches:
+      - master
+  pull_request:
+    paths:
+      - "src/AuthenticationAPI/**"
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Set up .NET Core SDK
+      - name: Set up .NET Core
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.x'
+
+      # Add NuGet-NetCore-Ekram source with credentials
+      - name: Set up NuGet Feed for NuGet-NetCore
+        run: dotnet nuget add source "${{ secrets.NUGET_NETCORE_URL }}" -n "NuGet-NetCore-Ekram" -u "${{ secrets.NUGET_NETCORE_USERNAME }}" -p "${{ secrets.NUGET_NETCORE_PASSWORD }}" --store-password-in-clear-text
+
+      # Restore dependencies
+      - name: Restore dependencies
+        run: dotnet restore ./src/AuthenticationAPI/AuthenticationAPI.sln
+
+      # Build the solution
+      - name: Build with dotnet
+        run: dotnet build ./src/AuthenticationAPI/AuthenticationAPI.sln --configuration Release
+        
+      - name: dotnet publish
+        run: dotnet publish ./src/AuthenticationAPI/AuthenticationAPI.sln -c Release -o "${{env.DOTNET_ROOT}}/myapp"
+        
+      # Upload the artifact for deployment
+      - name: Upload artifact for deployment job
+        uses: actions/upload-artifact@v4
+        with:
+          name: .net-app
+          path: ${{env.DOTNET_ROOT}}/myapp
+
+  deploy:
+    runs-on: windows-latest
+    needs: build
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+
+    steps:
+      # Download artifact from the build job
+      - name: Download artifact from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: .net-app
+
+      # Deploy to Azure Web App
+      - name: Deploy to Azure Web App
+        id: deploy-to-webapp
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: 'apiauthenticationtest001'
+          slot-name: 'Production'
+          package: .
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_93ACD9B785F94556BCE654074D622911 }}
