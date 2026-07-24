@@ -89,11 +89,32 @@ public class TokenProvider : ITokenProvider
        
     }
 
+    /// <summary>
+    /// Emits role claims for authorisation (spec §6.1, §6.4).
+    ///
+    /// Both forms are written deliberately:
+    ///   - the stored/legacy label, so existing `[Authorize(Roles = "Admin")]`
+    ///     attributes and any client reading the raw name keep working;
+    ///   - the normalised spec code, which is what new authorisation rules use.
+    /// Emitting only the spec code would silently break every legacy check at
+    /// once; emitting only the legacy label makes the spec matrix unenforceable.
+    /// </summary>
     private static void AddRolesToClaims(User user, List<Claim> claims)
     {
+        var emitted = new HashSet<string>(StringComparer.Ordinal);
+
         foreach (var role in user.GetRoleNames())
         {
-            claims.Add(new Claim(ClaimTypes.Role, role));
+            if (!string.IsNullOrWhiteSpace(role) && emitted.Add(role))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, role));
+            }
+
+            var specCode = RoleCodes.Normalize(role);
+            if (emitted.Add(specCode))
+            {
+                claims.Add(new Claim(ClaimTypes.Role, specCode));
+            }
         }
     }
 

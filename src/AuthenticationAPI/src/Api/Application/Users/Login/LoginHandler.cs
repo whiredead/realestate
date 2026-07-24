@@ -61,7 +61,10 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResponse>
                         AccessToken = token,
                         IsAutheticated = true,
                         Message = "Logged In Successfully",
-                        Roles = user.GetRoleNames(),
+                        // Spec §6.1 codes, not the stored legacy labels: the UI
+                        // gates on these, and §6.4 requires one shared role
+                        // vocabulary between API and interface.
+                        Roles = RoleCodes.Normalize(user.GetRoleNames()).ToList(),
                     };
 
                     return response;

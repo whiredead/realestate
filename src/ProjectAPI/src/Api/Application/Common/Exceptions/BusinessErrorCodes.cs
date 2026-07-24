@@ -52,6 +52,13 @@ public static class BusinessErrorCodes
     /// <summary>The caller is not authenticated.</summary>
     public const string Unauthorized = "UNAUTHORIZED";
 
+    /// <summary>
+    /// The resource belongs to a project outside the caller's assigned
+    /// perimeter (§6.4). Distinct from <see cref="Unauthorized"/>: the caller
+    /// is authenticated and correctly roled, just not assigned here.
+    /// </summary>
+    public const string ProjectScopeDenied = "PROJECT_SCOPE_DENIED";
+
     /// <summary>An unexpected server-side failure.</summary>
     public const string InternalError = "INTERNAL_ERROR";
 }
