@@ -11,6 +11,8 @@ using ProjectAPI.Api.Application.Units.CreateProjectUnit;
 using ProjectAPI.Api.Application.Units.GetAllUnits;
 using ProjectAPI.Api.Application.Units.GetUnitsByProjectId;
 using ProjectAPI.Api.Application.Units.UpdateUnit;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 /// <summary>
@@ -18,7 +20,7 @@ namespace ProjectAPI.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-//[Authorize(AuthenticationSchemes = "Bearer")]
+[Authorize] // Fail closed. Catalogue reads opt out with [AllowAnonymous]; stock writes are admin-only (§6.3).
 public class ImmeubleController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -39,9 +41,9 @@ public class ImmeubleController : ControllerBase
     /// <param name="command">The command containing the details for the new immeuble.</param>
     /// <returns>The response containing the unique identifier of the created immeuble.</returns>
     [HttpPost]
+    [Authorize(Roles = RoleGroups.Admins)] // §6.3 Stock: "A périmètre".
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    //[CustomAuthorize("Agent")]
     public async Task<IActionResult> CreateImmeuble([FromBody] CreateImmeubleCommand command)
     {
 
@@ -75,6 +77,7 @@ public class ImmeubleController : ControllerBase
     /// <param name="query">The query containing filter and pagination parameters.</param>
     /// <returns>The response containing a paginated list of immeubles.</returns>
     [HttpGet]
+    [AllowAnonymous] // §6.3 Catalogue public.
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAllImmeubles([FromQuery] GetAllImmeublesQuery query)
@@ -97,6 +100,7 @@ public class ImmeubleController : ControllerBase
     /// <param name="id">The ID of the immeuble to retrieve.</param>
     /// <returns>The immeuble details.</returns>
     [HttpGet("{id}")]
+    [AllowAnonymous] // §6.3 Catalogue public.
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetImmeubleById(Guid id)
@@ -112,9 +116,9 @@ public class ImmeubleController : ControllerBase
     /// <param name="command">The immeuble update details.</param>
     /// <returns>The updated immeuble details.</returns>
     [HttpPut("{id}")]
+    [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    //[CustomAuthorize("Admin, Agent")]
     public async Task<IActionResult> UpdateImmeuble(Guid id, [FromBody] UpdateImmeubleCommand command)
     {
         if (id != command.Id)
@@ -133,9 +137,9 @@ public class ImmeubleController : ControllerBase
     /// <param name="id">The ID of the immeuble to delete.</param>
     /// <returns>A response indicating the result of the delete operation.</returns>
     [HttpDelete("{id}")]
+    [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    //[CustomAuthorize("Admin")]
     public async Task<IActionResult> DeleteImmeuble(Guid id)
     {
         var command = new DeleteImmeublesCommand(id);
@@ -154,9 +158,9 @@ public class ImmeubleController : ControllerBase
     /// <param name="command">The command containing the list of units to be added.</param>
     /// <returns>A response indicating the result of the add operation.</returns>
     [HttpPost("{immeubleId}/units")]
+    [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    //[CustomAuthorize("Agent")]
     public async Task<IActionResult> AddUnitsToImmeuble(Guid immeubleId, [FromBody] CreateProjectUnitCommand command)
     {
         command.ProjectId = immeubleId;
@@ -170,6 +174,7 @@ public class ImmeubleController : ControllerBase
     /// <param name="query">Query parameters including immeuble ID, page number, and page size.</param>
     /// <returns>A paginated list of units associated with the specified immeuble.</returns>
     [HttpGet("by-immeuble")]
+    [AllowAnonymous] // §6.3 Catalogue public — biens d'un immeuble.
     public async Task<IActionResult> GetUnitsByImmeubleId([FromQuery] GetUnitsByProjectIdQuery query)
     {
         var response = await _mediator.Send(query);
@@ -182,12 +187,14 @@ public class ImmeubleController : ControllerBase
     /// <param name="queryParams">Query parameters to filter units.</param>
     /// <returns>A filtered and paginated list of units.</returns>
     [HttpGet("all")]
+    [AllowAnonymous] // §6.3 Catalogue public — liste des biens.
     public async Task<IActionResult> GetAllUnits([FromQuery] GetAllUnitsQuery queryParams)
     {
         var response = await _mediator.Send(queryParams);
         return Ok(response);
     }
     [HttpPut("update/{id}")]
+    [Authorize(Roles = RoleGroups.Admins)] // §6.3 Stock et prix: "A périmètre".
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateUnit(Guid id, [FromBody] UpdateUnitCommand command)
@@ -207,6 +214,7 @@ public class ImmeubleController : ControllerBase
     /// <param name="command">The command containing the features to add.</param>
     /// <returns>Success status.</returns>
     [HttpPost("features")]
+    [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddImmeubleFeatures([FromBody] AddImmeubleFeatureCommand command)
@@ -221,6 +229,7 @@ public class ImmeubleController : ControllerBase
     /// <param name="query">The query containing the Immeuble ID.</param>
     /// <returns>List of features.</returns>
     [HttpGet("features")]
+    [AllowAnonymous] // §6.3 Catalogue public.
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetImmeubleFeatures([FromQuery] GetImmeubleFeaturesQuery query)
@@ -232,6 +241,7 @@ public class ImmeubleController : ControllerBase
         return Ok(features);
     }
     [HttpPost("{immeubleId}/tracking")]
+    [Authorize(Roles = RoleGroups.Admins)] // §6.3 Avancement construction: "A périmètre".
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddImmeubleTracking([FromRoute] Guid immeubleId, [FromBody] AddImmeubleTrackingCommand command)
@@ -246,6 +256,7 @@ public class ImmeubleController : ControllerBase
     }
 
     [HttpGet("{immeubleId}/tracking")]
+    [AllowAnonymous] // §6.3 Avancement construction: "L publié" pour le visiteur.
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetImmeubleTracking([FromRoute] Guid immeubleId)

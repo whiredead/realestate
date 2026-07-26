@@ -1,6 +1,9 @@
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
+using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Reservations.ResubmitReservation;
 
@@ -15,10 +18,17 @@ namespace ProjectAPI.Api.Application.Reservations.ResubmitReservation;
 public class ResubmitReservationHandler : IRequestHandler<ResubmitReservationCommand, bool>
 {
     private readonly IReservationRepository _reservationRepo;
+    private readonly IUnitStatusService _unitStatus;
+    private readonly ApplicationDbContext _db;
 
-    public ResubmitReservationHandler(IReservationRepository reservationRepo)
+    public ResubmitReservationHandler(
+        IReservationRepository reservationRepo,
+        IUnitStatusService unitStatus,
+        ApplicationDbContext db)
     {
         _reservationRepo = reservationRepo;
+        _unitStatus = unitStatus;
+        _db = db;
     }
 
     public async Task<bool> Handle(ResubmitReservationCommand request, CancellationToken ct)
@@ -46,6 +56,8 @@ public class ResubmitReservationHandler : IRequestHandler<ResubmitReservationCom
             }
         }
 
+        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
         reservation.Status = ReservationStatus.Pending;
 
         if (!string.IsNullOrWhiteSpace(request.AgentNote))
@@ -53,8 +65,22 @@ public class ResubmitReservationHandler : IRequestHandler<ResubmitReservationCom
             reservation.AdminNote = request.AgentNote;
         }
 
+        // Submitting a DRAFT is the moment the unit gets held (§3). Resubmitting a
+        // CHANGES_REQUESTED reservation re-asserts a hold the unit already has
+        // (§5.3: "resubmit; unit stays held"), so this is the idempotent variant —
+        // it writes no history row when nothing actually moves.
+        await _unitStatus.TransitionIfNeededAsync(
+            reservation.UnitId,
+            UnitCommercialStatus.HoldPendingApproval,
+            UnitStatusCause.ReservationSubmitted,
+            reservationId: reservation.Id,
+            actorUserId: reservation.AgentId,
+            ct: ct);
+
         await _reservationRepo.Update(reservation);
         await _reservationRepo.SaveAsync();
+
+        await transaction.CommitAsync(ct);
 
         return true;
     }

@@ -2,6 +2,7 @@
 using ProjectAPI.Api.Application.Feedbacks.GetFeedback;
 using ProjectAPI.Api.Application.Feedbacks.GetFeedbackById;
 using ProjectAPI.Api.Application.Feedbacks.SubmitFeedback;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Extensions;
 using System.Security.Claims;
 
@@ -42,10 +43,7 @@ public class FeedbackController : ControllerBase
     /// <param name="feedbackId">The ID of the feedback to retrieve.</param>
     /// <returns>A response containing feedback details, including user and project information.</returns>
     [HttpGet("{feedbackId}")]
-    //[Authorize(Roles = "Admin, Agent")]
-    [AllowAnonymous]
-
-
+    // Authenticated (class-level Bearer). The inline role gate below narrows it.
     public async Task<IActionResult> GetFeedbackById(Guid feedbackId)
     {
         var rolesClaim = User.FindFirst("Roles")?.Value ?? User.FindFirst(ClaimTypes.Role)?.Value;
@@ -75,9 +73,7 @@ public class FeedbackController : ControllerBase
     /// <param name="pageSize">The number of items per page for pagination (default is 10).</param>
     /// <returns>A response containing a paginated list of feedback matching the filters.</returns>
     [HttpGet("feedbacks")]
-    //[Authorize(Roles = "Acheteur,Admin,Agent")]
-    [AllowAnonymous]
-
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // §8.6 modération — admin/agent.
     public async Task<IActionResult> GetFeedbacks(
         [FromQuery] string? userId,
         [FromQuery] Guid? projectId,

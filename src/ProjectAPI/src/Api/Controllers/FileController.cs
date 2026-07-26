@@ -2,6 +2,7 @@
 using ProjectAPI.Api.Application.Common.BlobOperations.UpdateBlob;
 using ProjectAPI.Api.Application.Common.BlobOperations.UploadToblob;
 using ProjectAPI.Domain.Common.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 
@@ -10,6 +11,7 @@ namespace ProjectAPI.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize] // §24.2/§34 — documents privés: no anonymous upload/download/delete.
 public class FileController : ControllerBase
 {
     private readonly IMediator _mediator;

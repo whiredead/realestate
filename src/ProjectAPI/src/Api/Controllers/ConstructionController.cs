@@ -6,6 +6,8 @@ using ProjectAPI.Api.Application.Construction.UpdateMilestoneStatus;
 using ProjectAPI.Api.Application.Construction.UpdateTitleStatus;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Infrastructure.Context;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 
@@ -14,6 +16,7 @@ namespace ProjectAPI.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/construction")]
+[Authorize] // Published progress is public (opt-out below); writes are admin (§6.3).
 public class ConstructionController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -27,6 +30,7 @@ public class ConstructionController : ControllerBase
 
     /// <summary>Milestones and published updates for a project (§15).</summary>
     [HttpGet("projects/{projectId:guid}")]
+    [AllowAnonymous] // §6.3 Avancement construction: "L publié" pour le visiteur.
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetProjectConstruction(Guid projectId, CancellationToken ct)
     {
@@ -123,6 +127,7 @@ public class ConstructionController : ControllerBase
     }
 
     /// <summary>Moves the title status, tracing the change (§16).</summary>
+    [Authorize(Roles = RoleGroups.Admins)] // §16 title status — admin-managed.
     [HttpPatch("units/{unitId:guid}/title")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -135,6 +140,7 @@ public class ConstructionController : ControllerBase
     }
 
     /// <summary>Creates a weighted milestone (§15.1).</summary>
+    [Authorize(Roles = RoleGroups.Admins)] // §15 planning — admin.
     [HttpPost("projects/{projectId:guid}/milestones")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -146,6 +152,7 @@ public class ConstructionController : ControllerBase
     }
 
     /// <summary>Updates a milestone's status (§15.1 FR-CON-002).</summary>
+    [Authorize(Roles = RoleGroups.Admins)]
     [HttpPatch("milestones/{milestoneId:guid}/status")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -158,6 +165,7 @@ public class ConstructionController : ControllerBase
     }
 
     /// <summary>Publishes a progress update (§15.2).</summary>
+    [Authorize(Roles = RoleGroups.Admins)] // §15.2 FR-CON-003 publication — admin.
     [HttpPost("projects/{projectId:guid}/updates")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -169,6 +177,7 @@ public class ConstructionController : ControllerBase
     }
 
     /// <summary>Marks the project COMPLETED, opening final visits (§15.3, §17.1).</summary>
+    [Authorize(Roles = RoleGroups.Admins)] // §15.3 FR-CON-005 — admin.
     [HttpPost("projects/{projectId:guid}/complete")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

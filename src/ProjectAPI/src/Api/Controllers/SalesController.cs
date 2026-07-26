@@ -3,12 +3,15 @@ using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Sales.AddPayment;
 using ProjectAPI.Api.Application.Sales.GetSalesByUser;
 using ProjectAPI.Domain.Sales.CreateSale;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 using System.Text.Json;
 
 namespace ProjectAPI.Api.Controllers;
 
 [ApiController]
 [Route("api/sales")]
+[Authorize] // Writes are notary/admin (per-action); a buyer may read their own sales.
 public class SalesController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -25,6 +28,7 @@ public class SalesController : ControllerBase
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
+    [Authorize(Roles = RoleGroups.AdminsNotary)] // §12.4 — conversion to sale is recorded by notary/admin.
     public async Task<IActionResult> Create([FromBody] CreateSaleCommand cmd)
     {
         var requestId = Guid.NewGuid().ToString("N")[..8];
@@ -84,6 +88,7 @@ public class SalesController : ControllerBase
     }
 
     [HttpPost("{saleId:guid}/payments")]
+    [Authorize(Roles = RoleGroups.Admins)] // §6.3 Paiements: "C/M périmètre" — admin records payments.
     [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]

@@ -2,6 +2,7 @@
 using ProjectAPI.Api.Application.Appointments.CreateAppointment;
 using ProjectAPI.Api.Application.Appointments.GetAppointments;
 using ProjectAPI.Api.Application.Appointments.UpdateAppointmentStatus;
+using ProjectAPI.Api.Application.Common.Security;
 
 namespace ProjectAPI.Api.Controllers;
 
@@ -23,7 +24,7 @@ public class AppointmentsController : ControllerBase
     /// <param name="command">The appointment creation command.</param>
     /// <returns>A response containing the appointment ID and a success message.</returns>
     [HttpPost]
-    [AllowAnonymous]
+    [AllowAnonymous] // §6.3 RDV commercial: "C" pour le visiteur — demande publique conservée.
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateAppointment([FromBody] CreateAppointmentCommand command)
@@ -61,8 +62,7 @@ public class AppointmentsController : ControllerBase
     /// <param name="query">The filters and pagination options for retrieving appointments.</param>
     /// <returns>A paginated response containing a list of appointments.</returns>
     [HttpGet]
-    [AllowAnonymous]
-    //[Authorize(Roles = "Agent,Acheteur")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // §6.3 — agenda interne, agent/admin.
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -79,8 +79,7 @@ public class AppointmentsController : ControllerBase
     /// <param name="command">The command to update the appointment status.</param>
     /// <returns>A response indicating the success or failure of the update.</returns>
     [HttpPatch("{appointmentId}/status")]
-    //[Authorize(Roles = "Agent")]
-    [AllowAnonymous]
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // §6.3 RDV commercial: "V/M" — agent/admin.
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]

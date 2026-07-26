@@ -1,16 +1,26 @@
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
+using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Reservations.CancelReservation;
 
 public class CancelReservationHandler : IRequestHandler<CancelReservationCommand, CancelReservationResponse>
 {
     private readonly IReservationRepository _reservationRepository;
+    private readonly IUnitStatusService _unitStatus;
+    private readonly ApplicationDbContext _db;
 
-    public CancelReservationHandler(IReservationRepository reservationRepository)
+    public CancelReservationHandler(
+        IReservationRepository reservationRepository,
+        IUnitStatusService unitStatus,
+        ApplicationDbContext db)
     {
         _reservationRepository = reservationRepository;
+        _unitStatus = unitStatus;
+        _db = db;
     }
 
     public async Task<CancelReservationResponse> Handle(CancelReservationCommand request, CancellationToken cancellationToken)
@@ -24,10 +34,24 @@ public class CancelReservationHandler : IRequestHandler<CancelReservationCommand
         // or Expired reservation could be "cancelled".
         ReservationStateMachine.EnsureCanTransition(reservation.Status, ReservationStatus.Cancelled);
 
+        // §3 — returning a RESERVED unit to AVAILABLE is never automatic; it is
+        // exactly this administrative cancellation. The release is recorded with
+        // its cause so the history explains why the unit went back on sale.
+        await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
         reservation.Status = ReservationStatus.Cancelled;
+
+        await _unitStatus.TransitionAsync(
+            reservation.UnitId,
+            UnitCommercialStatus.Available,
+            UnitStatusCause.ReservationCancelled,
+            reservationId: reservation.Id,
+            ct: cancellationToken);
 
         // Save changes
         await _reservationRepository.SaveAsync();
+
+        await transaction.CommitAsync(cancellationToken);
 
         return new CancelReservationResponse
         {

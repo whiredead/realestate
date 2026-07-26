@@ -1,9 +1,12 @@
 ﻿using ProjectAPI.Api.Application.Sales.ScheduleDelivery;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 
 [ApiController]
 [Route("api/deliveries")]
+[Authorize(Roles = RoleGroups.AdminsAgents)] // §6.3 Livraison: "C/M affecté" agent, "A périmètre" admin.
 public class DeliveriesController : ControllerBase
 {
     private readonly IMediator _mediator;

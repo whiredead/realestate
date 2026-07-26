@@ -111,7 +111,7 @@ public class ProjectScopeService
 
         if (!owns)
         {
-            throw BusinessRuleException.ProjectScopeDenied(Guid.Empty);
+            throw BusinessRuleException.BuyerScopeDenied();
         }
     }
 }

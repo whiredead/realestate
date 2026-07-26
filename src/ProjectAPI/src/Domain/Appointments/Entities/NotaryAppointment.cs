@@ -15,7 +15,27 @@ public class NotaryAppointment
     public string? ConnectedUserId { get; set; } // The ID of the user in the system making the appointment
     public Guid ReservationId { get; set; } // The reservation associated with this appointment
     public DateTime AppointmentDate { get; set; }
-    public string Status { get; set; } // e.g., Scheduled, Completed, Cancelled
+
+    /// <summary>
+    /// Lifecycle of the meeting itself, on the shared appointment machine (§5.1).
+    /// Says nothing about what the meeting decided — see <see cref="Outcome"/>.
+    /// </summary>
+    public string Status { get; set; }
+
+    /// <summary>
+    /// What the appointment decided (§5.7). Null until the appointment completes;
+    /// completing one without an outcome is refused, because the outcome — not the
+    /// status — is what converts the sale. Only PURCHASE_COMPLETED does anything.
+    /// </summary>
+    public NotaryAppointmentOutcome? Outcome { get; set; }
+
+    public DateTime? OutcomeRecordedAt { get; set; }
+
+    /// <summary>Taken from the token, not the request body.</summary>
+    public string? OutcomeRecordedBy { get; set; }
+
+    /// <summary>Free-text note explaining a non-completing outcome.</summary>
+    public string? OutcomeNote { get; set; }
 
     // Reservation Info for disconnected users
     public string? BuyerFirstName { get; set; }

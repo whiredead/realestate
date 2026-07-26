@@ -1,4 +1,5 @@
 ﻿using ProjectAPI.Api.Application.Common.Behaviours;
+using ProjectAPI.Api.Application.Common.Security;
 
 namespace ProjectAPI.Api.Application;
 
@@ -33,6 +34,16 @@ public static class DependencyInjection
 
         // Keeps the legacy Purchase totals in step with the payment ledger (§14.3).
         services.AddScoped<Payments.PurchaseTotalsService>();
+
+        // §3 / §7 — the single writer for a unit's commercial status. Scoped so it
+        // shares the caller's DbContext and therefore the caller's transaction.
+        services.AddScoped<Common.Units.IUnitStatusService, Common.Units.UnitStatusService>();
+
+        // §6.4 — caller identity and project perimeter. Scoped, not singleton:
+        // both read the current request's claims, so they must not outlive it.
+        services.AddHttpContextAccessor();
+        services.AddScoped<ICurrentUser, CurrentUser>();
+        services.AddScoped<ProjectScopeService>();
 
         return services;
     }

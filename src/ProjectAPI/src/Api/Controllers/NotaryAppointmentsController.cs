@@ -12,8 +12,7 @@ namespace ProjectAPI.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
-//[Authorize(Roles = "Admin,Notaire")]
-[AllowAnonymous]
+[Authorize] // §6.3 RDV notaire — no anonymous access (was wide open). Buyer/agent/notary/admin per §6.3.
 public class NotaryAppointmentsController : ControllerBase
 {
     private readonly IMediator _mediator;

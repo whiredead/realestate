@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Identity;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
 using ProjectAPI.Domain.Users.Entities;
+using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Reservations.CreateReservation
 {
@@ -12,15 +15,21 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
         private readonly IReservationRepository _reservationRepository;
         private readonly IUnitRepository _unitRepository;
         private readonly UserManager<User> _userManager;
-    
+        private readonly IUnitStatusService _unitStatus;
+        private readonly ApplicationDbContext _db;
+
         public CreateReservationHandler(
             IReservationRepository reservationRepository,
             IUnitRepository unitRepository,
-            UserManager<User> userManager)
+            UserManager<User> userManager,
+            IUnitStatusService unitStatus,
+            ApplicationDbContext db)
         {
             _reservationRepository = reservationRepository;
             _unitRepository = unitRepository;
             _userManager = userManager;
+            _unitStatus = unitStatus;
+            _db = db;
         }
     
         public async Task<CreateReservationResponse> Handle(CreateReservationCommand request, CancellationToken cancellationToken)
@@ -44,6 +53,14 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                      r.Status == ReservationStatus.Sold));
 
                 if (activeForUnit.Any())
+                {
+                    throw BusinessRuleException.UnitNotAvailable(request.UnitId);
+                }
+
+                // §3 — only an AVAILABLE unit is selectable. Checking the unit's own
+                // status as well as the reservation table catches a unit that was
+                // suspended or cancelled administratively without a live reservation.
+                if (!UnitStateMachine.IsSelectable(unit.Status))
                 {
                     throw BusinessRuleException.UnitNotAvailable(request.UnitId);
                 }
@@ -74,8 +91,23 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                     CreatedAt = DateTime.UtcNow
                 };
 
+                // §3 — the reservation row and the unit hold are one atomic act.
+                // Committing the reservation without the hold (or vice versa) is
+                // exactly the drift that left units AVAILABLE while reserved.
+                await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
+
                 await _reservationRepository.InsertAsync(reservation);
+
+                await _unitStatus.TransitionAsync(
+                    request.UnitId,
+                    UnitCommercialStatus.HoldPendingApproval,
+                    UnitStatusCause.ReservationSubmitted,
+                    reservationId: reservation.Id,
+                    actorUserId: request.AgentId,
+                    ct: cancellationToken);
+
                 await _reservationRepository.SaveAsync();
+                await transaction.CommitAsync(cancellationToken);
 
                 var referencedEntities = new List<string>();
                 if (!string.IsNullOrEmpty(request.BuyerId))

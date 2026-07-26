@@ -1,14 +1,17 @@
 using ProjectAPI.Api.Application.TypeBiens.CreateTypeBien;
 using ProjectAPI.Api.Application.TypeBiens.DeleteTypeBien;
 using ProjectAPI.Api.Application.TypeBiens.UpdateTypeBien;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 
 /// <summary>
-/// Controller for managing TypeBiens.
+/// Controller for managing TypeBiens (property types — reference data).
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = RoleGroups.Admins)] // Reference data managed by admins (§6.3 stock/paramétrage).
 public class TypeBiensController : ControllerBase
 {
     private readonly IMediator _mediator;

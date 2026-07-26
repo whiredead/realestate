@@ -1,5 +1,6 @@
 ﻿using AuthenticationAPI.Api.Application.AuthenticationOtp.DemandeCode;
 using AuthenticationAPI.Api.Application.AuthenticationOtp.VerifyCode;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AuthenticationAPI.Api.Controllers;
 
@@ -8,6 +9,7 @@ namespace AuthenticationAPI.Api.Controllers;
 /// </summary>
 [Route("anonym-users")]
 [ApiController]
+[AllowAnonymous] // Public phone-login flow: both steps run before a session exists.
 public class OtpVerificationController : ControllerBase
 {
     private readonly ISender _mediator;

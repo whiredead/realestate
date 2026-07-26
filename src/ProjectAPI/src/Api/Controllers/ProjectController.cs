@@ -18,12 +18,15 @@ using ProjectAPI.Api.Application.Quartiers.GetQuartierById;
 using ProjectAPI.Api.Application.Quartiers.GetQuartiers;
 using ProjectAPI.Api.Application.TypeBiens.AssociateToProject;
 using ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByProject;
+using ProjectAPI.Api.Application.Projects.GetQuartierAmenities;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-//[Authorize(AuthenticationSchemes = "Bearer")]
+[Authorize] // Fail closed. Public catalogue reads opt out with [AllowAnonymous]; writes are admin-only (§6.3).
 public class ProjectsController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -34,6 +37,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Roles = RoleGroups.Admins)] // §6.3 Catalogue: "A périmètre" — création réservée aux admins.
     public async Task<IActionResult> CreateProject([FromBody] CreateProjectCommand command)
     {
         var result = await _mediator.Send(command);
@@ -41,7 +45,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpGet]
-    //[CustomAuthorize("Agent")]
+    [AllowAnonymous] // §6.3 Catalogue public: "L" pour le visiteur.
     public async Task<IActionResult> GetAllProjects([FromQuery] GetAllProjectsQuery query)
     {
         /*var idClaims = User.FindFirst("userId")?.Value;
@@ -56,6 +60,7 @@ public class ProjectsController : ControllerBase
     /// <param name="command">The project update details.</param>
     /// <returns>The updated project data.</returns>
     [HttpPut("{id}")]
+    [Authorize(Roles = RoleGroups.Admins)]
     public async Task<ActionResult<ProjectResponse>> UpdateProject(Guid id, [FromBody] UpdateProjectCommand command)
     {
         if (id != command.Id)
@@ -101,6 +106,7 @@ public class ProjectsController : ControllerBase
     /// <param name="command">The command containing the features to add.</param>
     /// <returns>Success status.</returns>
     [HttpPost("features")]
+    [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> AddProjectFeatures([FromBody] AddProjectFeatureCommand command)
@@ -114,6 +120,7 @@ public class ProjectsController : ControllerBase
     /// Body: [ "featureId1", "featureId2", … ]
     /// </summary>
     [HttpDelete("RemoveFeatures")]
+    [Authorize(Roles = RoleGroups.Admins)]
     public async Task<IActionResult> RemoveFeatures([FromBody] RemoveProjectFeatureCommand command)
     {
         await _mediator.Send(command);
@@ -124,7 +131,19 @@ public class ProjectsController : ControllerBase
     /// </summary>
     /// <param name="query">The query containing the Project ID.</param>
     /// <returns>List of features.</returns>
+    /// <summary>
+    /// Neighbourhood amenities for a project's "Quartier" tab (§ reference site).
+    /// </summary>
+    [HttpGet("quartier-amenities")]
+    [AllowAnonymous] // §6.3 Catalogue public.
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetQuartierAmenities([FromQuery] GetQuartierAmenitiesQuery query)
+    {
+        return Ok(await _mediator.Send(query));
+    }
+
     [HttpGet("features")]
+    [AllowAnonymous] // §6.3 Catalogue public.
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProjectFeatures([FromQuery] GetProjectFeaturesQuery query)
@@ -142,6 +161,7 @@ public class ProjectsController : ControllerBase
     /// <param name="command">The command containing quartier details (name, description, images).</param>
     /// <returns>Returns a response containing the newly created quartier ID and a success message.</returns>
     [HttpPost("quartiers")]
+    [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(typeof(CreateQuartierResponse), 201)]
     [ProducesResponseType(400)]
     public async Task<IActionResult> CreateQuartier([FromBody] CreateQuartierCommand command)
@@ -156,6 +176,7 @@ public class ProjectsController : ControllerBase
     }
 
     [HttpGet("quartiers")]
+    [AllowAnonymous] // §6.3 Catalogue public (quartier = donnée publique §7.2).
     [ProducesResponseType(typeof(PaginatedResponse<QuartierListItem>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetQuartiers([FromQuery] GetQuartiersQuery query)
@@ -174,6 +195,7 @@ public class ProjectsController : ControllerBase
     /// <param name="id">The ID of the quartier to retrieve.</param>
     /// <returns>The quartier details if found, otherwise a 404 Not Found.</returns>
     [HttpGet("quartiers/{id}")]
+    [AllowAnonymous] // §6.3 Catalogue public.
     [ProducesResponseType(typeof(GetQuartierByIdResponse), 200)]
     [ProducesResponseType(404)]
     public async Task<IActionResult> GetQuartierById(Guid id)
@@ -189,6 +211,7 @@ public class ProjectsController : ControllerBase
         return Ok(response);
     }
     [HttpPost("{projectId}/videos")]
+    [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateEspaceTempsReel(Guid projectId, [FromBody] CreateEspaceTempsReelCommand command)
@@ -212,6 +235,7 @@ public class ProjectsController : ControllerBase
     /// <param name="id">The ID of the EspaceTempsReel to retrieve.</param>
     /// <returns>The EspaceTempsReel details if found, otherwise a 404.</returns>
     [HttpGet("videos/{id}")]
+    [AllowAnonymous] // §6.3 Catalogue public (lien 3D/vidéo, §8.3 FR-PUB-007).
     public async Task<IActionResult> GetEspaceTempsReelById(Guid id)
     {
         var query = new GetEspaceTempsReelByIdQuery { Id = id };
@@ -226,6 +250,7 @@ public class ProjectsController : ControllerBase
     /// <param name="projectId">The ID of the project.</param>
     /// <returns>A list of videos associated with the project.</returns>
     [HttpGet("{projectId}/videos")]
+    [AllowAnonymous] // §6.3 Catalogue public.
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetVideosByProjectId(Guid projectId)
     {
@@ -262,6 +287,7 @@ public class ProjectsController : ControllerBase
     /// <param name="projectId">The ID of the project to remove.</param>
     /// <returns>The result of the removal operation.</returns>
     [HttpDelete("{projectId}")]
+    [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -280,6 +306,7 @@ public class ProjectsController : ControllerBase
     /// Associates an existing TypeBien to a Project.
     /// </summary>
     [HttpPost("{projectId}/type-biens")]
+    [Authorize(Roles = RoleGroups.Admins)]
     public async Task<IActionResult> AssociateTypeBienToProject(Guid projectId, [FromBody] AssociateTypeBienToProjectCommand command)
     {
         command.ProjectId = projectId;
@@ -291,6 +318,7 @@ public class ProjectsController : ControllerBase
     /// Gets the list of TypeBiens associated with a specific Project.
     /// </summary>
     [HttpGet("{projectId}/type-biens")]
+    [AllowAnonymous] // §6.3 Catalogue public.
     public async Task<IActionResult> GetTypeBiensByProject(Guid projectId)
     {
         var query = new GetTypeBiensByProjectQuery { ProjectId = projectId };
@@ -302,6 +330,7 @@ public class ProjectsController : ControllerBase
     /// Gets all TypeBiens (when no projectId is specified).
     /// </summary>
     [HttpGet("type-biens")]
+    [AllowAnonymous] // §6.3 Catalogue public.
     public async Task<IActionResult> GetAllTypeBiens()
     {
         var query = new GetTypeBiensByProjectQuery { ProjectId = null };

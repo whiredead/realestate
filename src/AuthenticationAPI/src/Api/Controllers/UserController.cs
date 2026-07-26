@@ -11,14 +11,20 @@ using AuthenticationAPI.Api.Application.Users.Register;
 using AuthenticationAPI.Api.Application.Users.ResetPassword;
 using AuthenticationAPI.Api.Application.Users.UnlockUser;
 using AuthenticationAPI.Api.Application.Users.UpdateUser;
+using AuthenticationAPI.Domain.ApplicationUser.Entities;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AuthenticationAPI.Api.Controllers;
 
 
 [Route("api/[controller]")]
 [ApiController]
+[Authorize] // Fail closed: every action requires auth unless it opts out below.
 public class UserController : ControllerBase
 {
+    // §6.3 "Utilisateurs internes" / §6.4: only administrators manage accounts.
+    private const string Admins = RoleCodes.GlobalAdmin + "," + RoleCodes.ProjectAdmin;
+
     private readonly ISender _mediator;
     /// <summary>
     /// Constructor for AuthController.
@@ -34,6 +40,7 @@ public class UserController : ControllerBase
     /// <param name="command">The login command.</param>
     /// <returns>Returns a token.</returns>
     [HttpPost("login")]
+    [AllowAnonymous]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Login([FromBody] LoginCommand command)
@@ -56,6 +63,7 @@ public class UserController : ControllerBase
     /// <param name="command">The register command.</param>
     /// <returns>Returns a message.</returns>
     [HttpPost]
+    [AllowAnonymous] // §6.2 public signup; the handler forbids self-assigning an internal role.
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Register([FromBody] RegisterCommand command)
@@ -71,6 +79,7 @@ public class UserController : ControllerBase
     /// <param name="userId">The command containing the user ID.</param>
     /// <returns>A response indicating the result of the email confirmation.</returns>
     [HttpPost("confirm-email")]
+    [AllowAnonymous] // §6.2 — clicked from the verification email, before any session exists.
     public async Task<IActionResult> ConfirmEmail([FromQuery] string token, [FromQuery] string userId)
     {
         var command = new ConfirmEmailCommand
@@ -87,8 +96,10 @@ public class UserController : ControllerBase
     /// </summary>
     /// <returns>Returns a list of users.</returns>
     [HttpGet]
+    [Authorize(Roles = Admins)] // §6.3 "Utilisateurs internes" — admins only.
     [ProducesResponseType(StatusCodes.Status200OK, Type = typeof(List<UserResponse>))]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetUsers([FromQuery] string? roleId, [FromQuery] double? rating,
         [FromQuery] string? userName,[FromQuery] int pageNumber = 1, [FromQuery] int pageSize = 10 )
     {
@@ -143,6 +154,7 @@ public class UserController : ControllerBase
     /// <param name="id">The ID of the user to lock out.</param>
     /// <returns>An action result indicating success.</returns>
     [HttpGet("lockout/{id}")]
+    [Authorize(Roles = Admins)] // §6.4 — suspending an account is an admin action.
     public async Task<IActionResult> LockoutUser([FromRoute] string id)
     {
         var query = new LockoutUserQuery(id);
@@ -156,6 +168,7 @@ public class UserController : ControllerBase
     /// <param name="id">The ID of the user to unlock.</param>
     /// <returns>An action result indicating success.</returns>
     [HttpGet("unlock/{id}")]
+    [Authorize(Roles = Admins)]
     public async Task<IActionResult> UnlockUser([FromRoute] string id)
     {
         var query = new UnlockUserQuery(id);
@@ -164,6 +177,7 @@ public class UserController : ControllerBase
     }
 
     [HttpPost("reset-password")]
+    [AllowAnonymous] // Forgot-password flow: the user has no session at this point.
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordCommand command)
@@ -172,7 +186,8 @@ public class UserController : ControllerBase
         return Ok(res);
     }
 
-[HttpDelete("{id}")]
+    [HttpDelete("{id}")]
+    [Authorize(Roles = Admins)] // §6.4 — a project admin cannot delete accounts; only admins here.
     public async Task<IActionResult> DeleteUser([FromRoute] string id)
     {
         var command = new DeleteUserCommand { UserId = id };
@@ -185,6 +200,7 @@ public class UserController : ControllerBase
     }
 
     [HttpPut("{id}")]
+    [Authorize(Roles = Admins)] // Editing an arbitrary account by id is an admin action (no self-scope check yet).
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

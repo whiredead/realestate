@@ -1,6 +1,8 @@
-﻿using AuthenticationAPI.Domain.ApplicationUser.Entities;
+﻿using System.Security.Claims;
+using AuthenticationAPI.Domain.ApplicationUser.Entities;
 using AuthenticationAPI.Domain.ApplicationUser.Interfaces;
 using AuthenticationAPI.Domain.Common.Interfaces;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 
 namespace AuthenticationAPI.Api.Application.Users.Register;
@@ -14,6 +16,7 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, string>
     private readonly IEmailService _emailService;
     private readonly IPerformanceIndicatorRepository _performanceIndicatorRepository;
     private readonly IWeeklyAvailabilityRepository _weeklyRepo;
+    private readonly IHttpContextAccessor _http;
 
     /// <summary>
     /// Constructor for RegisterHandler.
@@ -21,12 +24,13 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, string>
     /// <param name="userManager">The UserManager for managing user-related operations.</param>
     /// <param name="emailService">The email service for sending confirmation emails.</param>
     /// <param name="performanceIndicatorRepository">The repository for performance indicators.</param>
-    public RegisterHandler(UserManager<User> userManager, IEmailService emailService, IPerformanceIndicatorRepository performanceIndicatorRepository, IWeeklyAvailabilityRepository weeklyRepo)
+    public RegisterHandler(UserManager<User> userManager, IEmailService emailService, IPerformanceIndicatorRepository performanceIndicatorRepository, IWeeklyAvailabilityRepository weeklyRepo, IHttpContextAccessor http)
     {
         _userManager = userManager ?? throw new ArgumentNullException(nameof(userManager));
         _emailService = emailService ?? throw new ArgumentNullException(nameof(emailService));
         _performanceIndicatorRepository = performanceIndicatorRepository ?? throw new ArgumentNullException(nameof(performanceIndicatorRepository));
         _weeklyRepo = weeklyRepo;
+        _http = http;
     }
 
     /// <summary>
@@ -37,8 +41,41 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, string>
     /// <returns>A string indicating the result of the registration operation.</returns>
     public async Task<string> Handle(RegisterCommand request, CancellationToken cancellationToken)
     {
+        // §6.2 — public self-registration may only create a public account
+        // (PROSPECT/BUYER). Creating an internal account (agent, technician,
+        // notary, project/global admin) requires an authenticated administrator;
+        // otherwise anyone could POST themselves an "Admin" role. The endpoint
+        // stays [AllowAnonymous] so the authentication middleware still resolves
+        // an admin's bearer token here when one is present.
+        var wantsInternalRole = request.Roles != null && request.Roles.Any(
+            r => RoleCodes.Internal.Contains(RoleCodes.Normalize(r), StringComparer.Ordinal));
+        if (wantsInternalRole)
+        {
+            var callerIsAdmin = _http.HttpContext?.User?.FindAll(ClaimTypes.Role)
+                .Any(c => RoleCodes.AnyAdmin.Contains(c.Value, StringComparer.Ordinal)) ?? false;
+            if (!callerIsAdmin)
+            {
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new ValidationFailure("Roles",
+                        "Un compte interne ne peut être créé que par un administrateur (§6.2).")
+                });
+            }
+        }
+
         // Map request to your User entity
         var user = request.Adapt<User>();
+
+        // RegisterCommand.Id is a non-nullable Guid, so a caller that omits it
+        // sends Guid.Empty — which Mapster copies straight onto User.Id (a
+        // string key). Every such registration then collides on the primary key
+        // and only the very first account on a fresh database can be created;
+        // the rest surface as an opaque 500. Assign a real id when none was
+        // supplied, and keep honouring an explicit one for seed scripts.
+        if (string.IsNullOrWhiteSpace(user.Id) || user.Id == Guid.Empty.ToString())
+        {
+            user.Id = Guid.NewGuid().ToString();
+        }
 
         // Pick a Discriminator—if there's only one role, use it; otherwise concatenate
         user.Discriminator = request.Roles.Count == 1

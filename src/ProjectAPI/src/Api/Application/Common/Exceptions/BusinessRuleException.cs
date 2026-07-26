@@ -64,4 +64,39 @@ public class BusinessRuleException : Exception
         new(BusinessErrorCodes.NotaryNotEligible,
             "Le dossier n'est pas éligible au rendez-vous notarial : " + string.Join(" ", reasons),
             StatusCodes.Status422UnprocessableEntity);
+
+    // --- Project perimeter (§6.4) --------------------------------------------
+
+    /// <summary>
+    /// §6.4 — the resource belongs to a project the caller is not assigned to.
+    ///
+    /// The message deliberately does not name the project: the caller has just
+    /// been told they may not see it, so echoing its identifier back would
+    /// confirm its existence to someone outside the perimeter. The id is carried
+    /// as a parameter for logging/telemetry at the throw site, not for the user.
+    /// </summary>
+    public static BusinessRuleException ProjectScopeDenied(Guid projectId) =>
+        new(BusinessErrorCodes.ProjectScopeDenied,
+            "Cette ressource n'appartient pas à votre périmètre de projets.",
+            StatusCodes.Status403Forbidden);
+
+    /// <summary>
+    /// §6.4 — "Un acheteur ne peut accéder qu'à ses propres données". Same code
+    /// and status as <see cref="ProjectScopeDenied"/>, but a buyer has no project
+    /// perimeter, so the perimeter wording would be meaningless to them.
+    /// </summary>
+    public static BusinessRuleException BuyerScopeDenied() =>
+        new(BusinessErrorCodes.ProjectScopeDenied,
+            "Vous n'avez pas accès à ce dossier.",
+            StatusCodes.Status403Forbidden);
+
+    /// <summary>
+    /// §6.4 — "Un agent commercial ne peut pas approuver sa propre réservation."
+    /// A separation-of-duties rule: the owning agent, even with admin rights,
+    /// may not be the one who validates the dossier they submitted.
+    /// </summary>
+    public static BusinessRuleException SelfApprovalForbidden() =>
+        new(BusinessErrorCodes.SelfApprovalForbidden,
+            "Vous ne pouvez pas approuver une réservation que vous avez soumise.",
+            StatusCodes.Status403Forbidden);
 }

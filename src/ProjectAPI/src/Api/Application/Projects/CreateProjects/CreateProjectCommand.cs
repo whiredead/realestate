@@ -11,6 +11,9 @@ public class CreateProjectCommand : IRequest<CreateProjectResponse>
 
     public string? Type { get; set; }
 
+    /// <summary>Commercial status (§7.5): ComingSoon | UnderConstruction | Available | Sold.</summary>
+    public string? StatusGlobal { get; set; }
+
     // Optional: existing Quartier
     public Guid? QuartierId { get; set; }
 

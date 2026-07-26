@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Data.SqlClient;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
 using ValidationException = ProjectAPI.Api.Application.Common.Exceptions.ValidationException;
 
@@ -39,6 +40,7 @@ public class ApiExceptionFilter : IExceptionFilter
             { typeof(UnauthorizedAccessException), HandleUnauthorizedAccessException },
             { typeof(BusinessRuleException), HandleBusinessRuleException },
             { typeof(InvalidReservationTransitionException), HandleInvalidTransitionException },
+            { typeof(InvalidUnitTransitionException), HandleInvalidUnitTransitionException },
             { typeof(Exception), HandleGlobalException }
         };
     }
@@ -183,6 +185,31 @@ public class ApiExceptionFilter : IExceptionFilter
 
         _logger.LogInformation(
             "[Transition] refused {From} -> {To} on {Path}",
+            exception.From, exception.To, context.HttpContext.Request.Path);
+
+        context.ExceptionHandled = true;
+    }
+
+    /// <summary>
+    /// Maps a refused unit transition to 409 INVALID_STATUS_TRANSITION (§3, §7).
+    /// </summary>
+    private void HandleInvalidUnitTransitionException(ExceptionContext context)
+    {
+        var exception = (InvalidUnitTransitionException)context.Exception;
+
+        var details = new ProblemDetails
+        {
+            Title = "Transition de statut non autorisée.",
+            Detail = exception.Message,
+            Type = "https://docs.gpia.example/problems/invalid-status-transition"
+        };
+
+        Enrich(details, context, BusinessErrorCodes.InvalidStatusTransition, StatusCodes.Status409Conflict);
+
+        context.Result = new ObjectResult(details) { StatusCode = StatusCodes.Status409Conflict };
+
+        _logger.LogInformation(
+            "[UnitTransition] refused {From} -> {To} on {Path}",
             exception.From, exception.To, context.HttpContext.Request.Path);
 
         context.ExceptionHandled = true;

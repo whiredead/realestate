@@ -4,6 +4,8 @@ using ProjectAPI.Api.Application.FinalVisits.RequestFinalVisit;
 using ProjectAPI.Api.Application.FinalVisits.SubmitFinalVisitReport;
 using ProjectAPI.Api.Application.FinalVisits.TransitionSnag;
 using ProjectAPI.Api.Application.FinalVisits.TransitionVisitAppointment;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 
@@ -13,6 +15,7 @@ namespace ProjectAPI.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/final-visits")]
+[Authorize] // §6.3 Visite finale: buyer requests/acknowledges (own); agent/admin manage (affecté).
 public class FinalVisitsController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -34,6 +37,7 @@ public class FinalVisitsController : ControllerBase
     }
 
     /// <summary>Confirms, reschedules, rejects, cancels or completes an attempt (§17.2).</summary>
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // §17.2 — appointment handling by the commercial agent/admin.
     [HttpPost("appointments/{appointmentId:guid}/transition")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -47,6 +51,7 @@ public class FinalVisitsController : ControllerBase
     }
 
     /// <summary>Submits the visit report and its snags (§17.3).</summary>
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // §17.3 report authored by agent/admin.
     [HttpPost("appointments/{appointmentId:guid}/report")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -72,6 +77,7 @@ public class FinalVisitsController : ControllerBase
     }
 
     /// <summary>Moves a snag through its lifecycle (§17.4).</summary>
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // §17.4 snags followed up by agent/admin (validation §47.4).
     [HttpPost("snags/{snagId:guid}/transition")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

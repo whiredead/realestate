@@ -1,3 +1,5 @@
+using Microsoft.AspNetCore.Authorization;
+
 var builder = WebApplication.CreateBuilder(args);
 
 
@@ -34,6 +36,11 @@ builder.Services
     // Registers sensitive encryption services (e.g. to encrypt cookies).
     .AddDataProtection();
 
+// The Bearer scheme is configured in Infrastructure (ConfigureJwtAuthentication).
+// It was registered but never applied — the pipeline was missing
+// UseAuthentication (added below), so [Authorize] had no effect and every
+// endpoint was effectively anonymous.
+
 builder.Services
     // Registers MVC & Web API services.
     .AddMvcCore(
@@ -41,7 +48,19 @@ builder.Services
     )
     .AddApiExplorer()
     .AddDataAnnotations()
-    .AddAuthorization();
+    .AddAuthorization(options =>
+    {
+        // §6.4 — fail closed: every endpoint requires an authenticated caller
+        // unless it opts out with [AllowAnonymous]. This closes the hole where
+        // anonymous callers could read the whole user directory.
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+    });
+
+// Lets handlers (e.g. RegisterHandler's §6.2 internal-role guard) read the
+// authenticated caller's claims.
+builder.Services.AddHttpContextAccessor();
 
 // [You can add your own application services here...]
 builder.Services
@@ -73,9 +92,11 @@ app
     .UseRouting()
     .UseCors("AllowAll") // Apply the CORS policy
     .UseResponseCompression()
+    .UseAuthentication()
     .UseAuthorization();
 
-app.MapHealthChecks("/health");
+// Liveness probe stays open — it carries no data and is polled without a token.
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();

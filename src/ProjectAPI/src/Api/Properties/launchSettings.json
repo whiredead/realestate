@@ -3,12 +3,12 @@
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": true,
-      "launchUrl": "http://localhost:32688/health",
+      "launchUrl": "http://localhost:48989/health",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT": "false"
       },
-      "applicationUrl": "http://localhost:32688/",
+      "applicationUrl": "http://localhost:48989/",
       "use64Bit": true
     },
     "ProjectAPI.Api": {
@@ -23,10 +23,10 @@
     "WSL": {
       "commandName": "WSL2",
       "launchBrowser": true,
-      "launchUrl": "http://localhost:48988/health",
+      "launchUrl": "http://localhost:48989/health",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "ASPNETCORE_URLS": "http://localhost:48988/"
+        "ASPNETCORE_URLS": "http://localhost:48989/"
       },
       "distributionName": ""
     },
@@ -45,7 +45,7 @@
     "windowsAuthentication": false,
     "anonymousAuthentication": true,
     "iisExpress": {
-      "applicationUrl": "http://localhost:32688/",
+      "applicationUrl": "http://localhost:48989/",
       "sslPort": 0
     }
   }

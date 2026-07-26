@@ -4,6 +4,8 @@ using ProjectAPI.Api.Application.ProjectAssignments.GetAllProjectAssignments;
 using ProjectAPI.Api.Application.ProjectAssignments.GetProjectAssignmentById;
 using ProjectAPI.Api.Application.ProjectAssignments.UnassignProjectAssignment;
 using ProjectAPI.Api.Application.ProjectAssignments.UpdateProjectAssignment;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 
@@ -12,6 +14,7 @@ namespace ProjectAPI.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = RoleGroups.Admins)] // §6.3 "Utilisateurs internes" / "rôles et affectations" — admins only.
 public class ProjectAssignmentController : ControllerBase
 {
     private readonly IMediator _mediator;

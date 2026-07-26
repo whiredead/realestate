@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
@@ -87,7 +88,17 @@ builder.Services
     )
     .AddApiExplorer()
     .AddDataAnnotations()
-    .AddAuthorization();
+    .AddAuthorization(options =>
+    {
+        // §6.4 — "les contrôles d'accès sont appliqués côté API". Fail closed:
+        // every endpoint requires an authenticated caller unless it explicitly
+        // opts out with [AllowAnonymous] (public catalogue, visitor appointment
+        // request, public feedback). Role- and perimeter-level checks are layered
+        // on top of this in the controllers/handlers.
+        options.FallbackPolicy = new AuthorizationPolicyBuilder()
+            .RequireAuthenticatedUser()
+            .Build();
+    });
 
 // [You can add your own application services here...]
 builder.Services
@@ -102,6 +113,16 @@ builder.Services
         });
     });
 
+
+// AddIdentity (in Infrastructure) registers cookie schemes and makes the cookie
+// the default challenge, so an unauthenticated API call would 302-redirect to a
+// login page instead of returning 401. Re-assert Bearer as the default so the
+// API answers with the status codes the contract requires (§31.3: 401/403).
+builder.Services.PostConfigure<Microsoft.AspNetCore.Authentication.AuthenticationOptions>(o =>
+{
+    o.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+});
 
 // Scheduled jobs (spec §49.5)
 builder.Services.AddHostedService<ProjectAPI.Api.BackgroundJobs.ReservationExpiryJob>();
@@ -127,7 +148,7 @@ app
     .UseAuthentication()
     .UseAuthorization();
 
-app.MapHealthChecks("/health");
+app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
 
 app.Run();

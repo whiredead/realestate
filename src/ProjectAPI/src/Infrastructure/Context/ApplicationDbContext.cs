@@ -30,6 +30,7 @@ public class ApplicationDbContext : IdentityDbContext<User>
     public DbSet<LikedProject> LikedProjects { get; set; }
     public DbSet<TypeBien> TypeBiens { get; set; }
     public DbSet<ProjectTypeBien> ProjectTypeBiens { get; set; }
+    public DbSet<QuartierAmenity> QuartierAmenities { get; set; }
     
     // Reservations and Documents
     public DbSet<Reservation> Reservations { get; set; }
@@ -56,6 +57,9 @@ public class ApplicationDbContext : IdentityDbContext<User>
     public DbSet<UnitTitleState> UnitTitleStates { get; set; }
     public DbSet<UnitTitleHistory> UnitTitleHistories { get; set; }
 
+    /// <summary>Append-only unit commercial-status trail (spec §3, §7).</summary>
+    public DbSet<UnitStatusHistory> UnitStatusHistories { get; set; }
+
     // Final visit and snags (spec §17, §48.8)
     public DbSet<FinalVisitCase> FinalVisitCases { get; set; }
     public DbSet<FinalVisitAppointment> FinalVisitAppointments { get; set; }
@@ -76,6 +80,7 @@ public class ApplicationDbContext : IdentityDbContext<User>
             .HasValue<Notary>("Notaire"); // Notaries mapped to Notary entity
 
         });
+        builder.ApplyConfiguration(new QuartierAmenityConfiguration());
         builder.ApplyConfiguration(new PaymentScheduleConfiguration());
         builder.ApplyConfiguration(new PaymentInstallmentConfiguration());
         builder.ApplyConfiguration(new PaymentConfiguration());
@@ -95,6 +100,7 @@ public class ApplicationDbContext : IdentityDbContext<User>
         builder.ApplyConfiguration(new AppointmentConfiguration());
         builder.ApplyConfiguration(new PerformanceIndicatorConfiguration());
         builder.ApplyConfiguration(new UnitConfiguration());
+        builder.ApplyConfiguration(new UnitStatusHistoryConfiguration());
         builder.ApplyConfiguration(new FeedbackConfiguration()); 
         builder.ApplyConfiguration(new AppointmentConfiguration());
         builder.ApplyConfiguration(new AppointmentReviewConfiguration());

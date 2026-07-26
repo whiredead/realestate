@@ -44,8 +44,8 @@ public class UpdateUnitHandler : IRequestHandler<UpdateUnitCommand, UpdateUnitRe
             { () => request.SaleableValue1.HasValue, () => unit.SaleableValue1 = request.SaleableValue1 },
             { () => request.PriceSaleableValue.HasValue, () => unit.PriceSaleableValue = request.PriceSaleableValue },
             { () => request.PriceSaleableValue1.HasValue, () => unit.PriceSaleableValue1 = request.PriceSaleableValue1 },
-            { () => request.LatestPrice.HasValue, () => unit.LatestPrice = request.LatestPrice },
-            { () => request.Status != null, () => unit.Status = request.Status }
+            { () => request.LatestPrice.HasValue, () => unit.LatestPrice = request.LatestPrice }
+            // No Status entry: see the note on UpdateUnitCommand (§7).
         };
 
         // Apply only the updates where the condition is met

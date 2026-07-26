@@ -90,8 +90,10 @@ public class UpdateUnitCommand : IRequest<UpdateUnitResponse>
     /// </summary>
     public decimal? LatestPrice { get; set; }
 
-    /// <summary>
-    /// Gets or sets the status of the unit (e.g., "Available", "Sold").
-    /// </summary>
-    public string Status { get; set; }
+    // Status is deliberately absent (§7: direct status updates are forbidden).
+    // A unit's commercial status is a consequence of the sale workflow — it moves
+    // only through the reservation, notary and handover commands, via
+    // UnitStatusService, which validates the §3 matrix and writes history.
+    // Reinstating a Status field here would reopen the hole that let an
+    // administrator hand-edit a unit back to AVAILABLE.
 }

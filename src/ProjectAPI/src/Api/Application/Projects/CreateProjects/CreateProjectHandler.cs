@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Domain.Projects.Entities;
+﻿using ProjectAPI.Domain.Construction.Entities;
+using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Projects.Interfaces;
 
 namespace ProjectAPI.Api.Application.Projects.CreateProjects;
@@ -46,12 +47,17 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
             Name = request.Name,
             Location = request.Location,
             Address = request.Address,
-            Description = request.Description,
-            Module3DLink = request.Module3DLink,
+            Description = request.Description ?? string.Empty,
+            // Module3DLink is a NOT NULL column; a client that omits it (the admin
+            // "Nouveau projet" form does) must not crash the insert. Coalesce.
+            Module3DLink = request.Module3DLink ?? string.Empty,
             Images = request.Images,
             QuartierId = quartierId,
             Type = request.Type ?? "Livraison immédiate",
-            StatusGlobal = "CommingSoon"
+            // §3 / FR-CMS-001 — a project is created in DRAFT. Normalised so the
+            // column only ever holds canonical codes, never the legacy (and
+            // misspelled) "CommingSoon" spellings.
+            StatusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal ?? ProjectStatusCodes.Draft)
         };
 
         // Step 3: Save to repository

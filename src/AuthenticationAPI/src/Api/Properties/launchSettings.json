@@ -3,7 +3,7 @@
     "windowsAuthentication": false,
     "anonymousAuthentication": true,
     "iisExpress": {
-      "applicationUrl": "http://localhost:32688/",
+      "applicationUrl": "http://localhost:48988/",
       "sslPort": 0
     }
   },
@@ -11,8 +11,8 @@
     "IIS Express": {
       "commandName": "IISExpress",
       "launchBrowser": true,
-      "applicationUrl": "http://localhost:32688/",
-      "launchUrl": "http://localhost:32688/health",
+      "applicationUrl": "http://localhost:48988/",
+      "launchUrl": "http://localhost:48988/health",
       "use64Bit": true,
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",

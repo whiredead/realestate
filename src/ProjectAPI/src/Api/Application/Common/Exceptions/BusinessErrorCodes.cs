@@ -59,6 +59,12 @@ public static class BusinessErrorCodes
     /// </summary>
     public const string ProjectScopeDenied = "PROJECT_SCOPE_DENIED";
 
+    /// <summary>
+    /// §6.4 — the caller is the reservation's owning sales agent and may not
+    /// approve their own reservation. Authenticated and roled, but conflicted.
+    /// </summary>
+    public const string SelfApprovalForbidden = "SELF_APPROVAL_FORBIDDEN";
+
     /// <summary>An unexpected server-side failure.</summary>
     public const string InternalError = "INTERNAL_ERROR";
 }

@@ -1,9 +1,13 @@
 ﻿using Microsoft.Extensions.Logging;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Purchases.Entities;
 using ProjectAPI.Domain.Purchases.Interfaces;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
+using ProjectAPI.Infrastructure.Context;
 using ValidationException = FluentValidation.ValidationException;
 
 namespace ProjectAPI.Api.Application.Reservations.ApproveReservation;
@@ -13,15 +17,24 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
     private readonly IReservationRepository _reservationRepo;
     private readonly IPurchaseRepository _purchaseRepo;
     private readonly ILogger<ApproveReservationHandler> _logger;
+    private readonly ICurrentUser _currentUser;
+    private readonly IUnitStatusService _unitStatus;
+    private readonly ApplicationDbContext _db;
 
     public ApproveReservationHandler(
         IReservationRepository reservationRepo,
         IPurchaseRepository purchaseRepo,
-        ILogger<ApproveReservationHandler> logger)
+        ILogger<ApproveReservationHandler> logger,
+        ICurrentUser currentUser,
+        IUnitStatusService unitStatus,
+        ApplicationDbContext db)
     {
         _reservationRepo = reservationRepo;
         _purchaseRepo = purchaseRepo;
         _logger = logger;
+        _currentUser = currentUser;
+        _unitStatus = unitStatus;
+        _db = db;
     }
 
     public async Task<bool> Handle(ApproveReservationCommand request, CancellationToken ct)
@@ -39,6 +52,19 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
             _logger.LogInformation("[ApproveReservation] Reservation found. Status: {Status}, BuyerId: {BuyerId}, Existing docs count: {DocsCount}", 
                 reservation.Status, reservation.BuyerId, reservation.Documents?.Count ?? 0);
 
+            // §6.4 — separation of duties: the sales agent who submitted the
+            // reservation may not approve it, even if they also hold an admin
+            // role. Use the authenticated caller id, never the client-supplied
+            // AdminUserId (which the caller could set to anyone).
+            var callerId = _currentUser.UserId;
+            if (!string.IsNullOrEmpty(callerId)
+                && !string.IsNullOrEmpty(reservation.AgentId)
+                && string.Equals(callerId, reservation.AgentId, StringComparison.Ordinal))
+            {
+                _logger.LogWarning("[ApproveReservation] Self-approval blocked: caller {Caller} is the owning agent of {ReservationId}", callerId, request.ReservationId);
+                throw BusinessRuleException.SelfApprovalForbidden();
+            }
+
             // §12.4 — single source of truth for the lifecycle. Replaces the
             // previous ad-hoc checks so every handler enforces the same matrix.
             ReservationStateMachine.EnsureCanTransition(reservation.Status, ReservationStatus.Approved);
@@ -50,7 +76,8 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
             _logger.LogInformation("[ApproveReservation] Marking reservation as approved...");
             reservation.Status = ReservationStatus.Approved;
             reservation.ValidatedAt = DateTime.UtcNow;
-            reservation.ValidatedBy = request.AdminUserId;
+            // Record who actually approved, from the token — not the client-supplied id.
+            reservation.ValidatedBy = callerId ?? request.AdminUserId;
             reservation.AdminNote = request.AdminNote;
 
             // Attach any uploaded documents - using direct insert to avoid navigation property issues
@@ -79,6 +106,19 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
                     _logger.LogInformation("[ApproveReservation] Document prepared with Id={DocId}", doc.Id);
                 }
             }
+
+            // §5.3 "Approve ⇒ unit RESERVED" — the unit hold is promoted in the
+            // same transaction as the reservation. Before this, approval left the
+            // unit sitting at its old status entirely.
+            await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+
+            await _unitStatus.TransitionAsync(
+                reservation.UnitId,
+                UnitCommercialStatus.Reserved,
+                UnitStatusCause.ReservationApproved,
+                reservationId: reservation.Id,
+                actorUserId: callerId ?? request.AdminUserId,
+                ct: ct);
 
             // Idempotency: check if a Purchase already exists for this reservation
             _logger.LogInformation("[ApproveReservation] Checking for existing purchase...");
@@ -129,7 +169,9 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
             _logger.LogInformation("[ApproveReservation] Saving purchase changes...");
             await _purchaseRepo.SaveAsync();
 
-            _logger.LogInformation("[ApproveReservation] SUCCESS! Reservation {ReservationId} approved", request.ReservationId);
+            await transaction.CommitAsync(ct);
+
+            _logger.LogInformation("[ApproveReservation] SUCCESS! Reservation {ReservationId} approved, unit {UnitId} RESERVED", request.ReservationId, reservation.UnitId);
             return true;
         }
         catch (NotFoundException ex)

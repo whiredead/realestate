@@ -7,12 +7,15 @@ using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.Sales.AfterSales.CreateAfterSaleClaim;
 using ProjectAPI.Api.Application.Sales.AfterSales.GetClaims;
 using ProjectAPI.Api.Application.Sales.AfterSales.UpdateClaimStatus;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 using ValidationException = FluentValidation.ValidationException;
 
 namespace ProjectAPI.Api.Controllers;
 
 [ApiController]
 [Route("api/after-sales/claims")]
+[Authorize] // §6.3 SAV: buyer creates own (C/M propre); technician/admin handle (C/M affecté).
 public class AfterSaleClaimsController : ControllerBase
 {
     private readonly IMediator _mediator;
@@ -53,6 +56,7 @@ public class AfterSaleClaimsController : ControllerBase
     /// Get claims with filters and pagination.
     /// </summary>
     [HttpGet]
+    [Authorize(Roles = RoleGroups.AdminsTechnicians)] // §6.4 — technician sees assigned claims; admin oversees.
     public async Task<ActionResult<PaginatedResponse<AfterSaleClaimResponse>>> Get(
         [FromQuery] GetClaimsQuery query,
         CancellationToken ct)
@@ -65,6 +69,7 @@ public class AfterSaleClaimsController : ControllerBase
     /// Update the status of a claim. When resolving, ResolutionSummary and optional proofs are supported.
     /// </summary>
     [HttpPut("{claimId:guid}/status")]
+    [Authorize(Roles = RoleGroups.AdminsTechnicians)] // §20 qualification/traitement — technician/admin.
     public async Task<IActionResult> UpdateStatus(
         Guid claimId,
         [FromBody] UpdateClaimStatusCommand cmd,

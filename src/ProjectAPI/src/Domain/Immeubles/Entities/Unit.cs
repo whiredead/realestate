@@ -109,7 +109,16 @@ public class Unit
     public ICollection<UnitTracking> UnitTrackings { get; set; }= new List<UnitTracking>();
 
     /// <summary>
-    /// Gets or sets the status of the unit.
+    /// Commercial status of the unit (spec §3).
+    ///
+    /// Do NOT assign this directly. Every change goes through
+    /// <c>UnitStatusService</c>, which validates the move against
+    /// <see cref="UnitStateMachine"/> and appends a <see cref="UnitStatusHistory"/>
+    /// row in the same transaction (§7 forbids direct status updates). The setter
+    /// stays public only because EF Core materialises entities through it.
     /// </summary>
-    public string Status { get; set; } = "Available"; // e.g., "Available", "Sold"
+    public UnitCommercialStatus Status { get; set; } = UnitCommercialStatus.Available;
+
+    /// <summary>Append-only status trail (§7).</summary>
+    public ICollection<UnitStatusHistory> StatusHistory { get; set; } = new List<UnitStatusHistory>();
 }

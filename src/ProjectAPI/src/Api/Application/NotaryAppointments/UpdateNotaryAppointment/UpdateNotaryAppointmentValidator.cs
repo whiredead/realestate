@@ -1,4 +1,5 @@
 using FluentValidation;
+using ProjectAPI.Domain.Appointments.Entities;
 using ProjectAPI.Domain.FinalVisits.Entities;
 
 namespace ProjectAPI.Api.Application.NotaryAppointments.UpdateNotaryAppointment;
@@ -18,6 +19,14 @@ public class UpdateNotaryAppointmentValidator : AbstractValidator<UpdateNotaryAp
             .WithMessage(
                 "Status must be one of: " +
                 string.Join(", ", Enum.GetNames(typeof(AppointmentAttemptStatus))) + ".");
+
+        // §5.7 — the outcome vocabulary is fixed and distinct from the status one.
+        RuleFor(x => x.Outcome)
+            .Must(outcome => string.IsNullOrEmpty(outcome) || NotaryOutcomeCodes.TryParse(outcome, out _))
+            .WithMessage("Outcome must be one of: " + string.Join(", ", NotaryOutcomeCodes.All) + ".");
+
+        RuleFor(x => x.OutcomeNote)
+            .MaximumLength(2000);
 
         RuleFor(x => x.TaxFees)
             .GreaterThanOrEqualTo(0)

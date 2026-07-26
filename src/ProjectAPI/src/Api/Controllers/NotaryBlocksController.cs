@@ -1,10 +1,13 @@
 ﻿using ProjectAPI.Api.Application.Notary.CreateNotaryBlocks;
 using ProjectAPI.Api.Application.Notary.DeleteNotaryBlock;
 using ProjectAPI.Api.Application.Notary.GetNotaryBlocks;
+using ProjectAPI.Api.Application.Common.Security;
+using Microsoft.AspNetCore.Authorization;
 
 namespace ProjectAPI.Api.Controllers;
 [ApiController]
 [Route("api/notaries/{notaryId}/blocks")]
+[Authorize(Roles = RoleGroups.AdminsNotary)] // §6.3 — a notary manages their own availability; admins oversee.
 public class NotaryBlocksController : ControllerBase
 {
     private readonly IMediator _mediator;

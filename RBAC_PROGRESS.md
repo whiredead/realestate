@@ -117,45 +117,50 @@ plutôt que créer une table parallèle `user_project_roles`.
 → ajout de `PROJECT_SCOPE_DENIED` (distinct de `UNAUTHORIZED` : le appelant est
 authentifié et correctement roled, simplement pas affecté à ce projet).
 
+### 6. Câblage du périmètre — *terminé (session du 24/07/2026, reprise)*
+
+**Ajouté** dans `src/ProjectAPI/src/Api/Application/Common/Exceptions/BusinessRuleException.cs` :
+- `ProjectScopeDenied(Guid projectId)` → 403 `PROJECT_SCOPE_DENIED`. Le message
+  ne nomme **pas** le projet : on vient de dire au appelant qu'il n'a pas le
+  droit de le voir, en réafficher l'identifiant confirmerait son existence à
+  quelqu'un hors périmètre. Le `projectId` reste en paramètre pour le log.
+- `BuyerScopeDenied()` → même code/statut, message adapté. Un acheteur n'a pas
+  de « périmètre de projets » ; `EnsureBuyerOwnsReservationAsync` appelait
+  `ProjectScopeDenied(Guid.Empty)`, ce qui produisait un message faux.
+
+**Modifié** `src/ProjectAPI/src/Api/Application/DependencyInjection.cs` →
+`AddHttpContextAccessor()`, `ICurrentUser`/`CurrentUser` et `ProjectScopeService`
+en **Scoped** (ils lisent les claims de la requête courante, un singleton leur
+ferait survivre la requête).
+
+**Vérifié** : `dotnet build src/Api/ProjectAPI.Api.csproj` → **0 erreur**
+(326 warnings, tous préexistants). Le piège `Domain.Immeubles.Entities.Unit`
+vs `MediatR.Unit` était déjà correctement traité dans les jointures.
+
+Reste ouvert sur ce lot :
+- [ ] `TECHNICIAN` et `PROJECT_ADMIN` n'ont **pas** de colonne dans
+      `ProjectAssignments` : décider si on ajoute des colonnes, une table de
+      liaison générique, ou si on se limite à agent/notaire pour l'instant
+
 ---
 
 ## ⛔ Point d'arrêt exact
 
-**Arrêté juste après** avoir ajouté `PROJECT_SCOPE_DENIED` à
-`BusinessErrorCodes.cs`.
+**Arrêté après** le câblage du périmètre (étape 6) et la migration de
+l'environnement vers SQL Server Express (voir « Environnement local » plus bas).
 
-**La toute prochaine action** est d'ajouter la factory correspondante dans
-`src/ProjectAPI/src/Api/Application/Common/Exceptions/BusinessRuleException.cs` :
+**La toute prochaine action** est l'étape 7 : appliquer la matrice §6.3 sur les
+contrôleurs ProjectAPI. Rien ne bloque la compilation.
 
-```csharp
-/// <summary>§6.4 — resource outside the caller's assigned project perimeter.</summary>
-public static BusinessRuleException ProjectScopeDenied(Guid projectId) =>
-    new(BusinessErrorCodes.ProjectScopeDenied,
-        "Cette ressource n'appartient pas à votre périmètre de projets.",
-        StatusCodes.Status403Forbidden);
-```
-
-Sans elle, `ProjectScopeService.cs` **ne compile pas** (il appelle déjà
-`BusinessRuleException.ProjectScopeDenied(...)` en 3 endroits).
-
-⚠️ **ProjectAPI n'a pas été rebuildé depuis la création de ces deux fichiers.**
-Premier geste à la reprise : ajouter la factory, puis
-`dotnet build src/Api/ProjectAPI.Api.csproj`.
+⚠️ **Bases repartant de zéro.** Schéma recréé sur SQLEXPRESS, 12 rôles et les
+7 comptes de test réinsérés et revérifiés. En revanche **aucune donnée métier**
+(projets, immeubles, biens, `ProjectAssignments`) n'a été recréée : les tests de
+périmètre de l'étape 10 restent bloqués tant qu'il n'y a pas au moins deux
+projets et des affectations.
 
 ---
 
 ## 📋 Étapes restantes
-
-### 6. Terminer le câblage du périmètre
-- [ ] Factory `ProjectScopeDenied` dans `BusinessRuleException.cs` (voir ci-dessus)
-- [ ] Enregistrer `ICurrentUser`/`CurrentUser` + `ProjectScopeService` dans la DI
-      (`Program.cs` ou `DependencyInjection.cs`), avec `AddHttpContextAccessor()`
-- [ ] Vérifier que `ProjectScopeService` compile (les jointures utilisent
-      `Domain.Immeubles.Entities.Unit` pleinement qualifié à cause de l'ambiguïté
-      avec `MediatR.Unit` — piège déjà rencontré deux fois dans ce projet)
-- [ ] `TECHNICIAN` et `PROJECT_ADMIN` n'ont **pas** de colonne dans
-      `ProjectAssignments` : décider si on ajoute des colonnes, une table de
-      liaison générique, ou si on se limite à agent/notaire pour l'instant
 
 ### 7. Appliquer la matrice §6.3 sur les 18 contrôleurs ProjectAPI
 - [ ] Remplacer les `[Authorize(Roles=…)]` commentés / `[AllowAnonymous]` par les
@@ -196,24 +201,72 @@ Premier geste à la reprise : ajouter la factory, puis
 
 **Comptes de test** — mot de passe commun : `Passw0rd!123`
 
-| Login | Rôle legacy | Code spec |
-|---|---|---|
-| yassine.aitmoussaa@gmail.com | Admin | `GLOBAL_ADMIN` |
-| sara.elfassi@samgroup.ma | Agent | `SALES_AGENT` |
-| youssef.bennani@samgroup.ma | Agent | `SALES_AGENT` |
-| amine.kabbaj@notaires.ma | Notaire | `NOTARY` |
-| laila.ouazzani@notaires.ma | Notaire | `NOTARY` |
-| karim.tazi@gmail.com | Acheteur | `BUYER` |
-| tech.sav@samgroup.ma | — | `TECHNICIAN` *(créé cette session)* |
+Recréés sur SQLEXPRESS le 24/07/2026 et **revérifiés par login réel** (JWT
+décodé). `UserName` = email, téléphones `060000000N` (le validateur impose
+`^(06|07)\d{8}$`).
+
+| Login | Rôle stocké | `roles` (réponse login) | `ClaimTypes.Role` (JWT) |
+|---|---|---|---|
+| yassine.aitmoussaa@gmail.com | `Admin` | `GLOBAL_ADMIN` | `Admin`, `GLOBAL_ADMIN` |
+| sara.elfassi@samgroup.ma | `Agent` | `SALES_AGENT` | `Agent`, `SALES_AGENT` |
+| youssef.bennani@samgroup.ma | `Agent` | `SALES_AGENT` | `Agent`, `SALES_AGENT` |
+| amine.kabbaj@notaires.ma | `Notaire` | `NOTARY` | `Notaire`, `NOTARY` |
+| laila.ouazzani@notaires.ma | `Notaire` | `NOTARY` | `Notaire`, `NOTARY` |
+| karim.tazi@gmail.com | `Acheteur` | `BUYER` | `Acheteur`, `BUYER` |
+| tech.sav@samgroup.ma | `TECHNICIAN` | `TECHNICIAN` | `TECHNICIAN` |
+
+Le rôle **stocké** est volontairement le libellé legacy quand il en existe un :
+c'est ce qui fait émettre les **deux** claims et garde compatibles les
+contrôleurs pas encore migrés. `tech.sav` n'a que `TECHNICIAN` (aucun compte
+legacy `Technicien` n'a jamais existé) — c'est donc le seul compte qui échouera
+sur un `[Authorize(Roles="…")]` en libellé legacy, ce qui est correct.
+
+⚠️ **Il n'y a toujours aucune donnée métier** : 0 projet, 0 immeuble, 0 bien,
+0 `ProjectAssignments`. Les tests de périmètre (étape 10) restent impossibles
+tant que ces données n'existent pas.
+
+> Rappel §3 : `AddRolesToClaims` émet le rôle **stocké** + son code spec
+> normalisé. Un compte stockant `Agent` obtient donc `Agent` **et**
+> `SALES_AGENT` (compatible avec les `[Authorize(Roles="Agent")]` existants) ;
+> un compte stockant `SALES_AGENT` n'obtient que `SALES_AGENT`. Pour recréer
+> des comptes utilisables par les contrôleurs non encore migrés, stocker le
+> **libellé legacy**.
 
 **Environnement local**
 - AuthenticationAPI : `http://localhost:48988` (`/health`)
 - ProjectAPI : `http://localhost:48989` (`/health`)
-- Bases LocalDB : `GPIA_Auth`, `GPIA_Project` sur `(localdb)\MSSQLLocalDB`
+- **Bases : `GPIA_Auth` et `GPIA_Project` sur `DESKTOP-1CEDKH6\SQLEXPRESS`**,
+  authentification Windows (`Trusted_Connection=True`). Les deux
+  `appsettings.json` ont été basculés depuis `(localdb)\MSSQLLocalDB`
+  le 24/07/2026.
+- ⚠️ **Migration = repartir de zéro.** L'instance LocalDB existe toujours mais
+  ne contient plus ni `GPIA_Auth` ni `GPIA_Project` : les données décrites dans
+  les sections 3 et 4 ci-dessus (comptes de test, 7 lignes `ProjectAssignments`,
+  projets/immeubles/biens) **sont perdues**. Les bases SQLEXPRESS ont été créées
+  par `dotnet ef database update` (migration `InitialCreate` des deux projets),
+  puis seules les 12 lignes `AspNetRoles` ont été réinsérées
+  (7 codes spec + 5 libellés legacy).
+- Recréer les bases si besoin :
+  ```
+  dotnet ef database update --project src/<API>/src/Infrastructure/<API>.Infrastructure.csproj `
+                            --startup-project src/<API>/src/Api/<API>.Api.csproj
+  ```
+- `sqlcmd` : toujours `-I` (QUOTED_IDENTIFIER ON, index filtré sur `AspNetRoles`)
+  **et** `-f 65001` si le script `.sql` contient des accents — sinon sqlcmd lit
+  le fichier en ANSI et stocke du mojibake (`Réservataire` → `RÃ©servataire`).
 - Les `dotnet build` échouent avec `MSB3027` (fichier verrouillé) si l'API tourne
   → arrêter le process avant de rebuilder.
+- `dotnet-ef` n'était pas installé : `dotnet tool install --global dotnet-ef`
+  (v10.0.10, fonctionne avec le SDK 9.0.309 et EF Core 8.0.8 du projet).
 
 **Pièges rencontrés dans ce projet**
+- `RegisterCommand.Id` est un `Guid` **non nullable** : un client qui ne l'envoie
+  pas transmet `Guid.Empty`, que Mapster recopie sur `User.Id` (clé string).
+  Résultat : sur une base vierge, **seul le tout premier compte pouvait être
+  créé**, tous les suivants échouaient en `500` (collision de clé primaire).
+  Corrigé le 24/07/2026 dans `RegisterHandler` (id généré quand absent, id
+  explicite toujours respecté). Symptôme trompeur : le 500 ne dit rien de la
+  collision.
 - `Units.ProjectId` pointe en réalité vers `Immeubles.Id`, pas `Projects.Id`
   (nommage trompeur, déjà noté dans `GAP_ANALYSIS.md` lot 2.2). Toute jointure
   vers un projet passe par `Unit → Immeuble → Project`.

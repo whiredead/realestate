@@ -342,6 +342,21 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("OutcomeNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("OutcomeRecordedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("OutcomeRecordedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<decimal>("PropertyPrice")
                         .HasColumnType("decimal(18,2)");
 
@@ -365,7 +380,201 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("ReservationId");
 
-                    b.ToTable("NotaryAppointments", (string)null);
+                    b.ToTable("NotaryAppointments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotaryAppointments_Outcome", "[Outcome] IS NULL OR [Outcome] IN ('PURCHASE_COMPLETED', 'INCOMPLETE_FILE', 'BUYER_ABSENT', 'POSTPONED', 'NOT_COMPLETED_OTHER')");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Construction.Entities.ConstructionMilestone", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ActualDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DescriptionEn")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DescriptionFr")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("NameEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("NameFr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("PlannedDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SequenceNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("VisibleToBuyer")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("VisibleToPublic")
+                        .HasColumnType("bit");
+
+                    b.Property<decimal>("WeightPercent")
+                        .HasColumnType("decimal(7,4)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Code")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ConstructionMilestones_ProjectCode");
+
+                    b.ToTable("ConstructionMilestones", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConstructionMilestones_Weight", "[WeightPercent] >= 0 AND [WeightPercent] <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Construction.Entities.ConstructionUpdate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AuthorUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DescriptionEn")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DescriptionFr")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("MediaUrls")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<decimal>("ProgressPercent")
+                        .HasColumnType("decimal(7,4)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("PublishedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("SupersedesId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TitleEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TitleFr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("VersionNo")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Visibility")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "VersionNo")
+                        .HasDatabaseName("IX_ConstructionUpdates_ProjectVersion");
+
+                    b.ToTable("ConstructionUpdates", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ConstructionUpdates_Progress", "[ProgressPercent] >= 0 AND [ProgressPercent] <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Construction.Entities.UnitTitleHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActorUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("DocumentUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int?>("FromStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UnitId", "OccurredAt")
+                        .HasDatabaseName("IX_UnitTitleHistories_UnitDate");
+
+                    b.ToTable("UnitTitleHistories", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Construction.Entities.UnitTitleState", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("DocumentUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StatusAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UnitId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_UnitTitleStates_Unit");
+
+                    b.ToTable("UnitTitleStates", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.FeedBacks.Entities.Feedback", b =>
@@ -434,6 +643,231 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Incidents", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitAppointment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("AttemptNo")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CauseDescription")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("CauseType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("PreviousAppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("StartsAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CaseId", "AttemptNo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FinalVisitAppointments_CaseAttempt");
+
+                    b.HasIndex("StartsAt", "EndsAt")
+                        .HasDatabaseName("IX_FinalVisitAppointments_Interval");
+
+                    b.ToTable("FinalVisitAppointments", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitCase", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResponsibleSalesAgentId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FinalVisitCases_Reservation");
+
+                    b.ToTable("FinalVisitCases", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AcknowledgedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AcknowledgedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AuthorUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("DisputeReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("GeneralCondition")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Observations")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<int>("ResultCode")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("VersionNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId", "VersionNo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_FinalVisitReports_AppointmentVersion");
+
+                    b.ToTable("FinalVisitReports", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.Snag", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CategoryCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ProofUrl")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ResolutionComment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("ResponsibleSalesAgentId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("Severity")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("TargetResolutionDate")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Snags_Code");
+
+                    b.HasIndex("ReportId", "Severity", "Status")
+                        .HasDatabaseName("IX_Snags_ReportSeverityStatus");
+
+                    b.ToTable("Snags", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.SnagHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActorUserId")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("FromStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("SnagId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("ToStatus")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SnagId", "OccurredAt")
+                        .HasDatabaseName("IX_SnagHistories_SnagDate");
+
+                    b.ToTable("SnagHistories", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>
@@ -737,7 +1171,8 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<double?>("TerraceSurface")
                         .HasColumnType("float");
@@ -759,7 +1194,55 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("Units", (string)null);
+                    b.ToTable("Units", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Units_Status", "[Status] IN ('AVAILABLE', 'HOLD_PENDING_APPROVAL', 'RESERVED', 'CONTRACTED', 'SOLD', 'DELIVERED', 'SUSPENDED', 'CANCELLED')");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.UnitStatusHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Cause")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid?>("ReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid>("UnitId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UnitId", "OccurredAt")
+                        .HasDatabaseName("IX_UnitStatusHistories_UnitDate");
+
+                    b.ToTable("UnitStatusHistories", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.UnitTracking", b =>
@@ -791,6 +1274,202 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.HasIndex("UnitId");
 
                     b.ToTable("UnitTracking");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.Payment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<string>("ExternalReference")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("MethodCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("PaymentDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("ReversalOfPaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ValidatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ValidatedBy")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationId")
+                        .HasDatabaseName("IX_Payments_Reservation");
+
+                    b.HasIndex("ReversalOfPaymentId");
+
+                    b.HasIndex("Source", "ExternalReference")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Payments_SourceReference")
+                        .HasFilter("[ExternalReference] IS NOT NULL");
+
+                    b.ToTable("Payments", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentAllocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AllocatedAmount")
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("InstallmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("PaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InstallmentId")
+                        .HasDatabaseName("IX_PaymentAllocations_Installment");
+
+                    b.HasIndex("PaymentId");
+
+                    b.ToTable("PaymentAllocations", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentInstallment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsCancelled")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("LabelEn")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("LabelFr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("Percentage")
+                        .HasColumnType("decimal(7,4)");
+
+                    b.Property<Guid>("ScheduleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SequenceNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ScheduleId", "SequenceNo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PaymentInstallments_ScheduleSequence");
+
+                    b.ToTable("PaymentInstallments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_PaymentInstallments_Amount", "[Amount] >= 0");
+
+                            t.HasCheckConstraint("CK_PaymentInstallments_Percentage", "[Percentage] >= 0 AND [Percentage] <= 100");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentSchedule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ActivatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<decimal>("ContractAmount")
+                        .HasColumnType("decimal(15,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Currency")
+                        .IsRequired()
+                        .HasMaxLength(3)
+                        .HasColumnType("nvarchar(3)");
+
+                    b.Property<Guid>("ReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<Guid?>("SupersedesId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("VersionNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PaymentSchedules_ActivePerReservation")
+                        .HasFilter("[Status] = 1");
+
+                    b.HasIndex("ReservationId", "VersionNo")
+                        .IsUnique()
+                        .HasDatabaseName("IX_PaymentSchedules_ReservationVersion");
+
+                    b.ToTable("PaymentSchedules", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.EspaceTempsReel", b =>
@@ -1002,6 +1681,32 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.ToTable("Quartiers", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.QuartierAmenity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.ToTable("QuartierAmenities", (string)null);
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Purchases.Entities.Purchase", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1069,6 +1774,9 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<DateTime?>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsUnderConstruction")
                         .HasColumnType("bit");
 
@@ -1113,7 +1821,11 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("UnitId");
+                    b.HasIndex(new[] { "UnitId" }, "IX_Reservations_ActivePerUnit")
+                        .IsUnique()
+                        .HasFilter("[Status] IN (0, 1, 4, 6)");
+
+                    b.HasIndex(new[] { "UnitId" }, "IX_Reservations_UnitId");
 
                     b.ToTable("Reservations", (string)null);
                 });
@@ -1795,6 +2507,39 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitAppointment", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitCase", "Case")
+                        .WithMany("Appointments")
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Case");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.Snag", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitReport", "Report")
+                        .WithMany("Snags")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Report");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.SnagHistory", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.FinalVisits.Entities.Snag", "Snag")
+                        .WithMany()
+                        .HasForeignKey("SnagId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Snag");
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>
                 {
                     b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
@@ -1890,6 +2635,17 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("Immeuble");
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.UnitStatusHistory", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Immeubles.Entities.Unit", "Unit")
+                        .WithMany("StatusHistory")
+                        .HasForeignKey("UnitId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Unit");
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.UnitTracking", b =>
                 {
                     b.HasOne("ProjectAPI.Domain.Immeubles.Entities.Unit", "Unit")
@@ -1899,6 +2655,43 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.Payment", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Payments.Entities.Payment", null)
+                        .WithMany()
+                        .HasForeignKey("ReversalOfPaymentId")
+                        .OnDelete(DeleteBehavior.NoAction);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentAllocation", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Payments.Entities.PaymentInstallment", "Installment")
+                        .WithMany("Allocations")
+                        .HasForeignKey("InstallmentId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ProjectAPI.Domain.Payments.Entities.Payment", "Payment")
+                        .WithMany("Allocations")
+                        .HasForeignKey("PaymentId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Installment");
+
+                    b.Navigation("Payment");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentInstallment", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Payments.Entities.PaymentSchedule", "Schedule")
+                        .WithMany("Installments")
+                        .HasForeignKey("ScheduleId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("Schedule");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.EspaceTempsReel", b =>
@@ -2152,6 +2945,16 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("Reviews");
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitCase", b =>
+                {
+                    b.Navigation("Appointments");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitReport", b =>
+                {
+                    b.Navigation("Snags");
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>
                 {
                     b.Navigation("Appointments");
@@ -2178,7 +2981,24 @@ namespace ProjectAPI.Infrastructure.Migrations
                 {
                     b.Navigation("PropertyDeliveries");
 
+                    b.Navigation("StatusHistory");
+
                     b.Navigation("UnitTrackings");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.Payment", b =>
+                {
+                    b.Navigation("Allocations");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentInstallment", b =>
+                {
+                    b.Navigation("Allocations");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentSchedule", b =>
+                {
+                    b.Navigation("Installments");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.Project", b =>

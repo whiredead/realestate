@@ -72,6 +72,28 @@ namespace ProjectAPI.Infrastructure.Configurations
             // Configures the LatestPrice property.
             builder.Property(unit => unit.LatestPrice);
 
+            // §3 / §6.1 — the commercial status is stored as the canonical
+            // UPPER_SNAKE_CASE code in a varchar, guarded by a CHECK constraint
+            // (the spec explicitly rules out database enums). The value domain is
+            // owned by UnitStatusCodes, so the constraint is generated from it and
+            // cannot drift from the enum.
+            builder.Property(unit => unit.Status)
+                .HasConversion(
+                    status => status.ToCode(),
+                    stored => UnitStatusCodes.Parse(stored))
+                .HasMaxLength(30)
+                .IsRequired();
+
+            builder.ToTable(t => t.HasCheckConstraint(
+                "CK_Units_Status",
+                $"[Status] IN ({string.Join(", ", UnitStatusCodes.All.Select(c => $"'{c}'"))})"));
+
+            builder.HasMany(unit => unit.StatusHistory)
+                .WithOne(history => history.Unit)
+                .HasForeignKey(history => history.UnitId)
+                // Never cascade-delete an audit trail (§6.3).
+                .OnDelete(DeleteBehavior.NoAction);
+
             // Configures the relationship between Unit and Project.
             builder.HasOne(unit => unit.Immeuble)
                 .WithMany(project => project.Units)
@@ -83,6 +105,36 @@ namespace ProjectAPI.Infrastructure.Configurations
                 .WithOne(delivery => delivery.Unit)
                 .HasForeignKey(delivery => delivery.UnitId)
                 .OnDelete(DeleteBehavior.Cascade);
+        }
+    }
+
+    /// <summary>Append-only unit status trail (§7). Indexed for chronological reads.</summary>
+    public class UnitStatusHistoryConfiguration : IEntityTypeConfiguration<UnitStatusHistory>
+    {
+        public void Configure(EntityTypeBuilder<UnitStatusHistory> builder)
+        {
+            builder.ToTable("UnitStatusHistories");
+            builder.HasKey(h => h.Id);
+
+            builder.Property(h => h.FromStatus)
+                .HasConversion(
+                    status => status.HasValue ? status.Value.ToCode() : null,
+                    stored => stored == null ? null : UnitStatusCodes.Parse(stored))
+                .HasMaxLength(30);
+
+            builder.Property(h => h.ToStatus)
+                .HasConversion(
+                    status => status.ToCode(),
+                    stored => UnitStatusCodes.Parse(stored))
+                .HasMaxLength(30)
+                .IsRequired();
+
+            builder.Property(h => h.Cause).HasMaxLength(100).IsRequired();
+            builder.Property(h => h.Reason).HasMaxLength(2000);
+            builder.Property(h => h.ActorUserId).HasMaxLength(450);
+
+            builder.HasIndex(h => new { h.UnitId, h.OccurredAt })
+                   .HasDatabaseName("IX_UnitStatusHistories_UnitDate");
         }
     }
 }
