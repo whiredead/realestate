@@ -55,6 +55,16 @@ namespace ProjectAPI.Infrastructure.Configurations
                 .WithMany()
                 .HasForeignKey(r => r.UnitId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // §1.1 — the buyer's identity. Nullable while legacy rows are
+            // backfilled, and Restrict on delete because §9 forbids removing a
+            // person who is attached to a reservation: they are archived instead.
+            builder.HasOne(r => r.PrimaryContact)
+                   .WithMany()
+                   .HasForeignKey(r => r.PrimaryContactId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasIndex(r => r.PrimaryContactId, "IX_Reservations_PrimaryContactId");
            
 
 

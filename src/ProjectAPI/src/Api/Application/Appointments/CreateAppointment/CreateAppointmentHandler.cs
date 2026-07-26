@@ -94,7 +94,7 @@ public class CreateAppointmentHandler : IRequestHandler<CreateAppointmentCommand
             {
                 performanceIndicator = performanceIndicatorList.First();
                 performanceIndicator.IncrementAppointmentsScheduled();
-                _performanceIndicatorRepository.Update(performanceIndicator);
+                await _performanceIndicatorRepository.Update(performanceIndicator);
             }
         }
 

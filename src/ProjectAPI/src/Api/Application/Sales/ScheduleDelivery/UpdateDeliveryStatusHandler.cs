@@ -17,7 +17,7 @@ public class UpdateDeliveryStatusHandler : IRequestHandler<UpdateDeliveryStatusC
         d.Status = r.Status;
         d.Report = r.Report;
 
-        _repo.Update(d);
+        await _repo.Update(d);
         await _repo.SaveAsync();
         return true;
     }

@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Domain.Appointments.Entities;
 using ProjectAPI.Domain.Construction.Entities;
@@ -67,19 +67,42 @@ public class ApplicationDbContext : IdentityDbContext<User>
     public DbSet<Snag> Snags { get; set; }
     public DbSet<SnagHistory> SnagHistories { get; set; }
 
+    // Handover and warranty (spec §5.8, §19, §48.9)
+    public DbSet<ProjectAPI.Domain.Handovers.Entities.HandoverAppointment> HandoverAppointments { get; set; }
+    public DbSet<ProjectAPI.Domain.Handovers.Entities.HandoverReport> HandoverReports { get; set; }
+    public DbSet<ProjectAPI.Domain.Handovers.Entities.HandoverItem> HandoverItems { get; set; }
+    public DbSet<ProjectAPI.Domain.Handovers.Entities.Warranty> Warranties { get; set; }
+
+    /// <summary>§1.1 — people the business knows, with or without a login.</summary>
+    public DbSet<ProjectAPI.Domain.Crm.Entities.CrmContact> CrmContacts { get; set; }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
         builder.Entity<User>(b =>
         {
             b.ToTable("AspNetUsers");
+            // TPH discriminator. EF registers exactly ONE value per CLR type, so
+            // the previous pair of `HasValue<User>` calls ("User" then "Acheteur")
+            // did not register two aliases — the second replaced the first, and
+            // every row stored as 'User' then failed to materialise with
+            // "No discriminators matched the discriminator value 'User'".
+            //
+            // 'User' is the base type's value. A buyer is a plain User: what makes
+            // someone a buyer is an approved reservation and the BUYER role
+            // (§6.2), not an inheritance branch. Legacy 'Acheteur' rows are
+            // migrated to 'User' by AlignUserDiscriminator.
             b.HasDiscriminator<string>("Discriminator")
             .HasValue<User>("User")
-            .HasValue<User>("Acheteur")  // Buyers stored as base User type
             .HasValue<Agent>("Agent")
             .HasValue<Notary>("Notaire"); // Notaries mapped to Notary entity
 
         });
+        builder.ApplyConfiguration(new CrmContactConfiguration());
+        builder.ApplyConfiguration(new HandoverAppointmentConfiguration());
+        builder.ApplyConfiguration(new HandoverReportConfiguration());
+        builder.ApplyConfiguration(new HandoverItemConfiguration());
+        builder.ApplyConfiguration(new WarrantyConfiguration());
         builder.ApplyConfiguration(new QuartierAmenityConfiguration());
         builder.ApplyConfiguration(new PaymentScheduleConfiguration());
         builder.ApplyConfiguration(new PaymentInstallmentConfiguration());

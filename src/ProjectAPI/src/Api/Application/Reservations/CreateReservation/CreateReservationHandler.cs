@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Crm;
 using ProjectAPI.Api.Application.Common.Units;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
@@ -17,19 +18,22 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
         private readonly UserManager<User> _userManager;
         private readonly IUnitStatusService _unitStatus;
         private readonly ApplicationDbContext _db;
+        private readonly IContactResolver _contacts;
 
         public CreateReservationHandler(
             IReservationRepository reservationRepository,
             IUnitRepository unitRepository,
             UserManager<User> userManager,
             IUnitStatusService unitStatus,
-            ApplicationDbContext db)
+            ApplicationDbContext db,
+            IContactResolver contacts)
         {
             _reservationRepository = reservationRepository;
             _unitRepository = unitRepository;
             _userManager = userManager;
             _unitStatus = unitStatus;
             _db = db;
+            _contacts = contacts;
         }
     
         public async Task<CreateReservationResponse> Handle(CreateReservationCommand request, CancellationToken cancellationToken)
@@ -69,10 +73,19 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                 var agent = await _userManager.FindByIdAsync(request.AgentId)
                     ?? throw new NotFoundException($"Agent with ID '{request.AgentId}' not found.");
 
+                // §1.1 — the buyer is a person, not a copy of their name. Resolve
+                // (or create) the one CrmContact they are, so the same human is
+                // recognisable across reservations instead of being duplicated
+                // inline on each one. An account is optional and stays optional.
+                var contact = await _contacts.ResolveAsync(
+                    request.Name, request.LastName, request.Email, request.PhoneNumber,
+                    request.CIN, request.BuyerId, cancellationToken);
+
                 // Create reservation - buyerId and notaireId are stored as-is without validation
                 var reservation = new Reservation
                 {
                     Id = Guid.NewGuid(),
+                    PrimaryContact = contact,
                     BuyerId = request.BuyerId,
                     Name = request.Name ?? string.Empty,
                     LastName = request.LastName ?? string.Empty,

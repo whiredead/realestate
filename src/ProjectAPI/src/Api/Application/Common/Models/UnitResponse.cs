@@ -89,4 +89,13 @@ public class UnitResponse
     /// Gets or sets the latest price of the unit as of the most recent update.
     /// </summary>
     public decimal? LatestPrice { get; set; }
+
+    /// <summary>
+    /// §3 commercial status (AVAILABLE, HOLD_PENDING_APPROVAL, RESERVED, …).
+    ///
+    /// Without it every consumer sees `status: undefined` and cannot tell a free
+    /// unit from a sold one — the reservation screen filters on AVAILABLE and so
+    /// reported "no unit available" against a stock of 32 free units.
+    /// </summary>
+    public string Status { get; set; } = string.Empty;
 }

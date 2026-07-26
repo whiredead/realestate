@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProjectAPI.Infrastructure.Context;
 
@@ -11,9 +12,11 @@ using ProjectAPI.Infrastructure.Context;
 namespace ProjectAPI.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260726205938_AddCrmContacts")]
+    partial class AddCrmContacts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -962,181 +965,6 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasDatabaseName("IX_SnagHistories_SnagDate");
 
                     b.ToTable("SnagHistories", (string)null);
-                });
-
-            modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.HandoverAppointment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("CreatedBy")
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime?>("EndsAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Location")
-                        .HasMaxLength(300)
-                        .HasColumnType("nvarchar(300)");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<Guid?>("PreviousAppointmentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ReservationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("SalesAgentId")
-                        .HasMaxLength(450)
-                        .HasColumnType("nvarchar(450)");
-
-                    b.Property<DateTime>("ScheduledAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("UnitId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex(new[] { "ReservationId" }, "IX_HandoverAppointments_ReservationId");
-
-                    b.HasIndex(new[] { "UnitId" }, "IX_HandoverAppointments_UnitId");
-
-                    b.HasIndex(new[] { "ReservationId" }, "UX_HandoverAppointments_ActivePerReservation")
-                        .IsUnique()
-                        .HasFilter("[Status] IN (0, 1, 2)");
-
-                    b.ToTable("HandoverAppointments", (string)null);
-                });
-
-            modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.HandoverItem", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("Comment")
-                        .HasMaxLength(500)
-                        .HasColumnType("nvarchar(500)");
-
-                    b.Property<string>("ItemType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("nvarchar(100)");
-
-                    b.Property<int>("Quantity")
-                        .HasColumnType("int");
-
-                    b.Property<Guid>("ReportId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReportId");
-
-                    b.ToTable("HandoverItems", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_HandoverItems_Quantity", "[Quantity] >= 0");
-                        });
-                });
-
-            modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.HandoverReport", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("AcknowledgedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("AcknowledgedByContactId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("AppointmentId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Observations")
-                        .HasMaxLength(4000)
-                        .HasColumnType("nvarchar(4000)");
-
-                    b.Property<string>("Participants")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<int>("Status")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime?>("SubmittedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<int>("VersionNo")
-                        .HasColumnType("int");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AppointmentId", "VersionNo")
-                        .IsUnique()
-                        .HasDatabaseName("UX_HandoverReports_AppointmentVersion");
-
-                    b.ToTable("HandoverReports", (string)null);
-                });
-
-            modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.Warranty", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<DateTime>("EndsAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<bool>("IsActive")
-                        .HasColumnType("bit");
-
-                    b.Property<Guid>("ReservationId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime>("StartsAt")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid>("UnitId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("WarrantyTypeCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UnitId", "WarrantyTypeCode")
-                        .IsUnique()
-                        .HasDatabaseName("UX_Warranties_ActivePerUnitType")
-                        .HasFilter("[IsActive] = 1");
-
-                    b.HasIndex(new[] { "UnitId" }, "IX_Warranties_UnitId");
-
-                    b.ToTable("Warranties", null, t =>
-                        {
-                            t.HasCheckConstraint("CK_Warranties_Period", "[EndsAt] > [StartsAt]");
-                        });
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>
@@ -2814,28 +2642,6 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("Snag");
                 });
 
-            modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.HandoverItem", b =>
-                {
-                    b.HasOne("ProjectAPI.Domain.Handovers.Entities.HandoverReport", "Report")
-                        .WithMany("Items")
-                        .HasForeignKey("ReportId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Report");
-                });
-
-            modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.HandoverReport", b =>
-                {
-                    b.HasOne("ProjectAPI.Domain.Handovers.Entities.HandoverAppointment", "Appointment")
-                        .WithMany("Reports")
-                        .HasForeignKey("AppointmentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Appointment");
-                });
-
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>
                 {
                     b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
@@ -3256,16 +3062,6 @@ namespace ProjectAPI.Infrastructure.Migrations
             modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitReport", b =>
                 {
                     b.Navigation("Snags");
-                });
-
-            modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.HandoverAppointment", b =>
-                {
-                    b.Navigation("Reports");
-                });
-
-            modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.HandoverReport", b =>
-                {
-                    b.Navigation("Items");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>

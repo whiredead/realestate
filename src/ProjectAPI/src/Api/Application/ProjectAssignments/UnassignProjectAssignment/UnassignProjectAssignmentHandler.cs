@@ -21,7 +21,7 @@ public class UnassignProjectAssignmentHandler
 
         // 2) deactivate
         assignment.IsActive = false;
-        _repository.Update(assignment);
+        await _repository.Update(assignment);
         await _repository.SaveAsync();
 
         // 3) respond

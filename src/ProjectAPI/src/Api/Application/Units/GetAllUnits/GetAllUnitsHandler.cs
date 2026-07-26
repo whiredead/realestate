@@ -1,3 +1,4 @@
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 using System.Linq.Expressions;
@@ -71,7 +72,10 @@ public async Task<PaginatedResponse<UnitResponse>> Handle(GetAllUnitsQuery reque
                 SaleableValue1 = u.SaleableValue1,
                 PriceSaleableValue = u.PriceSaleableValue,
                 PriceSaleableValue1 = u.PriceSaleableValue1,
-                LatestPrice = u.LatestPrice
+                LatestPrice = u.LatestPrice,
+                // Canonical §3 code, not the enum's numeric value: clients gate on
+                // "AVAILABLE", and an integer on the wire would be meaningless.
+                Status = u.Status.ToCode()
             }).ToList();
 
         // Return the paginated response

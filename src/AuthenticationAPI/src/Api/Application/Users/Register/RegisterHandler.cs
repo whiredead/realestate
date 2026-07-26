@@ -66,6 +66,13 @@ public class RegisterHandler : IRequestHandler<RegisterCommand, string>
         // Map request to your User entity
         var user = request.Adapt<User>();
 
+        // The Arabic name columns are NOT NULL in the schema, but the fields are
+        // optional on the command (the §6.2 sign-up form never collects them —
+        // the spec's bilingual scope is FR/EN). Coalesce rather than migrate the
+        // columns: callers stay free to omit them, the insert stays valid.
+        user.FirstNameAr ??= string.Empty;
+        user.LastNameAr ??= string.Empty;
+
         // RegisterCommand.Id is a non-nullable Guid, so a caller that omits it
         // sends Guid.Empty — which Mapster copies straight onto User.Id (a
         // string key). Every such registration then collides on the primary key

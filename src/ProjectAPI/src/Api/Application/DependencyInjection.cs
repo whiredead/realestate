@@ -38,6 +38,8 @@ public static class DependencyInjection
         // §3 / §7 — the single writer for a unit's commercial status. Scoped so it
         // shares the caller's DbContext and therefore the caller's transaction.
         services.AddScoped<Common.Units.IUnitStatusService, Common.Units.UnitStatusService>();
+        // §1.1 — resolves the person behind a form submission to one CrmContact.
+        services.AddScoped<Common.Crm.IContactResolver, Common.Crm.ContactResolver>();
 
         // §6.4 — caller identity and project perimeter. Scoped, not singleton:
         // both read the current request's claims, so they must not outlive it.

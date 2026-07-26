@@ -41,7 +41,7 @@ public class UpdateAppointmentStatusHandler : IRequestHandler<UpdateAppointmentS
 
         // Update the appointment status
         appointment.Status = request.Status;
-        _appointmentRepository.Update(appointment);
+        await _appointmentRepository.Update(appointment);
         await _appointmentRepository.SaveAsync();
 
         // Create response

@@ -26,13 +26,19 @@ public record RegisterCommand : IRequest<string>
 
     /// <summary>
     /// Gets or initializes the Arabic first name for the registration.
+    ///
+    /// Optional. Declared non-nullable, these were treated as required by model
+    /// binding, so public sign-up (§6.2) failed unless the caller supplied Arabic
+    /// names — which the registration form never asks for and the spec never
+    /// requires: its bilingual scope is French/English.
     /// </summary>
-    public string FirstNameAr { get; init; } = default!;
+    public string? FirstNameAr { get; init; }
 
     /// <summary>
-    /// Gets or initializes the Arabic last name for the registration.
+    /// Gets or initializes the Arabic last name for the registration. Optional —
+    /// see <see cref="FirstNameAr"/>.
     /// </summary>
-    public string LastNameAr { get; init; } = default!;
+    public string? LastNameAr { get; init; }
 
     /// <summary>
     /// Gets or initializes the assigned Bch ID for the registration.

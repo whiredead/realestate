@@ -57,7 +57,7 @@ public class UpdateUnitHandler : IRequestHandler<UpdateUnitCommand, UpdateUnitRe
             }
         }
 
-        _repository.Update(unit);
+        await _repository.Update(unit);
         await _repository.SaveAsync();
 
         return new UpdateUnitResponse

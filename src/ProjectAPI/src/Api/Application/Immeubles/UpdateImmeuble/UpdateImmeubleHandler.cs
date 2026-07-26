@@ -79,7 +79,7 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
                 await _trackingRepository.SaveAsync();
             }
 
-            _repository.Update(immeuble);
+            await _repository.Update(immeuble);
             await _repository.SaveAsync();
 
             return new ImmeubleResponse

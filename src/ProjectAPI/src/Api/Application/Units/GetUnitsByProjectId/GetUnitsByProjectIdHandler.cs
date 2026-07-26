@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Api.Application.Common.Models;
+using ProjectAPI.Domain.Immeubles.Entities;
+using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 
 namespace ProjectAPI.Api.Application.Units.GetUnitsByProjectId;
@@ -49,7 +50,8 @@ public class GetUnitsByProjectIdHandler : IRequestHandler<GetUnitsByProjectIdQue
                         SaleableValue1 = u.SaleableValue1,
                         PriceSaleableValue = u.PriceSaleableValue,
                         PriceSaleableValue1 = u.PriceSaleableValue1,
-                        LatestPrice = u.LatestPrice
+                        LatestPrice = u.LatestPrice,
+                        Status = u.Status.ToCode()
                     }).ToList();
 
         // Calculate the total number of items for pagination

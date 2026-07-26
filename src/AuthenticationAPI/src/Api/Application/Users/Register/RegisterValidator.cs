@@ -21,11 +21,10 @@ public class RegisterValidator : AbstractValidator<RegisterCommand>
         // Validation rule for LastName
         RuleFor(command => command.LastName).NotEmpty().WithMessage("French Last name is required.");
 
-        // Validation rule for FirstNameAr
-        RuleFor(command => command.FirstNameAr).NotEmpty().WithMessage("Arab First name is required.");
-
-        // Validation rule for LastNameAr
-        RuleFor(command => command.LastNameAr).NotEmpty().WithMessage("Arab Last name is required.");
+        // Arabic names are optional. The spec's bilingual scope is French/English
+        // (§7.2, FR-CMS-002); nothing in the §6.2 sign-up flow collects an Arabic
+        // name, so requiring one made public registration impossible through the
+        // form the spec describes. Kept as a supported field, no longer demanded.
 
         // Validation rules for Password
         RuleFor(command => command.Password).NotEmpty().WithMessage("Password is required.")
@@ -62,16 +61,23 @@ public class RegisterValidator : AbstractValidator<RegisterCommand>
     ///
     /// `VISITOR` is intentionally absent — §6.1 defines it as the
     /// *unauthenticated* public user, so it can never be stored on an account.
+    ///
+    /// `BUYER` (and its legacy label `Acheteur`) is intentionally absent too, for
+    /// a different reason: §6.2 makes it a *consequence*, not a choice. The role
+    /// is granted to the linked account when a first reservation is approved
+    /// (see ProjectAPI `ApproveReservationHandler`). Allowing it here let anyone
+    /// self-declare as a buyer at signup, asserting a business fact no one had
+    /// approved. Public signup creates a PROSPECT; buyers are made by approval.
     /// </summary>
     private static readonly string[] AllowedRoles =
     {
         // Spec §6.1 codes
-        RoleCodes.Prospect, RoleCodes.Buyer, RoleCodes.SalesAgent,
+        RoleCodes.Prospect, RoleCodes.SalesAgent,
         RoleCodes.Technician, RoleCodes.Notary,
         RoleCodes.ProjectAdmin, RoleCodes.GlobalAdmin,
 
         // Legacy labels still present in the database and seed scripts
-        "Acheteur", "Admin", "Agent", "Notaire", "Technicien",
+        "Admin", "Agent", "Notaire", "Technicien",
         "AgentBch", "Observer", "SecurityOfficer", "Other"
     };
 

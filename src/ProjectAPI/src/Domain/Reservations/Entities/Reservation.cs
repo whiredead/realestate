@@ -10,6 +10,16 @@ namespace ProjectAPI.Domain.Reservations.Entities
         public Guid Id { get; set; }
 
         // Buyer Information
+        //
+        // §1.1/§6.2 — PrimaryContactId is the buyer's identity; the fields below
+        // it are a snapshot kept for the legacy read paths. The contact is the
+        // person (with or without a login), BuyerId is the optional account.
+        // Before CrmContacts existed these inline fields WERE the identity, which
+        // is why the same human appeared as four unlinked copies across
+        // reservations, appointments, claims and sales.
+        public Guid? PrimaryContactId { get; set; }
+        public Crm.Entities.CrmContact? PrimaryContact { get; set; }
+
         public string? BuyerId { get; set; } // If the buyer is a registered user
         public string? Name { get; set; } // For unregistered buyer
         public string? LastName { get; set; }

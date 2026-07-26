@@ -50,7 +50,7 @@ public class UpdateTypeBienHandler : IRequestHandler<UpdateTypeBienCommand, Upda
             }
         }
 
-        _typeBienRepository.Update(typeBien);
+        await _typeBienRepository.Update(typeBien);
         await _typeBienRepository.SaveAsync();
 
         return new UpdateTypeBienResponse

@@ -162,7 +162,7 @@ public class CreateSaleHandler : IRequestHandler<CreateSaleCommand, CreateSaleRe
                 purchase.SaleId = sale.Id;
                 purchase.TotalPrice = sale.TotalPrice;
                 purchase.RemainingAmount = sale.TotalPrice - purchase.PaidAmount;
-                _purchaseRepo.Update(purchase);
+                await _purchaseRepo.Update(purchase);
                 _logger.LogDebug("[CreateSale] Existing Purchase updated");
             }
 

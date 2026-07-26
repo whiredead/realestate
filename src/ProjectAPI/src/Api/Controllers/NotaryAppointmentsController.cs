@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Notary.Appointments.CreateNotaryAppointment;
 using ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointmentById;
 using ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointments;
@@ -32,6 +33,10 @@ public class NotaryAppointmentsController : ControllerBase
     /// <param name="command">The command containing appointment details.</param>
     /// <returns>The response containing the created appointment ID.</returns>
     [HttpPost]
+    // §5.7 FR-NOT-003 — requested by the buyer, the responsible agent or the
+    // project admin. Previously only [Authorize], so any signed-in account
+    // could raise one.
+    [Authorize(Roles = RoleGroups.NotaryAppointmentRequesters)]
     [ProducesResponseType(StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateNotaryAppointment([FromBody] CreateNotaryAppointmentCommand command)
@@ -122,6 +127,10 @@ public class NotaryAppointmentsController : ControllerBase
     /// <param name="command">The command containing the fields to update.</param>
     /// <returns>The response indicating success or failure.</returns>
     [HttpPut("{id}")]
+    // §18.4 — confirming, rescheduling and recording the OUTCOME are the
+    // notary's acts (admins may act for them). An agent or buyer must not be
+    // able to declare a purchase finalised: that outcome converts the sale.
+    [Authorize(Roles = RoleGroups.AdminsNotary)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

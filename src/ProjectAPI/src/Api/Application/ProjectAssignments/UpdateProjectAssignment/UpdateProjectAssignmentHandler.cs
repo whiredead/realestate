@@ -44,7 +44,7 @@ namespace ProjectAPI.Api.Application.ProjectAssignments.UpdateProjectAssignment
                 assignment.IsActive = request.IsActive.Value;
             }
 
-            _repository.Update(assignment);
+            await _repository.Update(assignment);
             await _repository.SaveAsync();
 
             return new UpdateProjectAssignmentResponse

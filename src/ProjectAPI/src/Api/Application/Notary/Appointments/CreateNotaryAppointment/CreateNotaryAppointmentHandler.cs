@@ -82,18 +82,30 @@ public class CreateNotaryAppointmentHandler : IRequestHandler<CreateNotaryAppoin
         // Tax/tahfid fees are due to third parties (state, conservation foncière),
         // not to GPIA — they are not a ledger payment, only reflected on the
         // purchase shell below (§14.1: GPIA never collects money itself).
-        var purchase = new Purchase
+        // Purchase.UserId is non-nullable, so this legacy shell only exists for a
+        // buyer who has an account. A walk-in recorded on the reservation's own
+        // identity fields is legitimate (§1.1) and must not be blocked from
+        // reaching the notary — previously this inserted NULL and failed with a
+        // bare 500. The dossier itself lives on the reservation, not here.
+        var buyerAccountId = !string.IsNullOrWhiteSpace(request.BuyerId)
+            ? request.BuyerId
+            : reservation.BuyerId;
+
+        if (!string.IsNullOrWhiteSpace(buyerAccountId))
         {
-            Id = Guid.NewGuid(),
-            UserId = request.BuyerId!,
-            ReservationId = request.ReservationId,
-            NotaryAppointmentId = notaryAppointment.Id,
-            TotalPrice = reservation.TotalPropertyPrice,
-            PaidAmount = 0,
-            RemainingAmount = reservation.TotalPropertyPrice,
-            CreatedAt = DateTime.UtcNow
-        };
-        _db.Add(purchase);
+            var purchase = new Purchase
+            {
+                Id = Guid.NewGuid(),
+                UserId = buyerAccountId!,
+                ReservationId = request.ReservationId,
+                NotaryAppointmentId = notaryAppointment.Id,
+                TotalPrice = reservation.TotalPropertyPrice,
+                PaidAmount = 0,
+                RemainingAmount = reservation.TotalPropertyPrice,
+                CreatedAt = DateTime.UtcNow
+            };
+            _db.Add(purchase);
+        }
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 

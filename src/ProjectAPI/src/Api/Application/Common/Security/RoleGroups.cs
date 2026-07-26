@@ -36,4 +36,11 @@ public static class RoleGroups
 
     /// <summary>Admins plus notary (notary availability/appointment management).</summary>
     public const string AdminsNotary = Admins + "," + RoleCodes.Notary;
+
+    /// <summary>
+    /// §5.7 FR-NOT-003 — who may REQUEST a notarial appointment: the buyer, the
+    /// responsible sales agent, or the project admin. Deliberately excludes the
+    /// notary: they respond to a request, they do not raise one for themselves.
+    /// </summary>
+    public const string NotaryAppointmentRequesters = AdminsAgents + "," + RoleCodes.Buyer;
 }

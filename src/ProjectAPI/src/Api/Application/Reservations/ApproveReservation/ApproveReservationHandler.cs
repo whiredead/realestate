@@ -1,4 +1,6 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Common.Units;
@@ -7,6 +9,8 @@ using ProjectAPI.Domain.Purchases.Entities;
 using ProjectAPI.Domain.Purchases.Interfaces;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
+using ProjectAPI.Domain.Crm.Entities;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
 using ValidationException = FluentValidation.ValidationException;
 
@@ -20,6 +24,7 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
     private readonly ICurrentUser _currentUser;
     private readonly IUnitStatusService _unitStatus;
     private readonly ApplicationDbContext _db;
+    private readonly UserManager<User> _userManager;
 
     public ApproveReservationHandler(
         IReservationRepository reservationRepo,
@@ -27,7 +32,8 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
         ILogger<ApproveReservationHandler> logger,
         ICurrentUser currentUser,
         IUnitStatusService unitStatus,
-        ApplicationDbContext db)
+        ApplicationDbContext db,
+        UserManager<User> userManager)
     {
         _reservationRepo = reservationRepo;
         _purchaseRepo = purchaseRepo;
@@ -35,6 +41,7 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
         _currentUser = currentUser;
         _unitStatus = unitStatus;
         _db = db;
+        _userManager = userManager;
     }
 
     public async Task<bool> Handle(ApproveReservationCommand request, CancellationToken ct)
@@ -69,8 +76,40 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
             // previous ad-hoc checks so every handler enforces the same matrix.
             ReservationStateMachine.EnsureCanTransition(reservation.Status, ReservationStatus.Approved);
 
-            if (string.IsNullOrWhiteSpace(reservation.BuyerId))
-                throw new ValidationException("Reservation has no BuyerId—cannot create purchase.");
+            // A buyer without a login is legitimate (§1.1): the agent records a
+            // walk-in on the reservation's own identity fields and no account
+            // ever exists. Approval used to refuse those outright — and did it by
+            // throwing FluentValidation's exception, which this API's filter does
+            // not map, so it surfaced as a bare 500 INTERNAL_ERROR.
+            //
+            // Approval no longer depends on an account. What an account gates is
+            // narrower: the legacy Purchase row (keyed on a user) and the BUYER
+            // role, both skipped below when there is none.
+            var hasBuyerAccount = !string.IsNullOrWhiteSpace(reservation.BuyerId);
+            if (!hasBuyerAccount)
+            {
+                _logger.LogInformation(
+                    "[ApproveReservation] Reservation {ReservationId} has no linked account; approving on its own identity fields (§1.1). Purchase row and BUYER role skipped.",
+                    reservation.Id);
+            }
+
+            // §1.1 — approval is what turns a prospect into a buyer, and it does
+            // so on the PERSON, not the account: a walk-in with no login is just
+            // as much a buyer. The BUYER *role* is separate and only granted when
+            // an account exists (see GrantBuyerRoleAsync).
+            if (reservation.PrimaryContactId is not null)
+            {
+                var contact = await _db.CrmContacts
+                    .FirstOrDefaultAsync(c => c.Id == reservation.PrimaryContactId, ct);
+                if (contact is not null && contact.LifecycleStatus == ContactLifecycleStatus.Prospect)
+                {
+                    contact.LifecycleStatus = ContactLifecycleStatus.Buyer;
+                    contact.UpdatedAt = DateTime.UtcNow;
+                    _logger.LogInformation(
+                        "[ApproveReservation] Contact {ContactNumber} promoted PROSPECT -> BUYER.",
+                        contact.ContactNumber);
+                }
+            }
 
             // Mark as approved
             _logger.LogInformation("[ApproveReservation] Marking reservation as approved...");
@@ -120,10 +159,15 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
                 actorUserId: callerId ?? request.AdminUserId,
                 ct: ct);
 
-            // Idempotency: check if a Purchase already exists for this reservation
+            // Idempotency: check if a Purchase already exists for this reservation.
+            // Purchase.UserId is non-nullable, so this legacy row only exists for
+            // a buyer who has an account. (§6.3 flags Purchase/Sale as a shadow of
+            // the reservation + payment ledger, to be retired.)
             _logger.LogInformation("[ApproveReservation] Checking for existing purchase...");
-            var existing = await _purchaseRepo.Find(p => p.ReservationId == reservation.Id);
-            if (!existing.Any())
+            var existing = hasBuyerAccount
+                ? await _purchaseRepo.Find(p => p.ReservationId == reservation.Id)
+                : Array.Empty<Purchase>();
+            if (hasBuyerAccount && !existing.Any())
             {
                 _logger.LogInformation("[ApproveReservation] No existing purchase, creating new one...");
                 var purchase = new Purchase
@@ -147,7 +191,7 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
 
             // Persist reservation changes first
             _logger.LogInformation("[ApproveReservation] Updating reservation...");
-            _reservationRepo.Update(reservation);
+            await _reservationRepo.Update(reservation);
             
             _logger.LogInformation("[ApproveReservation] Saving reservation changes...");
             await _reservationRepo.SaveAsync();
@@ -171,6 +215,17 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
 
             await transaction.CommitAsync(ct);
 
+            // Granted after the commit, deliberately. The role is a key to the
+            // buyer portal, not part of the sale, so it must not share the
+            // transaction — UserManager runs on the same scoped DbContext, and
+            // issuing it mid-transaction raised "A second operation was started
+            // on this context instance". Approval is already durable here; a
+            // failure to grant is logged, never fatal.
+            if (hasBuyerAccount)
+            {
+                await GrantBuyerRoleAsync(reservation.BuyerId!, reservation.Id);
+            }
+
             _logger.LogInformation("[ApproveReservation] SUCCESS! Reservation {ReservationId} approved, unit {UnitId} RESERVED", request.ReservationId, reservation.UnitId);
             return true;
         }
@@ -188,6 +243,67 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
         {
             _logger.LogError(ex, "[ApproveReservation] UNEXPECTED ERROR: {Message}. StackTrace: {StackTrace}", ex.Message, ex.StackTrace);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// §6.2 — "le rôle BUYER est attribué automatiquement au compte lié lorsqu'une
+    /// première réservation est approuvée". Approval is the only thing that makes
+    /// a buyer; the role is never self-selected at signup (see AuthenticationAPI
+    /// <c>RegisterValidator</c>, which excludes it for that reason).
+    ///
+    /// Two deliberate choices here:
+    ///
+    /// * <b>Idempotent.</b> Re-approving, or a buyer with several files, must not
+    ///   produce a duplicate role assignment.
+    /// * <b>Non-fatal.</b> A failure to grant is logged, not thrown. The role is a
+    ///   key to the buyer portal, not part of the sale: the reservation really was
+    ///   approved, the unit really is reserved, and rolling that back because a
+    ///   portal permission could not be written would be the worse outcome. The
+    ///   warning is what surfaces it.
+    ///
+    /// Note this grants the role on the account only. Being a buyer is a fact
+    /// about the *person*, which belongs on `crm_contacts.lifecycle_status` — a
+    /// table that does not exist yet (audit B10). Until it does, a buyer with no
+    /// account is recorded only as loose text on the reservation.
+    /// </summary>
+    private async Task GrantBuyerRoleAsync(string buyerUserId, Guid reservationId)
+    {
+        try
+        {
+            var buyer = await _userManager.FindByIdAsync(buyerUserId);
+            if (buyer is null)
+            {
+                _logger.LogWarning(
+                    "[ApproveReservation] BuyerId {BuyerId} on reservation {ReservationId} matches no account; BUYER role not granted.",
+                    buyerUserId, reservationId);
+                return;
+            }
+
+            if (await _userManager.IsInRoleAsync(buyer, RoleCodes.Buyer))
+            {
+                return;
+            }
+
+            var result = await _userManager.AddToRoleAsync(buyer, RoleCodes.Buyer);
+            if (result.Succeeded)
+            {
+                _logger.LogInformation(
+                    "[ApproveReservation] Granted BUYER to {BuyerId} following approval of {ReservationId}.",
+                    buyerUserId, reservationId);
+            }
+            else
+            {
+                _logger.LogWarning(
+                    "[ApproveReservation] Could not grant BUYER to {BuyerId}: {Errors}",
+                    buyerUserId, string.Join("; ", result.Errors.Select(e => e.Description)));
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "[ApproveReservation] Granting BUYER to {BuyerId} failed; the approval itself stands.",
+                buyerUserId);
         }
     }
 }

@@ -25,10 +25,27 @@ public class UserRepository : IUserRepository
     /// <inheritdoc />
     public async Task<User?> GetUserByName(string userName)
     {
+        // Accepts a username OR an email address. The sign-in form asks for an
+        // email (§6.2 makes the verified email the account's identity, and it is
+        // what users actually remember), but this lookup previously matched
+        // UserName only — so typing the address the form asked for returned
+        // "Invalid username or password".
+        //
+        // Matching is done on Identity's normalised columns, which are stored
+        // upper-cased, so the comparison is case-insensitive regardless of the
+        // database collation.
+        if (string.IsNullOrWhiteSpace(userName))
+        {
+            return null;
+        }
+
+        var normalized = userName.Trim().ToUpperInvariant();
+
         return await _context.Users
             .Include(u => u.UserRoles)
             .ThenInclude(ur => ur.Role)
-            .FirstOrDefaultAsync(u => u.UserName == userName);
+            .FirstOrDefaultAsync(u =>
+                u.NormalizedUserName == normalized || u.NormalizedEmail == normalized);
     }
 
     /// <inheritdoc />

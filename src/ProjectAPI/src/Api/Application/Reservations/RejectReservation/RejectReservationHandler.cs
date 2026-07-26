@@ -51,7 +51,7 @@ public class RejectReservationHandler : IRequestHandler<RejectReservationCommand
             reason: request.Reason,
             ct: ct);
 
-        _reservationRepo.Update(reservation);
+        await _reservationRepo.Update(reservation);
         await _reservationRepo.SaveAsync();
 
         await transaction.CommitAsync(ct);

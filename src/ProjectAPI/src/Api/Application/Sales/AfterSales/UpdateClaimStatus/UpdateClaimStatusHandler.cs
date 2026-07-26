@@ -62,7 +62,7 @@ public class UpdateClaimStatusHandler : IRequestHandler<UpdateClaimStatusCommand
             Note = r.Note
         });
 
-        _claimRepo.Update(claim);
+        await _claimRepo.Update(claim);
 
         await _attachRepo.SaveAsync();
         await _historyRepo.SaveAsync();
