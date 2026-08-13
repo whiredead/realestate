@@ -6,7 +6,8 @@
 		<ProjectGuid>{D1739B9D-A467-4F65-9AE7-3FA85875BBC7}</ProjectGuid>
 		<InvariantGlobalization>false</InvariantGlobalization>
 		<IsPackable>false</IsPackable>
-	</PropertyGroup>
+	  <UserSecretsId>fc785812-cac4-407f-8c87-64b7e1f923a1</UserSecretsId>
+  </PropertyGroup>
 
 	<PropertyGroup>
 		<RootNamespace>ProjectAPI.Api</RootNamespace>

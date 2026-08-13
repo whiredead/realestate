@@ -32,7 +32,7 @@ public static class DependencyInjection
         services.ConfigureJwtAuthentication(configuration);
         services.ConfigureInternalApiKeyAuthentication(configuration);
         services.ConfigureIdentityOptions();
-        services.ConfigureCustomServices();
+        services.ConfigureCustomServices(configuration);
         services.ConfigureProjectApiClient();
 
         return services;
@@ -123,9 +123,26 @@ public static class DependencyInjection
         });
     }
 
-    private static void ConfigureCustomServices(this IServiceCollection services)
+    private static void ConfigureCustomServices(this IServiceCollection services, IConfiguration configuration)
     {
+        // SMTP credentials come from configuration (user-secrets locally,
+        // Smtp__* environment variables in a deployment). They used to be
+        // compiled into EmailService, which put a live mailbox password in
+        // source control. Only the password-reset flow sends mail today, so an
+        // unconfigured mailbox is tolerated at startup and fails at send time
+        // instead of preventing the API from booting.
+        var smtpSettings = new SmtpSettings
+        {
+            Host = configuration["Smtp:Host"] ?? "smtp.gmail.com",
+            Port = int.TryParse(configuration["Smtp:Port"], out var smtpPort) ? smtpPort : 587,
+            UserName = configuration["Smtp:UserName"] ?? string.Empty,
+            Password = configuration["Smtp:Password"] ?? string.Empty,
+            FromAddress = configuration["Smtp:FromAddress"],
+            EnableSsl = !bool.TryParse(configuration["Smtp:EnableSsl"], out var ssl) || ssl,
+        };
+
         services
+            .AddSingleton(smtpSettings)
             .AddSingleton<ITokenProvider, TokenProvider>()
             .AddSingleton<IEmailService, EmailService>()
             .AddSingleton<IOtpVerificationRepository, OtpVerificationRepository>()

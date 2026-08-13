@@ -8,7 +8,8 @@
 		<ProjectGuid>{D1739B9D-A467-4F65-9AE7-3FA85875BBC7}</ProjectGuid>
 		<InvariantGlobalization>false</InvariantGlobalization>
 		<IsPackable>false</IsPackable>
-	</PropertyGroup>
+	  <UserSecretsId>6879ab0b-2498-4fb3-a2f8-03475d891986</UserSecretsId>
+  </PropertyGroup>
 
 	<PropertyGroup>
 		<RootNamespace>AuthenticationAPI.Api</RootNamespace>

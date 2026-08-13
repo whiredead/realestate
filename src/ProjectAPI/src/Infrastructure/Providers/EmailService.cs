@@ -1,13 +1,26 @@
-﻿using System.Net.Mail;
+using System.Net.Mail;
 using System.Net;
 using ProjectAPI.Domain.Common.Interfaces;
+using ProjectAPI.Infrastructure.Settings;
 
 namespace ProjectAPI.Infrastructure.Providers;
 /// <summary>
 /// Implementation of the <see cref="IEmailService"/> interface for sending emails.
+///
+/// Credentials come from <see cref="SmtpSettings"/> rather than being written
+/// into this file: the mailbox password previously sat in source control, so
+/// rotating it required a code change and anyone with repository access could
+/// send mail as the company.
 /// </summary>
 public class EmailService : IEmailService
 {
+    private readonly SmtpSettings _settings;
+
+    public EmailService(SmtpSettings settings)
+    {
+        _settings = settings ?? throw new ArgumentNullException(nameof(settings));
+    }
+
     /// <summary>
     /// Sends an email asynchronously.
     /// </summary>
@@ -17,14 +30,14 @@ public class EmailService : IEmailService
     /// <returns>A task that represents the asynchronous operation.</returns>
     public async Task SendEmailAsync(string to, string subject, string body)
     {
-        using (var client = new SmtpClient("smtp.gmail.com", 587))
+        using (var client = new SmtpClient(_settings.Host, _settings.Port))
         {
-            client.Credentials = new NetworkCredential("b.yasser@alexsys.solutions", "Yasserder222***");
-            client.EnableSsl = true;
+            client.Credentials = new NetworkCredential(_settings.UserName, _settings.Password);
+            client.EnableSsl = _settings.EnableSsl;
 
             var mailMessage = new MailMessage
             {
-                From = new MailAddress("b.yasser@alexsys.solutions"),
+                From = new MailAddress(_settings.ResolvedFrom),
                 Subject = subject,
                 Body = body,
                 IsBodyHtml = true

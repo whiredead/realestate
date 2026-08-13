@@ -103,6 +103,22 @@ var blobStorageSettings = new ProjectAPI.Infrastructure.Settings.BlobStorageSett
 builder.Services.AddSingleton(blobStorageSettings);
 builder.Services.AddSingleton(new Azure.Storage.Blobs.BlobServiceClient(blobStorageSettings.ConnectionString));
 
+// Outbound mail. The password used to be compiled into EmailService, which put
+// a live mailbox password in source control; it now comes from configuration
+// (user-secrets locally, Smtp__* environment variables in a deployment).
+// Nothing in ProjectAPI actually sends mail today — IEmailService has no
+// callers here — so an unconfigured mailbox is not a startup error; the
+// registration exists only so the service can still be resolved.
+builder.Services.AddSingleton(new ProjectAPI.Infrastructure.Settings.SmtpSettings
+{
+    Host = builder.Configuration["Smtp:Host"] ?? "smtp.gmail.com",
+    Port = int.TryParse(builder.Configuration["Smtp:Port"], out var smtpPort) ? smtpPort : 587,
+    UserName = builder.Configuration["Smtp:UserName"] ?? string.Empty,
+    Password = builder.Configuration["Smtp:Password"] ?? string.Empty,
+    FromAddress = builder.Configuration["Smtp:FromAddress"],
+    EnableSsl = !bool.TryParse(builder.Configuration["Smtp:EnableSsl"], out var ssl) || ssl,
+});
+
 // Phase 2 invitation-acceptance flow: this service validates the
 // AccountInvitation token, then calls AuthenticationAPI's own internal
 // endpoint to actually create the account (AuthenticationAPI is the source

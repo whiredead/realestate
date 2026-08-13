@@ -1,17 +1,20 @@
 name: Build and deploy ASP.Net Core app to Azure Web App - apiauthenticationtest001
 
+# Automatic deployment is disabled: this published the authentication API
+# straight to the Azure Web App on any push touching src/AuthenticationAPI/**.
+# Still runnable on demand from the Actions tab.
 on:
-  push:    
-    paths:
-      - "src/AuthenticationAPI/**"
-    branches:
-      - master
-  pull_request:
-    paths:
-      - "src/AuthenticationAPI/**"
-    branches:
-      - master
   workflow_dispatch:
+  # push:
+  #   paths:
+  #     - "src/AuthenticationAPI/**"
+  #   branches:
+  #     - master
+  # pull_request:
+  #   paths:
+  #     - "src/AuthenticationAPI/**"
+  #   branches:
+  #     - master
 
 jobs:
   build:
