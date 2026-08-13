@@ -20,6 +20,12 @@ namespace ProjectAPI.Infrastructure.Configurations
             builder.Property(r => r.TotalPropertyPrice).HasColumnType("decimal(18,2)").IsRequired();
             builder.Property(r => r.ReservationAmount).HasColumnType("decimal(18,2)").IsRequired();
 
+            // §5.3 — snapshots taken once at submit, never recomputed afterward.
+            builder.Property(r => r.CatalogPrice).HasColumnType("decimal(18,2)");
+            builder.Property(r => r.Discount).HasColumnType("decimal(18,2)");
+            builder.Property(r => r.FinalPrice).HasColumnType("decimal(18,2)");
+            builder.Property(r => r.OwnerSalesAgentId).HasMaxLength(450);
+
             builder.Property(r => r.Status)
              .HasConversion<int>() // store enum as int
              .IsRequired();
@@ -72,6 +78,11 @@ namespace ProjectAPI.Infrastructure.Configurations
                    .WithOne(d => d.Reservation)
                    .HasForeignKey(d => d.ReservationId)
                    .OnDelete(DeleteBehavior.Cascade);
+
+            // §31.6 — real optimistic concurrency: a stale write throws
+            // DbUpdateConcurrencyException, translated to 409
+            // RESOURCE_VERSION_CONFLICT by ApiExceptionFilter.
+            builder.Property(r => r.RowVersion).IsRowVersion();
         }
     }
 }

@@ -47,12 +47,20 @@
             RuleFor(project => project.NumberOfUnits)
                 .GreaterThanOrEqualTo(0).WithMessage("Number of units must be greater than or equal to 0.");
 
-            // Validation rules for Min and Max Sellable Surface Range
+            // Validation rules for Min and Max Sellable Surface Range. Neither
+            // is collected by the creation UI (ProjectsListPage/ImmeublesListPage
+            // only ask for name/location/type/price/description), so both wire
+            // in as 0 by default — the same "not actually required, just
+            // GreaterThanOrEqualTo" convention UpdateImmeubleValidator already
+            // uses is applied here instead of the previous GreaterThan(0)/
+            // GreaterThan(Min) rules, which rejected every real submission
+            // with an unactionable "One or more validation errors occurred."
+            // (F2).
             RuleFor(project => project.MinSellableSurfaceRange)
-                .GreaterThan(0).WithMessage("Minimum sellable surface range must be greater than 0.");
+                .GreaterThanOrEqualTo(0).WithMessage("Minimum sellable surface range must be greater than or equal to 0.");
 
             RuleFor(project => project.MaxSellableSurfaceRange)
-                .GreaterThan(project => project.MinSellableSurfaceRange).WithMessage("Maximum sellable surface range must be greater than minimum sellable surface range.");
+                .GreaterThanOrEqualTo(project => project.MinSellableSurfaceRange).WithMessage("Maximum sellable surface range must be greater than or equal to the minimum sellable surface range.");
         }
     }
 }

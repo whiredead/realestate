@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using System.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -97,8 +98,40 @@ app
 
 // Liveness probe stays open — it carries no data and is polled without a token.
 app.MapHealthChecks("/health").AllowAnonymous();
+
+// TEMPORARY, dev-only — lets us set a known password on a seeded account so
+// the workflow can be tested end-to-end before the invitation flow exists.
+// Remove once testing is done; never ship this.
+if (app.Environment.IsDevelopment())
+{
+    app.MapPost("/dev/set-password", async (
+        DevSetPasswordRequest request,
+        Microsoft.AspNetCore.Identity.UserManager<AuthenticationAPI.Domain.ApplicationUser.Entities.User> userManager) =>
+    {
+        var user = await userManager.FindByEmailAsync(request.Email);
+        if (user is null) return Results.NotFound($"No user with email {request.Email}");
+
+        var removeResult = await userManager.RemovePasswordAsync(user);
+        if (!removeResult.Succeeded && removeResult.Errors.Any(e => e.Code != "PasswordMismatch"))
+        {
+            // RemovePasswordAsync fails harmlessly if there's no password set yet.
+        }
+
+        var addResult = await userManager.AddPasswordAsync(user, request.NewPassword);
+        if (!addResult.Succeeded)
+        {
+            return Results.BadRequest(addResult.Errors.Select(e => e.Description));
+        }
+
+        return Results.Ok(new { user.Email, Message = "Password set." });
+    }).AllowAnonymous();
+}
+
 app.MapControllers();
 
 app.Run();
 
 public partial class Program;
+
+/// <summary>TEMPORARY — see the /dev/set-password endpoint above. Remove together.</summary>
+public record DevSetPasswordRequest(string Email, string NewPassword);

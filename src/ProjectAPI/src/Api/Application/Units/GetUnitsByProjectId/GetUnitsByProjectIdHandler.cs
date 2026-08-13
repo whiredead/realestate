@@ -28,14 +28,16 @@ public class GetUnitsByProjectIdHandler : IRequestHandler<GetUnitsByProjectIdQue
     /// <returns>A paginated response containing the units associated with the specified project ID.</returns>
     public async Task<PaginatedResponse<UnitResponse>> Handle(GetUnitsByProjectIdQuery request, CancellationToken cancellationToken)
     {
-        // Retrieve filtered units based on the project ID
-        var units = (await _unitRepository.Find(u => u.ProjectId == request.ImmeubleId))
+        // Retrieve filtered units based on the project ID — Floor is
+        // eager-loaded since the projection below reads its display name.
+        var units = (await _unitRepository.Find(u => u.ProjectId == request.ImmeubleId, u => u.Floor))
                     .Skip((request.PageNumber - 1) * request.PageSize)
                     .Take(request.PageSize)
                     .Select(u => new UnitResponse
                     {
                         Id = u.Id,
-                        Floor = u.Floor,
+                        FloorId = u.FloorId,
+                        Floor = u.Floor.Name,
                         UnitNumber = u.UnitNumber,
                         NumberOfBedrooms = u.NumberOfBedrooms,
                         NumberOfBathrooms = u.NumberOfBathrooms,
@@ -51,7 +53,8 @@ public class GetUnitsByProjectIdHandler : IRequestHandler<GetUnitsByProjectIdQue
                         PriceSaleableValue = u.PriceSaleableValue,
                         PriceSaleableValue1 = u.PriceSaleableValue1,
                         LatestPrice = u.LatestPrice,
-                        Status = u.Status.ToCode()
+                        Status = u.Status.ToCode(),
+                        Images = u.Images
                     }).ToList();
 
         // Calculate the total number of items for pagination

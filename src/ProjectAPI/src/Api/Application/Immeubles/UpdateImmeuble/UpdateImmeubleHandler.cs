@@ -1,5 +1,6 @@
 ﻿using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Models;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 
@@ -12,16 +13,19 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
     {
         private readonly IImmeubleRepository _repository;
         private readonly IImmeubleTrackingRepository _trackingRepository;
+        private readonly ProjectScopeService _projectScope;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="UpdateImmeubleHandler"/> class.
         /// </summary>
         /// <param name="repository">The immeuble repository.</param>
         /// <param name="trackingRepository">The tracking repository.</param>
-        public UpdateImmeubleHandler(IImmeubleRepository repository, IImmeubleTrackingRepository trackingRepository)
+        /// <param name="projectScope">Enforces §6.4: a building may only be edited by staff assigned to its project.</param>
+        public UpdateImmeubleHandler(IImmeubleRepository repository, IImmeubleTrackingRepository trackingRepository, ProjectScopeService projectScope)
         {
             _repository = repository;
             _trackingRepository = trackingRepository;
+            _projectScope = projectScope;
         }
 
         /// <summary>
@@ -34,6 +38,10 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
         {
             var immeuble = await _repository.GetByIDAsync(request.Id)
                            ?? throw new NotFoundException($"Immeuble with ID {request.Id} not found.");
+
+            // Immeuble.ProjectId is the real FK to Project (unlike Unit.ProjectId,
+            // which is actually the FK to Immeuble) — no indirection needed here.
+            await _projectScope.EnsureProjectAccessAsync(immeuble.ProjectId, cancellationToken);
 
             // Track the original status
             var originalStatus = immeuble.Status;

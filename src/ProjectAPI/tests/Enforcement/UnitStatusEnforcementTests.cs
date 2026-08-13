@@ -149,11 +149,19 @@ public class UnitStatusServiceTests
             Status = "IN_PROGRESS"
         };
 
+        var floor = new Floor
+        {
+            Id = Guid.NewGuid(),
+            ImmeubleId = immeuble.Id,
+            Name = "1",
+            SequenceNo = 1
+        };
+
         var unit = new Unit
         {
             Id = Guid.NewGuid(),
             ProjectId = immeuble.Id,
-            Floor = "1",
+            FloorId = floor.Id,
             UnitNumber = "A101",
             View = "Jardin",
             Orientation = "Nord",
@@ -162,6 +170,7 @@ public class UnitStatusServiceTests
 
         db.Projects.Add(project);
         db.Immeubles.Add(immeuble);
+        db.Set<Floor>().Add(floor);
         db.Units.Add(unit);
         await db.SaveChangesAsync();
 

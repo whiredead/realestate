@@ -20,9 +20,13 @@ public class AfterSaleClaimConfiguration : IEntityTypeConfiguration<AfterSaleCla
         b.Property(x => x.GuestEmail).HasMaxLength(150);
         b.Property(x => x.GuestPhone).HasMaxLength(30);
 
+        // §20 — SLA target and reopen tracking (§49.5 SLA detection job reads this).
+        b.Property(x => x.ReopenCount).HasDefaultValue(0);
+
         b.HasIndex(x => new { x.UnitId, x.Status });
         b.HasIndex(x => x.BuyerId);
         b.HasIndex(x => x.AssignedAgentId);
+        b.HasIndex(x => x.WarrantyId);
 
         b.HasMany(x => x.Attachments)
             .WithOne(a => a.Claim)

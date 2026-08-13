@@ -25,6 +25,7 @@ public class ReservationRepository : BaseRepository<Reservation>, IReservationRe
     {
         return await _context.Reservations
             .Include(r => r.Documents)
+            .Include(r => r.Buyers).ThenInclude(b => b.CrmContact)
             .FirstOrDefaultAsync(r => r.Id == id);
     }
     

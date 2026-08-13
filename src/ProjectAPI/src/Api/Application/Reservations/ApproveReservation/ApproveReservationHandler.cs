@@ -1,7 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
+using ProjectAPI.Api.Application.Common.Crm;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Notifications;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Common.Units;
 using ProjectAPI.Domain.Immeubles.Entities;
@@ -25,6 +27,9 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
     private readonly IUnitStatusService _unitStatus;
     private readonly ApplicationDbContext _db;
     private readonly UserManager<User> _userManager;
+    private readonly ProjectScopeService _projectScope;
+    private readonly INotificationService _notifications;
+    private readonly IAccountInvitationService _accountInvitations;
 
     public ApproveReservationHandler(
         IReservationRepository reservationRepo,
@@ -33,7 +38,10 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
         ICurrentUser currentUser,
         IUnitStatusService unitStatus,
         ApplicationDbContext db,
-        UserManager<User> userManager)
+        UserManager<User> userManager,
+        ProjectScopeService projectScope,
+        INotificationService notifications,
+        IAccountInvitationService accountInvitations)
     {
         _reservationRepo = reservationRepo;
         _purchaseRepo = purchaseRepo;
@@ -42,6 +50,9 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
         _unitStatus = unitStatus;
         _db = db;
         _userManager = userManager;
+        _projectScope = projectScope;
+        _notifications = notifications;
+        _accountInvitations = accountInvitations;
     }
 
     public async Task<bool> Handle(ApproveReservationCommand request, CancellationToken ct)
@@ -51,6 +62,10 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
 
         try
         {
+            // §6.4 — a project admin may only approve reservations inside their
+            // assigned projects; a GLOBAL_ADMIN bypasses this.
+            await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+
             // Use GetByIdWithDocumentsAsync to load Documents collection for adding new documents
             _logger.LogInformation("[ApproveReservation] Fetching reservation with documents...");
             var reservation = await _reservationRepo.GetByIdWithDocumentsAsync(request.ReservationId)
@@ -225,6 +240,34 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
             {
                 await GrantBuyerRoleAsync(reservation.BuyerId!, reservation.Id);
             }
+            else if (reservation.PrimaryContactId is not null)
+            {
+                // §1.1/§6.2 — "if the approved prospect has no account yet, the
+                // system should send an invitation to activate one; it must
+                // not silently create a password or duplicate CRM contact."
+                // Same non-fatal treatment as the role grant above: approval
+                // already committed, a failed invite is logged, not thrown.
+                await IssueInvitationAsync(reservation.PrimaryContactId.Value, reservation.Id, ct);
+            }
+
+            // §6.2 — buyer/agent notification, same non-fatal treatment as the
+            // buyer-role grant above: the approval itself already succeeded.
+            if (hasBuyerAccount)
+            {
+                await _notifications.NotifyAsync(
+                    reservation.BuyerId!, "RESERVATION_APPROVED",
+                    "Réservation approuvée",
+                    "Votre réservation a été approuvée. Vous pouvez accéder à votre espace acheteur.",
+                    reservation.Id, "Reservation", ct);
+            }
+            if (!string.IsNullOrWhiteSpace(reservation.AgentId))
+            {
+                await _notifications.NotifyAsync(
+                    reservation.AgentId, "RESERVATION_APPROVED",
+                    "Réservation approuvée",
+                    $"La réservation {reservation.Id} a été approuvée.",
+                    reservation.Id, "Reservation", ct);
+            }
 
             _logger.LogInformation("[ApproveReservation] SUCCESS! Reservation {ReservationId} approved, unit {UnitId} RESERVED", request.ReservationId, reservation.UnitId);
             return true;
@@ -304,6 +347,41 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
             _logger.LogWarning(ex,
                 "[ApproveReservation] Granting BUYER to {BuyerId} failed; the approval itself stands.",
                 buyerUserId);
+        }
+    }
+
+    /// <summary>
+    /// §1.1/§6.2 — an approved buyer with no account gets invited to activate
+    /// one, never a silently-created password and never a second CrmContact:
+    /// AccountInvitationService resolves the token against the SAME contact
+    /// ContactResolver already found for this reservation.
+    /// </summary>
+    private async Task IssueInvitationAsync(Guid crmContactId, Guid reservationId, CancellationToken ct)
+    {
+        try
+        {
+            var invitation = await _accountInvitations.IssueAsync(crmContactId, ct);
+            if (invitation is null)
+            {
+                _logger.LogInformation(
+                    "[ApproveReservation] Contact {ContactId} on reservation {ReservationId} has no email; no invitation to send.",
+                    crmContactId, reservationId);
+                return;
+            }
+
+            _logger.LogInformation(
+                "[ApproveReservation] Invitation issued to {Email} (contact {ContactId}) following approval of {ReservationId}.",
+                invitation.Email, crmContactId, reservationId);
+
+            // Sending the actual email is outside this handler's concern
+            // (no email provider is wired into ProjectAPI today); the token
+            // is durable and can be dispatched by whatever channel is added.
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "[ApproveReservation] Issuing an invitation for contact {ContactId} failed; the approval itself stands.",
+                crmContactId);
         }
     }
 }

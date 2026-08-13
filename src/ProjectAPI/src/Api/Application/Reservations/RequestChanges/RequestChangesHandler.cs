@@ -1,4 +1,5 @@
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
 
@@ -15,14 +16,20 @@ namespace ProjectAPI.Api.Application.Reservations.RequestChanges;
 public class RequestChangesHandler : IRequestHandler<RequestChangesCommand, bool>
 {
     private readonly IReservationRepository _reservationRepo;
+    private readonly ProjectScopeService _projectScope;
 
-    public RequestChangesHandler(IReservationRepository reservationRepo)
+    public RequestChangesHandler(IReservationRepository reservationRepo, ProjectScopeService projectScope)
     {
         _reservationRepo = reservationRepo;
+        _projectScope = projectScope;
     }
 
     public async Task<bool> Handle(RequestChangesCommand request, CancellationToken ct)
     {
+        // §6.4 — project-scoped: correction requests are an admin decision
+        // within their assigned projects.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+
         var reservation = await _reservationRepo.GetByIDAsync(request.ReservationId)
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");
 

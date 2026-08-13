@@ -16,7 +16,7 @@ public class DeleteFileHandler : IRequestHandler<DeleteFileCommand, DeleteFileRe
 
     public async Task<DeleteFileResponse> Handle(DeleteFileCommand request, CancellationToken cancellationToken)
     {
-        var isDeleted = await _blobStorageService.DeleteBlobAsync(request.FileName, cancellationToken);
+        var isDeleted = await _blobStorageService.ForContainer().DeleteAsync(request.FileName, cancellationToken);
 
         return new DeleteFileResponse
         {

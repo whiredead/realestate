@@ -32,6 +32,9 @@ public class PaymentSchedule
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<PaymentInstallment> Installments { get; set; } = new List<PaymentInstallment>();
+
+    /// <summary>§31.6 — optimistic concurrency token; two admins editing the same draft must not silently overwrite each other.</summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 /// <summary>Lifecycle of a payment schedule (§14.2).</summary>

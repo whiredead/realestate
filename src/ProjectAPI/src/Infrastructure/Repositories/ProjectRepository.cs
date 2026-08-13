@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Domain.Projects.DTOs;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Projects.Interfaces;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Infrastructure.Repositories;
@@ -17,6 +18,14 @@ public class ProjectRepository : BaseRepository<Project>, IProjectRepository
 
     }
 
+    /// <summary>
+    /// Phase 1 — agent/notary staffing (the UserId filter, AgentId/NotaryId,
+    /// AssignedAgents/AssignedNotaries) is resolved from ProjectMembership,
+    /// not the legacy Project.Assignments navigation: ProjectAssignmentController
+    /// no longer writes ProjectAssignments at all (see its handlers), so any
+    /// staffing created/changed after Phase 1 would be invisible to a query
+    /// still walking that navigation.
+    /// </summary>
     public async Task<List<ProjectDTO>> GetProjects(string? UserId, string? Name, string? Location, string Adress, string? Status, int PageNumber, int PageSize)
     {
         var likedProjectIds = new List<Guid>();
@@ -26,22 +35,92 @@ public class ProjectRepository : BaseRepository<Project>, IProjectRepository
             var likedProjects = await _context.LikedProjects.Where(lp => lp.UserId == UserId).ToListAsync();
             likedProjectIds = likedProjects.Select(lp => lp.ProjectId).ToList();
         }
+
+        // Active SALES_AGENT/NOTARY memberships, joined to the user's
+        // display fields — this replaces Project.Assignments.Agent/.Notary.
+        var activeStaffQuery =
+            from m in _context.Set<ProjectMembership>()
+            join u in _context.Users on m.UserId equals u.Id
+            where m.IsActive && (m.RoleCode == RoleCodes.SalesAgent || m.RoleCode == RoleCodes.Notary)
+            select new { m.ProjectId, m.RoleCode, m.UserId, u.FirstName, u.LastName, u.Email, u.PhoneNumber };
+
+        var activeStaff = await activeStaffQuery.ToListAsync();
+        var staffByProject = activeStaff
+            .GroupBy(s => s.ProjectId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        var agentProjectIds = string.IsNullOrEmpty(UserId)
+            ? null
+            : activeStaff.Where(s => s.RoleCode == RoleCodes.SalesAgent && s.UserId == UserId)
+                .Select(s => s.ProjectId)
+                .ToHashSet();
+
         var projects = await _context.Projects
             .Include(p => p.TypeBiens)
             .ThenInclude(ptb => ptb.TypeBien)
             .Include(p => p.Quartier)
-            .Include(p => p.Assignments)
-                .ThenInclude(a => a.Agent)
-            .Include(p => p.Assignments)
-                .ThenInclude(a => a.Notary)
-.Where(p =>
-                (string.IsNullOrEmpty(UserId) || p.Assignments.Any(a => a.AgentId == UserId)) &&
+            .Where(p =>
+                (agentProjectIds == null || agentProjectIds.Contains(p.Id)) &&
                 (string.IsNullOrEmpty(Name) || p.Name.Contains(Name)) &&
                 (string.IsNullOrEmpty(Location) || p.Location.Contains(Location)) &&
                 (string.IsNullOrEmpty(Adress) || p.Address.Contains(Adress)) &&
                 (string.IsNullOrEmpty(Status) || p.StatusGlobal == Status)
             )
-            .Select(p => new ProjectDTO
+            .Select(p => new
+            {
+                p.Id,
+                p.Name,
+                p.Location,
+                p.Address,
+                p.Description,
+                p.Module3DLink,
+                p.StatusGlobal,
+                p.Type,
+                p.OverAllProgress,
+                p.NumberLikes,
+                p.Quartier,
+                p.Images,
+                p.TypeBiens
+            })
+            .Skip((PageNumber - 1) * PageSize)
+            .Take(PageSize)
+            .ToListAsync();
+
+        return projects.Select(p =>
+        {
+            staffByProject.TryGetValue(p.Id, out var staff);
+            staff ??= new();
+
+            var agents = staff.Where(s => s.RoleCode == RoleCodes.SalesAgent)
+                .GroupBy(s => s.UserId)
+                .Select(g => g.First())
+                .Select(a => new AgentDTO
+                {
+                    Id = a.UserId,
+                    FirstName = a.FirstName,
+                    LastName = a.LastName,
+                    Email = a.Email!,
+                    PhoneNumber = a.PhoneNumber!
+                })
+                .ToList();
+
+            var notaries = staff.Where(s => s.RoleCode == RoleCodes.Notary)
+                .GroupBy(s => s.UserId)
+                .Select(g => g.First())
+                .Select(n => new NotaryDTO
+                {
+                    Id = n.UserId,
+                    FirstName = n.FirstName,
+                    LastName = n.LastName,
+                    Email = n.Email!,
+                    PhoneNumber = n.PhoneNumber!
+                })
+                .ToList();
+
+            var firstAgent = staff.FirstOrDefault(s => s.RoleCode == RoleCodes.SalesAgent);
+            var firstNotary = staff.FirstOrDefault(s => s.RoleCode == RoleCodes.Notary);
+
+            return new ProjectDTO
             {
                 Id = p.Id,
                 Name = p.Name,
@@ -58,11 +137,10 @@ public class ProjectRepository : BaseRepository<Project>, IProjectRepository
                 QuartierDescription = p.Quartier != null ? p.Quartier.Description : null,
                 QuartierImages = p.Quartier != null ? p.Quartier.Images : null,
                 Images = p.Images,
-                AgentId = p.Assignments.FirstOrDefault(p=>p.AgentId !=null)!.AgentId,
-                AgentPhoneNumber = p.Assignments.FirstOrDefault(p => p.AgentId != null)!.Agent.PhoneNumber,
-                NotaryId = p.Assignments.FirstOrDefault(p => p.NotaryId != null)!.NotaryId,
-                NotaryPhoneNumber = p.Assignments.FirstOrDefault(p => p.NotaryId != null)!.Notary.PhoneNumber,   
-                // Get TypeBiens directly from Project
+                AgentId = firstAgent?.UserId,
+                AgentPhoneNumber = firstAgent?.PhoneNumber,
+                NotaryId = firstNotary?.UserId,
+                NotaryPhoneNumber = firstNotary?.PhoneNumber,
                 TypeBiens = p.TypeBiens
                     .Where(ptb => ptb.TypeBien != null)
                     .Select(ptb => new TypeBienDTO
@@ -80,38 +158,10 @@ public class ProjectRepository : BaseRepository<Project>, IProjectRepository
                         ImagesInterieur = ptb.TypeBien.ImagesInterieur
                     })
                     .ToList(),
-                AssignedAgents = p.Assignments.Where(p => p.AgentId != null)
-                                    .Select(a => new AgentDTO
-                                    {
-                                        Id = a.AgentId,
-                                        FirstName = a.Agent.FirstName,
-                                        LastName = a.Agent.LastName,
-                                        Email = a.Agent.Email!,
-                                        PhoneNumber = a.Agent.PhoneNumber!
-                                        
-                                    })
-                                    .GroupBy(a => a.Id)
-                                    .Select(g => g.First())
-                                    .ToList(),
-                AssignedNotaries = p.Assignments.Where(p=>p.NotaryId != null)
-                                    .Select(a => new NotaryDTO
-                                    {
-                                        Id = a.NotaryId,
-                                        FirstName = a.Notary.FirstName,
-                                        LastName = a.Notary.LastName,
-                                        Email = a.Notary.Email!,
-                                        PhoneNumber = a.Notary.PhoneNumber!
-                                    })
-                                    .GroupBy(n => n.Id)
-                                    .Select(g => g.First())
-                                    .ToList()
-
-            })
-            .Skip((PageNumber - 1) * PageSize)
-            .Take(PageSize)
-            .ToListAsync();
-
-return projects;
+                AssignedAgents = agents,
+                AssignedNotaries = notaries
+            };
+        }).ToList();
     }
 
     public async Task<Project?> GetByIdWithTypeBiensAsync(Guid id)

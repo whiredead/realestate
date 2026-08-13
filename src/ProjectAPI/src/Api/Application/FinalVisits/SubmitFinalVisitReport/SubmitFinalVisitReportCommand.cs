@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.FinalVisits.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -48,10 +49,12 @@ public class SubmitFinalVisitReportHandler
     : IRequestHandler<SubmitFinalVisitReportCommand, SubmitFinalVisitReportResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public SubmitFinalVisitReportHandler(ApplicationDbContext db)
+    public SubmitFinalVisitReportHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<SubmitFinalVisitReportResponse> Handle(
@@ -59,8 +62,12 @@ public class SubmitFinalVisitReportHandler
         CancellationToken ct)
     {
         var appointment = await _db.Set<FinalVisitAppointment>()
+            .Include(a => a.Case)
             .FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct)
             ?? throw new NotFoundException($"Final visit appointment {request.AppointmentId} not found.");
+
+        // §6.4 — the authoring agent/admin must be scoped to this project.
+        await _projectScope.EnsureReservationAccessAsync(appointment.Case.ReservationId, ct);
 
         // §17.3: a report only exists for a visit that actually took place.
         if (appointment.Status != AppointmentAttemptStatus.Completed)

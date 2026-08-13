@@ -1,20 +1,26 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Notary;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Payments;
 using ProjectAPI.Domain.Appointments.Entities;
-using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.FinalVisits.Entities;
+using ProjectAPI.Domain.Immeubles.Entities;
+using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Purchases.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
+using UnitEntity = ProjectAPI.Domain.Immeubles.Entities.Unit;
 namespace ProjectAPI.Api.Application.Notary.Appointments.CreateNotaryAppointment;
 
 /// <summary>
 /// Creates a notary appointment (spec §18.3 FR-NOT-002).
 ///
 /// A request is only accepted when:
-///   - the dossier is ELIGIBLE or ELIGIBLE_WITH_MINOR_SNAGS (§17.6, same
-///     calculator used by GetNotaryEligibilityHandler — never duplicated);
+///   - the dossier is ELIGIBLE or ELIGIBLE_WITH_MINOR_SNAGS (§17.6, via the
+///     shared NotaryEligibilityService — also re-checked at confirmation,
+///     see UpdateNotaryAppointmentHandler);
 ///   - the unit's title status allows a notary appointment (§18.3);
 ///   - the requested slot does not overlap another active appointment or a
 ///     notary block for the same notary (§10.1, §30.4).
@@ -29,23 +35,37 @@ public class CreateNotaryAppointmentHandler : IRequestHandler<CreateNotaryAppoin
 {
     private readonly ApplicationDbContext _db;
     private readonly PurchaseTotalsService _purchaseTotals;
+    private readonly ProjectScopeService _projectScope;
+    private readonly NotaryEligibilityService _eligibility;
 
-    public CreateNotaryAppointmentHandler(ApplicationDbContext db, PurchaseTotalsService purchaseTotals)
+    public CreateNotaryAppointmentHandler(
+        ApplicationDbContext db,
+        PurchaseTotalsService purchaseTotals,
+        ProjectScopeService projectScope,
+        NotaryEligibilityService eligibility)
     {
         _db = db;
         _purchaseTotals = purchaseTotals;
+        _projectScope = projectScope;
+        _eligibility = eligibility;
     }
 
     public async Task<CreateNotaryAppointmentResponse> Handle(CreateNotaryAppointmentCommand request, CancellationToken ct)
     {
+        // §6.4 — requester (buyer, responsible agent or admin, per §5.7) must
+        // own or be scoped to this reservation's project.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+        await _projectScope.EnsureBuyerOwnsReservationAsync(request.ReservationId, ct);
+
         var reservation = await _db.Set<Reservation>()
             .FirstOrDefaultAsync(r => r.Id == request.ReservationId, ct)
             ?? throw new NotFoundException($"Reservation with ID {request.ReservationId} not found.");
 
-        await EnsureEligibleAsync(request.ReservationId, reservation.UnitId, ct);
+        await _eligibility.EnsureEligibleAsync(request.ReservationId, reservation.UnitId, ct);
 
         if (!string.IsNullOrEmpty(request.NotaireId))
         {
+            await EnsureEligibleNotaryAsync(reservation.UnitId, request.NotaireId, ct);
             await EnsureSlotAvailableAsync(request.NotaireId, request.AppointmentDate, ct);
         }
 
@@ -66,10 +86,25 @@ public class CreateNotaryAppointmentHandler : IRequestHandler<CreateNotaryAppoin
             BuyerPhoneNumber = reservation.PhoneNumber,
             PropertyPrice = reservation.TotalPropertyPrice,
             TaxFees = request.TaxFees,
-            TahfidFees = request.TahfidFees
+            TahfidFees = request.TahfidFees,
+            CreatedAt = DateTime.UtcNow
         };
 
         _db.Add(notaryAppointment);
+
+        if (!string.IsNullOrEmpty(request.NotaireId))
+        {
+            _db.Add(new NotaryAppointmentAssignmentHistory
+            {
+                Id = Guid.NewGuid(),
+                NotaryAppointmentId = notaryAppointment.Id,
+                NotaireId = request.NotaireId,
+                PreviousNotaireId = null,
+                AssignmentSource = "MANUAL",
+                ActorUserId = request.ConnectedUserId,
+                AssignedAt = notaryAppointment.CreatedAt
+            });
+        }
 
         // Increment leads for the agent associated with the reservation.
         if (!string.IsNullOrEmpty(request.AgentId))
@@ -126,50 +161,40 @@ public class CreateNotaryAppointmentHandler : IRequestHandler<CreateNotaryAppoin
     }
 
     /// <summary>
-    /// Re-derives eligibility exactly as GetNotaryEligibilityHandler does — the
-    /// two must never diverge, since §17.6 requires a single source of truth.
+    /// The chosen notary must actually hold an active NOTARY ProjectMembership
+    /// on the project the reservation's unit belongs to — a notary is always
+    /// manually picked (no auto-assignment strategy, unlike sales agents), but
+    /// nothing previously stopped that pick from being someone with no real
+    /// standing on the project at all.
     /// </summary>
-    private async Task EnsureEligibleAsync(Guid reservationId, Guid unitId, CancellationToken ct)
+    private async Task EnsureEligibleNotaryAsync(Guid unitId, string notaryId, CancellationToken ct)
     {
-        var visitCase = await _db.Set<FinalVisitCase>()
-            .Include(c => c.Appointments)
-            .FirstOrDefaultAsync(c => c.ReservationId == reservationId, ct);
+        var projectId = await _db.Set<UnitEntity>()
+            .Where(u => u.Id == unitId)
+            .Join(_db.Set<Immeuble>(), u => u.ProjectId, im => im.Id, (u, im) => im.ProjectId)
+            .FirstOrDefaultAsync(ct);
 
-        FinalVisitReport? currentReport = null;
-        var snags = new List<Snag>();
-
-        if (visitCase is not null)
+        if (projectId == Guid.Empty)
         {
-            var appointmentIds = visitCase.Appointments.Select(a => a.Id).ToList();
-
-            currentReport = await _db.Set<FinalVisitReport>()
-                .Where(r => appointmentIds.Contains(r.AppointmentId) && r.Status != ReportStatus.Superseded)
-                .OrderByDescending(r => r.VersionNo)
-                .FirstOrDefaultAsync(ct);
-
-            if (currentReport is not null)
-            {
-                snags = await _db.Set<Snag>()
-                    .Where(s => s.ReportId == currentReport.Id)
-                    .ToListAsync(ct);
-            }
+            throw new NotFoundException($"Unit {unitId} not found.");
         }
 
-        var eligibility = NotaryEligibilityCalculator.Calculate(visitCase, currentReport, snags);
+        var now = DateTime.UtcNow;
+        var isEligible = await _db.Set<ProjectMembership>().AnyAsync(m =>
+            m.ProjectId == projectId &&
+            m.UserId == notaryId &&
+            m.RoleCode == RoleCodes.Notary &&
+            m.IsActive &&
+            m.ValidFrom <= now &&
+            (m.ValidUntil == null || m.ValidUntil > now), ct);
 
-        var titleState = await _db.Set<UnitTitleState>()
-            .FirstOrDefaultAsync(t => t.UnitId == unitId, ct);
-        var titleStatus = titleState?.Status ?? TitleStatus.NotAvailable;
-        var titleAllows = TitleStateMachine.AllowsNotaryAppointment(titleStatus);
-
-        if (!eligibility.CanRequestAppointment || !titleAllows)
+        if (!isEligible)
         {
-            var reasons = new List<string>(eligibility.Reasons);
-            if (!titleAllows)
+            throw new Common.Exceptions.ValidationException(new[]
             {
-                reasons.Add($"Le titre foncier doit être disponible, remis au notaire ou complété (statut actuel : {titleStatus}).");
-            }
-            throw BusinessRuleException.NotaryNotEligible(reasons);
+                new FluentValidation.Results.ValidationFailure(nameof(CreateNotaryAppointmentCommand.NotaireId),
+                    $"Le notaire {notaryId} n'a pas d'affectation NOTARY active sur ce projet.")
+            });
         }
     }
 

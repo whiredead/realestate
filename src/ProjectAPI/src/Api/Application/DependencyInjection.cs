@@ -30,6 +30,9 @@ public static class DependencyInjection
         {
             cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
+            // §7 — applies only to commands implementing IIdempotentRequest;
+            // runs after validation so a malformed request never consumes a key.
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(Common.Idempotency.IdempotencyBehaviour<,>));
         });
 
         // Keeps the legacy Purchase totals in step with the payment ledger (§14.3).
@@ -40,12 +43,25 @@ public static class DependencyInjection
         services.AddScoped<Common.Units.IUnitStatusService, Common.Units.UnitStatusService>();
         // §1.1 — resolves the person behind a form submission to one CrmContact.
         services.AddScoped<Common.Crm.IContactResolver, Common.Crm.ContactResolver>();
+        // Sales-agent auto-assignment: existing owner, else the project's
+        // configured rule (round-robin/lowest-workload/primary-agent).
+        services.AddScoped<Common.Assignment.ISalesAgentAssignmentService, Common.Assignment.SalesAgentAssignmentService>();
+        // §1.1/§6.2 — invitation to activate an account for an approved,
+        // account-less buyer; never a silent password, never a second contact.
+        services.AddScoped<Common.Crm.IAccountInvitationService, Common.Crm.AccountInvitationService>();
 
         // §6.4 — caller identity and project perimeter. Scoped, not singleton:
         // both read the current request's claims, so they must not outlive it.
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<ProjectScopeService>();
+
+        // §17.6 — single source of truth for notary eligibility, shared between
+        // appointment creation and confirmation.
+        services.AddScoped<Common.Notary.NotaryEligibilityService>();
+
+        // §6.2/§7 — shared writer for per-user transactional notifications.
+        services.AddScoped<Common.Notifications.INotificationService, Common.Notifications.NotificationService>();
 
         return services;
     }

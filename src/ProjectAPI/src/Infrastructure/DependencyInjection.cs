@@ -1,4 +1,3 @@
-using Azure.Storage.Blobs;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Domain.Appointments.Interfaces;
@@ -13,6 +12,7 @@ using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Domain.Users.Interfaces;
 using ProjectAPI.Infrastructure.Context;
 using ProjectAPI.Infrastructure.Providers;
+using ProjectAPI.Infrastructure.Seeding;
 using ProjectAPI.Infrastructure.Settings;
 
 namespace ProjectAPI.Infrastructure;
@@ -91,8 +91,17 @@ public static class DependencyInjection
         services.AddScoped<IImmeubleTypeBienRepository, ImmeubleTypeBienRepository>();
         services.AddScoped<IPurchaseRepository, PurchaseRepository>();
         services.AddScoped<IProjectAssignmentRepository, ProjectAssignmentRepository>();
+        services.AddScoped<IProjectMembershipRepository, ProjectMembershipRepository>();
+        services.AddScoped<IProjectAgentAssignmentConfigRepository, ProjectAgentAssignmentConfigRepository>();
+        services.AddScoped<IAppointmentAssignmentHistoryRepository, AppointmentAssignmentHistoryRepository>();
+        services.AddScoped<INotaryAppointmentAssignmentHistoryRepository, NotaryAppointmentAssignmentHistoryRepository>();
+        services.AddScoped<IAppointmentVisitReportRepository, AppointmentVisitReportRepository>();
         services.AddScoped<IWeeklyAvailabilityRepository, WeeklyAvailabililtyRepository>();
         services.AddScoped<INotaryBlockRepository, NotaryBlockRepository>();
+        services.AddScoped<IAgentWeeklyAvailabilityRepository, AgentWeeklyAvailabilityRepository>();
+        services.AddScoped<IAgentBlockRepository, AgentBlockRepository>();
+        services.AddScoped<IAgentDateOverrideRepository, AgentDateOverrideRepository>();
+        services.AddScoped<IAgentAppointmentSettingsRepository, AgentAppointmentSettingsRepository>();
         services.AddScoped<ISaleRepository, SaleRepository>();
         services.AddScoped<IPaymentTrackingRepository,PaymentTrackingRepository>();
         services.AddScoped<IPropertyDeliveryRepository, PropertyDeliveryRepository>();
@@ -102,28 +111,16 @@ public static class DependencyInjection
         services.AddScoped<IClaimHistoryRepository, ClaimHistoryRepository>();
 
 
-        services.AddScoped<IBlobStorageService, BlobStorageService>(); // Register BlobStorageService as Scoped
+        services.AddScoped<DevelopmentDataSeeder>();
 
-// Register BlobContainerClient as Singleton
-        services.AddSingleton(provider =>
-        {
-            // Retrieve configuration settings
-            var configuration = provider.GetRequiredService<IConfiguration>();
-            var blobAccountUrl = configuration["BlobStorage:AccountUrl"];
-            var accountName = configuration["BlobStorage:AccountName"];
-            var accountKey = configuration["BlobStorage:AccountKey"];
-            var containerName = configuration["BlobStorage:ContainerName"];
-
-            // Validate configuration
-            if (string.IsNullOrEmpty(blobAccountUrl) || string.IsNullOrEmpty(accountName) || string.IsNullOrEmpty(accountKey) || string.IsNullOrEmpty(containerName))
-                throw new InvalidOperationException("Blob storage configuration is missing or incomplete.");
-
-            // Create BlobServiceClient and get container
-            var credential = new Azure.Storage.StorageSharedKeyCredential(accountName, accountKey);
-            var blobServiceClient = new BlobServiceClient(new Uri(blobAccountUrl), credential);
-            return blobServiceClient.GetBlobContainerClient(containerName);
-        });
-
+        // BlobServiceClient/BlobStorageSettings are registered in Program.cs
+        // (same place as InternalApiSettings) since both are read directly
+        // off IConfiguration at startup, not through this method's
+        // `configuration` parameter's DI container state. BlobStorageService
+        // itself is container-agnostic (see IBlobStorageService.ForContainer),
+        // so Scoped vs Singleton no longer matters for cache correctness —
+        // Scoped kept for consistency with the rest of this file.
+        services.AddScoped<IBlobStorageService, BlobStorageService>();
     }
 
     #endregion

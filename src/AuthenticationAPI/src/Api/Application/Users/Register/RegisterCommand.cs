@@ -66,8 +66,10 @@ public record RegisterCommand : IRequest<string>
     public double Rating { get; set; } = 0;
 
     /// <summary>
-    /// Gets or initializes the role for the registration.
+    /// Gets or initializes the role for the registration. Empty by default —
+    /// RegisterHandler always produces PROSPECT regardless of this list; see
+    /// RegisterValidator for why an empty list is valid input, not an error.
     /// </summary>
-    public List<string> Roles { get; init; } = default!;
+    public List<string> Roles { get; init; } = new();
 
 }

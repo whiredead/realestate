@@ -1,5 +1,9 @@
-﻿using ProjectAPI.Api.Application.Common.Exceptions;
+﻿using Microsoft.EntityFrameworkCore;
+using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
+using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Units.CreateProjectUnit
 {
@@ -10,16 +14,26 @@ namespace ProjectAPI.Api.Application.Units.CreateProjectUnit
     {
         private readonly IUnitRepository _unitRepository;
         private readonly IImmeubleRepository _projectRepository;
+        private readonly ApplicationDbContext _db;
+        private readonly ProjectScopeService _projectScope;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CreateProjectUnitHandler"/> class.
         /// </summary>
         /// <param name="unitRepository">The repository to access unit data.</param>
         /// <param name="projectRepository">The repository to access project data.</param>
-        public CreateProjectUnitHandler(IUnitRepository unitRepository, IImmeubleRepository projectRepository)
+        /// <param name="db">Used to validate the target floor belongs to the target building.</param>
+        /// <param name="projectScope">Enforces §6.4: a unit may only be created within the caller's own assigned project.</param>
+        public CreateProjectUnitHandler(
+            IUnitRepository unitRepository,
+            IImmeubleRepository projectRepository,
+            ApplicationDbContext db,
+            ProjectScopeService projectScope)
         {
             _unitRepository = unitRepository;
             _projectRepository = projectRepository;
+            _db = db;
+            _projectScope = projectScope;
         }
 
         /// <summary>
@@ -28,51 +42,55 @@ namespace ProjectAPI.Api.Application.Units.CreateProjectUnit
         /// <param name="request">The <see cref="CreateProjectUnitCommand"/> containing the details of the unit to be created.</param>
         /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
         /// <returns>A task that represents the asynchronous operation, containing the <see cref="CreateProjectUnitResponse"/>.</returns>
-        /// <exception cref="NotFoundException">Thrown when the specified project is not found.</exception>
+        /// <exception cref="NotFoundException">Thrown when the specified building or floor is not found.</exception>
         public async Task<CreateProjectUnitResponse> Handle(CreateProjectUnitCommand request, CancellationToken cancellationToken)
         {
-            try
+            // Check if the building exists. Despite the "ProjectId" naming on
+            // the command, this identifies the Immeuble (Building); see the
+            // Unit.ProjectId doc comment.
+            var building = await _projectRepository.GetByIDAsync(request.ProjectId);
+            if (building == null)
             {
-                // Check if the project exists
-                var project = await _projectRepository.GetByIDAsync(request.ProjectId);
-                if (project == null)
-                {
-                    throw new NotFoundException("Project not found.");
-                }
-
-                // Create a new unit
-                var unit = new Domain.Immeubles.Entities.Unit
-                {
-                    Id = Guid.NewGuid(),
-                    ProjectId = request.ProjectId,
-                    Floor = request.Floor,
-                    UnitNumber = request.UnitNumber,
-                    NumberOfBedrooms = request.NumberOfBedrooms,
-                    NumberOfBathrooms = request.NumberOfBathrooms,
-                    ApartmentSurface = request.ApartmentSurface,
-                    BalconySurface = request.BalconySurface,
-                    TerraceSurface = request.TerraceSurface,
-                    GardenSurface = request.GardenSurface,
-                    View = request.View,
-                    Orientation = request.Orientation,
-                    TotalSurface = request.TotalSurface
-                };
-
-                // Insert the unit
-                await _unitRepository.InsertAsync(unit);
-                await _unitRepository.SaveAsync();
-
-                return new CreateProjectUnitResponse
-                {
-                    UnitId = unit.Id,
-                    Message = "Project unit added successfully."
-                };
-            }catch(Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                return null;
+                throw new NotFoundException("Building not found.");
             }
 
+            await _projectScope.EnsureProjectAccessAsync(building.ProjectId, cancellationToken);
+
+            var floorBelongsToBuilding = await _db.Set<Floor>()
+                .AnyAsync(f => f.Id == request.FloorId && f.ImmeubleId == request.ProjectId, cancellationToken);
+            if (!floorBelongsToBuilding)
+            {
+                throw new NotFoundException("Floor not found for this building.");
+            }
+
+            // Create a new unit
+            var unit = new Domain.Immeubles.Entities.Unit
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = request.ProjectId,
+                FloorId = request.FloorId,
+                UnitNumber = request.UnitNumber,
+                NumberOfBedrooms = request.NumberOfBedrooms,
+                NumberOfBathrooms = request.NumberOfBathrooms,
+                ApartmentSurface = request.ApartmentSurface,
+                BalconySurface = request.BalconySurface,
+                TerraceSurface = request.TerraceSurface,
+                GardenSurface = request.GardenSurface,
+                View = request.View,
+                Orientation = request.Orientation,
+                TotalSurface = request.TotalSurface,
+                Images = request.Images
+            };
+
+            // Insert the unit
+            await _unitRepository.InsertAsync(unit);
+            await _unitRepository.SaveAsync();
+
+            return new CreateProjectUnitResponse
+            {
+                UnitId = unit.Id,
+                Message = "Project unit added successfully."
+            };
         }
     }
 }

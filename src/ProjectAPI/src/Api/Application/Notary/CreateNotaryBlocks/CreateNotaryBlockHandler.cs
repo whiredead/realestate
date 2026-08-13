@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Domain.Appointments.Interfaces;
+﻿using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Appointments.Interfaces;
 using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Domain.Users.Interfaces;
 namespace ProjectAPI.Api.Application.Notary.CreateNotaryBlocks;
@@ -8,17 +9,24 @@ public class CreateNotaryBlockHandler :
 {
     private readonly INotaryBlockRepository _blockRepo;
     private readonly INotaryAppointmentRepository _apptRepo;
+    private readonly ProjectScopeService _projectScope;
 
     public CreateNotaryBlockHandler(
         INotaryBlockRepository blockRepo,
-        INotaryAppointmentRepository apptRepo)
+        INotaryAppointmentRepository apptRepo,
+        ProjectScopeService projectScope)
     {
         _blockRepo = blockRepo;
         _apptRepo = apptRepo;
+        _projectScope = projectScope;
     }
 
     public async Task<CreateNotaryBlockResponse> Handle(CreateNotaryBlockCommand req, CancellationToken ct)
     {
+        // §6.3 — NotaryId is caller-supplied in the request body; a NOTARY
+        // caller must be blocking their own calendar, never another's.
+        _projectScope.EnsureNotaryOwnsCalendar(req.NotaryId);
+
         if (req.End <= req.Start)
             throw new ArgumentException("End must be after Start.");
 

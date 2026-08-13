@@ -20,10 +20,6 @@ namespace ProjectAPI.Infrastructure.Configurations
             // Defines the primary key for Unit.
             builder.HasKey(unit => unit.Id);
 
-            // Configures the Floor property.
-            builder.Property(unit => unit.Floor)
-                .HasMaxLength(50);
-
             // Configures the UnitNumber property.
             builder.Property(unit => unit.UnitNumber)
                 .HasMaxLength(50);
@@ -72,6 +68,13 @@ namespace ProjectAPI.Infrastructure.Configurations
             // Configures the LatestPrice property.
             builder.Property(unit => unit.LatestPrice);
 
+            // Comma-delimited photo URLs for this unit — same storage
+            // convention as Immeuble.Images (a plain string, not a value
+            // converter list), since CreateImmeubleHandler/CreateProjectHandler
+            // already pass Images through as-is from the command.
+            builder.Property(unit => unit.Images)
+                .HasMaxLength(4000);
+
             // §3 / §6.1 — the commercial status is stored as the canonical
             // UPPER_SNAKE_CASE code in a varchar, guarded by a CHECK constraint
             // (the spec explicitly rules out database enums). The value domain is
@@ -99,6 +102,15 @@ namespace ProjectAPI.Infrastructure.Configurations
                 .WithMany(project => project.Units)
                 .HasForeignKey(unit => unit.ProjectId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Configures the relationship between Unit and its Floor.
+            builder.HasOne(unit => unit.Floor)
+                .WithMany(f => f.Units)
+                .HasForeignKey(unit => unit.FloorId)
+                // A floor with units cannot be deleted out from under them —
+                // matches the "never destructively touch existing rows" rule
+                // the import commit path already follows for buildings/units.
+                .OnDelete(DeleteBehavior.Restrict);
 
             // Configures the relationship between Unit and PropertyDeliveries.
             builder.HasMany(unit => unit.PropertyDeliveries)

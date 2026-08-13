@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.FinalVisits.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -43,10 +44,12 @@ public class TransitionVisitAppointmentHandler
     : IRequestHandler<TransitionVisitAppointmentCommand, TransitionVisitAppointmentResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public TransitionVisitAppointmentHandler(ApplicationDbContext db)
+    public TransitionVisitAppointmentHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<TransitionVisitAppointmentResponse> Handle(
@@ -54,8 +57,12 @@ public class TransitionVisitAppointmentHandler
         CancellationToken ct)
     {
         var appointment = await _db.Set<FinalVisitAppointment>()
+            .Include(a => a.Case)
             .FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct)
             ?? throw new NotFoundException($"Final visit appointment {request.AppointmentId} not found.");
+
+        // §6.4 — agent/admin handling this attempt must be scoped to its project.
+        await _projectScope.EnsureReservationAccessAsync(appointment.Case.ReservationId, ct);
 
         if (!AppointmentStateMachine.CanTransition(appointment.Status, request.TargetStatus))
         {

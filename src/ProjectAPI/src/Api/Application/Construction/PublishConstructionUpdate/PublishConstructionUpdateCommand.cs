@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Infrastructure.Context;
@@ -41,10 +42,12 @@ public class PublishConstructionUpdateHandler
     : IRequestHandler<PublishConstructionUpdateCommand, PublishConstructionUpdateResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public PublishConstructionUpdateHandler(ApplicationDbContext db)
+    public PublishConstructionUpdateHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<PublishConstructionUpdateResponse> Handle(
@@ -54,6 +57,8 @@ public class PublishConstructionUpdateHandler
         var project = await _db.Set<Project>()
             .FirstOrDefaultAsync(p => p.Id == request.ProjectId, ct)
             ?? throw new NotFoundException($"Project {request.ProjectId} not found.");
+
+        await _projectScope.EnsureProjectAccessAsync(request.ProjectId, ct);
 
         if (request.ProgressPercent is < 0 or > 100)
         {

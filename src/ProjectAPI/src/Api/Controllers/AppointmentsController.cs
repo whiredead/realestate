@@ -1,8 +1,15 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using ProjectAPI.Api.Application.Appointments.CreateAppointment;
+using ProjectAPI.Api.Application.Appointments.GetAppointmentAssignmentHistory;
+using ProjectAPI.Api.Application.Appointments.GetAppointmentById;
 using ProjectAPI.Api.Application.Appointments.GetAppointments;
+using ProjectAPI.Api.Application.Appointments.GetMyAppointments;
+using ProjectAPI.Api.Application.Appointments.GetAppointmentVisitReport;
+using ProjectAPI.Api.Application.Appointments.GetAppointmentVisitReportForBuyer;
+using ProjectAPI.Api.Application.Appointments.SubmitVisitReport;
 using ProjectAPI.Api.Application.Appointments.UpdateAppointmentStatus;
 using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Users.Entities;
 
 namespace ProjectAPI.Api.Controllers;
 
@@ -44,14 +51,11 @@ public class AppointmentsController : ControllerBase
             // If the user is an authenticated visitor or buyer
             command.UserId = userId;
         }
-        else if (string.IsNullOrEmpty(userId))
-        {
-            // If the user is not authenticated, agentId must be provided in the request body
-            if (command.AgentId == Guid.Empty)
-            {
-                return BadRequest("AgentId is required for unauthenticated users.");
-            }
-        }
+        // Anonymous callers no longer need to supply AgentId themselves —
+        // CreateAppointmentHandler now auto-assigns an eligible agent
+        // (existing owner, else the project's configured rule) when none is
+        // given. Previously this rejected every anonymous booking with a 400
+        // unless the visitor somehow already knew an agent's id to send.
 
         var response = await _mediator.Send(command);
         return Ok(response);
@@ -68,14 +72,46 @@ public class AppointmentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAppointments([FromQuery] GetAppointmentsQuery query)
     {
-        query.AgentId = User != null ? User.FindFirst("UserId")?.Value : null;
+        // Was unconditionally forcing AgentId to the caller's own UserId for
+        // EVERY caller — so an admin's "show all appointments" silently became
+        // "show appointments where AgentId = <admin's own id>", which matches
+        // nothing (an admin isn't an agent and owns no appointments). Only a
+        // SALES_AGENT should be scoped to their own agenda; an admin sees
+        // whatever the query actually asked for (usually none = all).
+        var rolesClaim = User?.FindFirst("Roles")?.Value;
+        var roles = rolesClaim?.Split(',').Select(r => r.Trim()) ?? Enumerable.Empty<string>();
+        if (roles.Contains(RoleCodes.SalesAgent) || roles.Contains("Agent"))
+        {
+            query.AgentId = User.FindFirst("UserId")?.Value;
+        }
         var response = await _mediator.Send(query);
+        return Ok(response);
+    }
+
+    /// <summary>§8 "My appointments" — the buyer's own commercial appointments, never anyone else's.</summary>
+    [HttpGet("mine")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyAppointments()
+    {
+        return Ok(await _mediator.Send(new GetMyAppointmentsQuery()));
+    }
+
+    /// <summary>Retrieves a single appointment by id.</summary>
+    [HttpGet("{appointmentId:guid}")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAppointmentById(Guid appointmentId)
+    {
+        var response = await _mediator.Send(new GetAppointmentByIdQuery { AppointmentId = appointmentId });
         return Ok(response);
     }
 
     /// <summary>
     /// Updates the status of an appointment.
     /// </summary>
+    /// <param name="appointmentId">The appointment to update, from the route.</param>
     /// <param name="command">The command to update the appointment status.</param>
     /// <returns>A response indicating the success or failure of the update.</returns>
     [HttpPatch("{appointmentId}/status")]
@@ -83,11 +119,84 @@ public class AppointmentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> UpdateAppointmentStatus([FromBody] UpdateAppointmentStatusCommand command)
+    public async Task<IActionResult> UpdateAppointmentStatus([FromRoute] Guid appointmentId, [FromBody] UpdateAppointmentStatusCommand command)
     {
-
+        // The route segment was never bound onto the command — callers had to
+        // duplicate the id in the request body for this to work at all.
+        command.AppointmentId = appointmentId;
         var response = await _mediator.Send(command);
         return Ok(response);
+    }
+
+    /// <summary>
+    /// Full agent assignment/reassignment history for an appointment,
+    /// including any prior appointment rows it was chained from (see
+    /// PreviousAppointmentId).
+    /// </summary>
+    [HttpGet("{appointmentId}/assignment-history")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAssignmentHistory(Guid appointmentId)
+    {
+        var rolesClaim = User?.FindFirst("Roles")?.Value;
+        var roles = rolesClaim?.Split(',').Select(r => r.Trim()) ?? Enumerable.Empty<string>();
+        var callerId = User?.FindFirst("UserId")?.Value;
+
+        var res = await _mediator.Send(new GetAppointmentAssignmentHistoryQuery
+        {
+            AppointmentId = appointmentId,
+            // A SALES_AGENT only sees history for appointments they were
+            // actually involved in — not another agent's book of business.
+            RestrictToAgentId = (roles.Contains(RoleCodes.SalesAgent) || roles.Contains("Agent")) ? callerId : null
+        });
+        return Ok(res);
+    }
+
+    /// <summary>
+    /// Records the sales agent's follow-up report after the visit — the
+    /// missing link between "appointment happened" and "reservation
+    /// created." Always creates a new version; never edits a submitted one.
+    /// </summary>
+    [HttpPost("{appointmentId}/visit-report")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SubmitVisitReport(Guid appointmentId, [FromBody] SubmitAppointmentVisitReportCommand command)
+    {
+        command.AppointmentId = appointmentId;
+        command.AuthorUserId ??= User.FindFirst("UserId")?.Value;
+        var response = await _mediator.Send(command);
+        return CreatedAtAction(nameof(GetVisitReport), new { appointmentId }, response);
+    }
+
+    /// <summary>Full internal view of the latest visit-report version — agent/admin only.</summary>
+    [HttpGet("{appointmentId}/visit-report")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetVisitReport(Guid appointmentId)
+    {
+        var res = await _mediator.Send(new GetAppointmentVisitReportQuery { AppointmentId = appointmentId });
+        return res == null ? NotFound() : Ok(res);
+    }
+
+    /// <summary>
+    /// Buyer-facing summary of the latest visit-report version — omits
+    /// InternalNotes, ConfirmedBudget, Objections, and AuthorUserId.
+    /// </summary>
+    [HttpGet("{appointmentId}/visit-report/mine")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetVisitReportForBuyer(Guid appointmentId)
+    {
+        var res = await _mediator.Send(new GetAppointmentVisitReportForBuyerQuery { AppointmentId = appointmentId });
+        return res == null ? NotFound() : Ok(res);
     }
 
     /*

@@ -13,9 +13,10 @@ public class Unit
     public Guid Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the floor or level of the unit.
+    /// Gets or sets the floor/level the unit belongs to.
     /// </summary>
-    public string Floor { get; set; }
+    public Guid FloorId { get; set; }
+    public Floor Floor { get; set; } = null!;
 
     /// <summary>
     /// Gets or sets the unit number.
@@ -91,6 +92,14 @@ public class Unit
     /// Gets or sets the price as of the latest date.
     /// </summary>
     public decimal? LatestPrice { get; set; }
+
+    /// <summary>
+    /// Photo URLs for this specific unit (comma-delimited, same convention as
+    /// <see cref="Immeuble.Images"/>). Distinct from the building's own
+    /// exterior shots and from <see cref="ImmeublePlanInterieur"/>'s grouped
+    /// plan/interior reference photos — this is the unit's own gallery.
+    /// </summary>
+    public string? Images { get; set; }
 
     /// <summary>
     /// Gets or sets the identifier of the related project.

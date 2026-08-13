@@ -1,4 +1,7 @@
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Tests.Enforcement;
@@ -15,7 +18,13 @@ namespace ProjectAPI.Tests.Enforcement;
 /// </summary>
 public sealed class SqlServerFixture : IAsyncLifetime
 {
-    private const string Server = @"DESKTOP-1CEDKH6\SQLEXPRESS";
+    // Defaults to the same instance the app itself targets (see
+    // ProjectAPI/src/Api/appsettings.json, ConnectionStrings:SqlPrimary) —
+    // LocalDB, which is what actually ships on a dev machine. Overridable via
+    // GPIA_TEST_SQL_SERVER for anyone running a named SQL Server instance
+    // instead.
+    private static readonly string Server =
+        Environment.GetEnvironmentVariable("GPIA_TEST_SQL_SERVER") ?? @"(localdb)\MSSQLLocalDB";
     public const string DatabaseName = "GPIA_Project_EnforcementTests";
 
     public string ConnectionString =>
@@ -38,6 +47,27 @@ public sealed class SqlServerFixture : IAsyncLifetime
             .Options;
 
         return new ApplicationDbContext(options);
+    }
+
+    /// <summary>
+    /// A real UserManager&lt;User&gt; backed by this test database — needed by
+    /// tests exercising handlers that validate a target user's actual
+    /// AspNetUserRoles (e.g. CreateProjectMembershipHandler's "role must
+    /// match the account's platform role" check). The returned
+    /// IServiceScope owns the UserManager's lifetime; dispose it when done.
+    /// </summary>
+    public (IServiceScope Scope, UserManager<User> UserManager) CreateUserManager()
+    {
+        var services = new ServiceCollection();
+        services.AddDbContext<ApplicationDbContext>(o => o.UseSqlServer(ConnectionString));
+        services.AddLogging();
+        services.AddIdentity<User, IdentityRole>()
+            .AddEntityFrameworkStores<ApplicationDbContext>()
+            .AddDefaultTokenProviders();
+
+        var provider = services.BuildServiceProvider();
+        var scope = provider.CreateScope();
+        return (scope, scope.ServiceProvider.GetRequiredService<UserManager<User>>());
     }
 
     public async Task InitializeAsync()

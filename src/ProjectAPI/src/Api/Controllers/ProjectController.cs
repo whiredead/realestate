@@ -4,6 +4,7 @@ using ProjectAPI.Api.Application.EspacesTempsReel.GetEspaceTempsReelById;
 using ProjectAPI.Api.Application.Projects.AddProjectFratures;
 using ProjectAPI.Api.Application.Projects.CreateProjects;
 using ProjectAPI.Api.Application.Projects.GetAllProjects;
+using ProjectAPI.Api.Application.Projects.GetProjectById;
 using ProjectAPI.Api.Application.Projects.GetProjectFeatures;
 using ProjectAPI.Api.Application.Projects.LikedProjects.AddLikedProject;
 using ProjectAPI.Api.Application.Projects.LikedProjects.GetLikedProjects;
@@ -51,6 +52,21 @@ public class ProjectsController : ControllerBase
         /*var idClaims = User.FindFirst("userId")?.Value;
         query.UserId = idClaims;*/
         var result = await _mediator.Send(query);
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Drill-down entrypoint: a single project with its immeubles (buildings)
+    /// and live per-building stats. No such single-project route existed
+    /// before — only the paginated list above.
+    /// </summary>
+    [HttpGet("{id}")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // §6.4 — project-scoped, not catalogue-public: immeuble stock figures are internal reporting, not §7.2 published data.
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetProjectById(Guid id)
+    {
+        var result = await _mediator.Send(new GetProjectByIdQuery { Id = id });
         return Ok(result);
     }
     /// <summary>
@@ -112,7 +128,13 @@ public class ProjectsController : ControllerBase
     public async Task<IActionResult> AddProjectFeatures([FromBody] AddProjectFeatureCommand command)
     {
         var result = await _mediator.Send(command);
-        return result ? Ok("Features added successfully.") : BadRequest("Failed to add features.");
+        // N25/N30 — a bare Ok("...") string throws on the client's JSON.parse
+        // of a genuinely successful response; every write endpoint on this
+        // controller returns a real object, so this one now does too instead
+        // of needing a special-cased text-only fetch for just two endpoints.
+        return result
+            ? Ok(new { message = "Features added successfully." })
+            : BadRequest(new { message = "Failed to add features." });
     }
     /// <summary>
     /// Remove one or more features from a project.
@@ -145,14 +167,14 @@ public class ProjectsController : ControllerBase
     [HttpGet("features")]
     [AllowAnonymous] // §6.3 Catalogue public.
     [ProducesResponseType(StatusCodes.Status200OK)]
-    [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetProjectFeatures([FromQuery] GetProjectFeaturesQuery query)
     {
+        // A project with no amenities is a normal, valid state — not a missing
+        // resource. 404 here made every fetch throw client-side (masked by
+        // projectFetchOr404Empty's fallback, but still noisy failed requests
+        // in the console on every single project detail page load).
         var features = await _mediator.Send(query);
-        if (features == null || features.Count == 0)
-            return NotFound("No features found for the specified Project.");
-
-        return Ok(features);
+        return Ok(features ?? new List<ProjectFeatureResponse>());
     }
 
     /// <summary>

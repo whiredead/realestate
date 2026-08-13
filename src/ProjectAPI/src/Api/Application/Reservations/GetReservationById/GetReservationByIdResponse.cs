@@ -27,4 +27,31 @@ public class GetReservationByIdResponse
     public string? ValidatedBy { get; set; }
     public string? AdminNote { get; set; }
     public List<ReservationDocumentResponse> Documents { get; set; } = new();
+
+    /// <summary>§5.3 — the catalogue price at submit time, before any discount.</summary>
+    public decimal? CatalogPrice { get; set; }
+
+    /// <summary>§5.3 — discount granted, if any.</summary>
+    public decimal Discount { get; set; }
+
+    /// <summary>§5.3 — "final_price = catalog_price - discount", frozen at submit.</summary>
+    public decimal? FinalPrice { get; set; }
+
+    public string? NotaireId { get; set; }
+
+    /// <summary>Deadline after which a SUBMITTED/CHANGES_REQUESTED reservation expires (§12.3).</summary>
+    public DateTime? ExpiresAt { get; set; }
+
+    /// <summary>§5.3/§6.2 — co-buyers on this file, each with an ownership percentage. The primary buyer is not repeated here.</summary>
+    public List<ReservationCoBuyerResponse> CoBuyers { get; set; } = new();
+}
+
+public class ReservationCoBuyerResponse
+{
+    public Guid CrmContactId { get; set; }
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string? Email { get; set; }
+    public string? Phone { get; set; }
+    public decimal? OwnershipPercent { get; set; }
 }

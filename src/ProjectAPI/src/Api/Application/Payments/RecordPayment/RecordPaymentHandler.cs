@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Notifications;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Payments.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Infrastructure.Context;
@@ -20,15 +22,26 @@ public class RecordPaymentHandler : IRequestHandler<RecordPaymentCommand, Record
 {
     private readonly ApplicationDbContext _db;
     private readonly PurchaseTotalsService _purchaseTotals;
+    private readonly ProjectScopeService _projectScope;
+    private readonly INotificationService _notifications;
 
-    public RecordPaymentHandler(ApplicationDbContext db, PurchaseTotalsService purchaseTotals)
+    public RecordPaymentHandler(
+        ApplicationDbContext db,
+        PurchaseTotalsService purchaseTotals,
+        ProjectScopeService projectScope,
+        INotificationService notifications)
     {
         _db = db;
         _purchaseTotals = purchaseTotals;
+        _projectScope = projectScope;
+        _notifications = notifications;
     }
 
     public async Task<RecordPaymentResponse> Handle(RecordPaymentCommand request, CancellationToken ct)
     {
+        // §6.4 — recording a payment is admin-only and project-scoped.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+
         if (request.Amount <= 0)
         {
             throw new BusinessRuleException(
@@ -43,7 +56,7 @@ public class RecordPaymentHandler : IRequestHandler<RecordPaymentCommand, Record
                 $"Mode de paiement inconnu : {request.MethodCode}.");
         }
 
-        _ = await _db.Set<Reservation>().FirstOrDefaultAsync(r => r.Id == request.ReservationId, ct)
+        var reservation = await _db.Set<Reservation>().FirstOrDefaultAsync(r => r.Id == request.ReservationId, ct)
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");
 
         var payment = new Payment
@@ -87,6 +100,16 @@ public class RecordPaymentHandler : IRequestHandler<RecordPaymentCommand, Record
         await _db.SaveChangesAsync(ct);
 
         await transaction.CommitAsync(ct);
+
+        // §6.2 — non-fatal: the payment entry is already durable.
+        if (!string.IsNullOrWhiteSpace(reservation.BuyerId))
+        {
+            await _notifications.NotifyAsync(
+                reservation.BuyerId, "PAYMENT_RECORDED",
+                "Paiement enregistré",
+                $"Un paiement de {request.Amount:N2} MAD a été enregistré sur votre dossier.",
+                payment.Id, "Payment", ct);
+        }
 
         var allocated = allocations.Where(a => a.InstallmentId != null).Sum(a => a.AllocatedAmount);
         var unallocated = allocations.Where(a => a.InstallmentId == null).Sum(a => a.AllocatedAmount);

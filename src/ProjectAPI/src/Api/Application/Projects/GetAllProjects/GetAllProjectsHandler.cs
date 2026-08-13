@@ -1,7 +1,9 @@
 ﻿using ProjectAPI.Api.Application.Common.Models;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByImmeuble;
 using ProjectAPI.Domain.Projects.DTOs;
 using ProjectAPI.Domain.Projects.Interfaces;
+using ProjectAPI.Domain.Users.Entities;
 
 namespace ProjectAPI.Api.Application.Projects.GetAllProjects;
 
@@ -9,16 +11,43 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
 {
     private readonly IProjectRepository _projectRepository;
     private readonly ILikedProjectRepository _likedProjectRepository;
+    private readonly ICurrentUser _currentUser;
+    private readonly ProjectScopeService _projectScope;
 
-    public GetAllProjectsHandler(IProjectRepository projectRepository, ILikedProjectRepository likedProjectRepository)
+    public GetAllProjectsHandler(
+        IProjectRepository projectRepository,
+        ILikedProjectRepository likedProjectRepository,
+        ICurrentUser currentUser,
+        ProjectScopeService projectScope)
     {
         _projectRepository = projectRepository;
         _likedProjectRepository = likedProjectRepository;
+        _currentUser = currentUser;
+        _projectScope = projectScope;
     }
 
     public async Task<PaginatedResponse<ProjectResponse>> Handle(GetAllProjectsQuery request, CancellationToken cancellationToken)
     {
         var projects = await _projectRepository.GetProjects(request.UserId, request.Name, request.Location, request.Address!, request.Status, request.PageNumber, request.PageSize);
+
+        // §6.3/§6.4 — this endpoint is [AllowAnonymous] because it also serves
+        // the public catalogue ("L publié" pour le visiteur), so an anonymous
+        // or buyer caller must see everything unfiltered. But the SAME route is
+        // reused by the admin console's project list (ProjectsListPage.tsx),
+        // and an internal caller below GLOBAL_ADMIN must only ever see
+        // projects inside their own ProjectMembership perimeter — otherwise a
+        // membership-less PROJECT_ADMIN can list and open every project
+        // (confirmed regression: F7).
+        var isInternal = _currentUser.IsAuthenticated && RoleCodes.Internal.Any(_currentUser.IsInRole);
+        if (isInternal)
+        {
+            var scope = await _projectScope.GetScopedProjectIdsAsync(cancellationToken);
+            if (scope is not null)
+            {
+                projects = projects.Where(p => scope.Contains(p.Id)).ToList();
+            }
+        }
+
         var totalItems = projects.Count;
 
         var paginatedData = projects

@@ -1,32 +1,23 @@
-﻿using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using ProjectAPI.Domain.Common.Interfaces;
 
 namespace ProjectAPI.Api.Application.Common.BlobOperations.UploadToblob;
 
 
 /// <summary>
-/// Handler for uploading files to blob storage.
+/// Handler for uploading files to blob storage (default container — see
+/// BlobStorageSettings.ContainerName; callers needing a different container
+/// go through IBlobStorageService.ForContainer directly rather than this
+/// generic endpoint).
 /// </summary>
 public class UploadFilesHandler : IRequestHandler<UploadFilesCommand, UploadFilesResponse>
 {
     private readonly IBlobStorageService _blobStorageService;
-    private readonly IConfiguration _configuration;
     private readonly ILogger<UploadFilesHandler> _logger;
 
-    /// <summary>
-    /// Initializes a new instance of the <see cref="UploadFilesHandler"/> class.
-    /// </summary>
-    /// <param name="blobStorageService">The blob storage service.</param>
-    /// <param name="configuration">Application configuration, used to build public blob URLs.</param>
-    /// <param name="logger">Logger.</param>
-    public UploadFilesHandler(
-        IBlobStorageService blobStorageService,
-        IConfiguration configuration,
-        ILogger<UploadFilesHandler> logger)
+    public UploadFilesHandler(IBlobStorageService blobStorageService, ILogger<UploadFilesHandler> logger)
     {
         _blobStorageService = blobStorageService;
-        _configuration = configuration;
         _logger = logger;
     }
 
@@ -39,11 +30,7 @@ public class UploadFilesHandler : IRequestHandler<UploadFilesCommand, UploadFile
     public async Task<UploadFilesResponse> Handle(UploadFilesCommand request, CancellationToken cancellationToken)
     {
         var fileLinks = new List<string>();
-
-        // Build the public URL from configuration rather than hard-coding the
-        // account: the storage account can change without touching this handler.
-        var accountUrl = (_configuration["BlobStorage:AccountUrl"] ?? string.Empty).TrimEnd('/');
-        var containerName = _configuration["BlobStorage:ContainerName"] ?? "images";
+        var container = _blobStorageService.ForContainer();
 
         foreach (var file in request.Files)
         {
@@ -53,9 +40,9 @@ public class UploadFilesHandler : IRequestHandler<UploadFilesCommand, UploadFile
             var fileName = $"{Guid.NewGuid()}_{Path.GetFileName(file.FileName)}";
 
             using var stream = file.OpenReadStream();
-            await _blobStorageService.UploadBlobAsync(fileName, stream, cancellationToken);
+            var url = await container.UploadAsync(fileName, stream, file.ContentType ?? "application/octet-stream", cancellationToken);
 
-            fileLinks.Add($"{accountUrl}/{containerName}/{fileName}");
+            fileLinks.Add(url);
         }
 
         _logger.LogInformation("[UploadFiles] Uploaded {Count} file(s).", fileLinks.Count);

@@ -23,7 +23,7 @@ public class Project
     public string Name { get; set; }
 
     /// <summary>
-    /// Gets or sets the location of the project.
+    /// Gets or sets the location of the project.// coordiantes x,y
     /// </summary>
     public string Location { get; set; }
 
@@ -38,7 +38,7 @@ public class Project
     public string Description { get; set; }
 
     /// <summary>
-    /// Gets or sets the 3D module link for the project visualization.
+    /// Gets or sets the 3D module link for the project visualization. //lien pour 3D module
     /// </summary>
     public string Module3DLink { get; set; }
 
@@ -90,6 +90,7 @@ public class Project
     public ICollection<ProjectFeature> Features { get; set; } = new List<ProjectFeature>();
     public ICollection<EspaceTempsReel> Videos { get; set; } = new List<EspaceTempsReel>();
     public ICollection<ProjectAssignment> Assignments { get; set; } = new List<ProjectAssignment>();
+    public ICollection<ProjectMembership> Memberships { get; set; } = new List<ProjectMembership>();
     public ICollection<ProjectTypeBien> TypeBiens { get; set; } = new List<ProjectTypeBien>();
 
     /// <summary>

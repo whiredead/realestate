@@ -1,5 +1,11 @@
-﻿using ProjectAPI.Api.Application.Common.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using ProjectAPI.Api.Application.Common.Models;
+using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
+using ProjectAPI.Domain.Users.Entities;
+using ProjectAPI.Infrastructure.Context;
+using UnitEntity = ProjectAPI.Domain.Immeubles.Entities.Unit;
 // If your repo returns IQueryable, consider adding Include(r => r.Documents) inside it.
 
 namespace ProjectAPI.Api.Application.Reservations.GetReservations
@@ -7,14 +13,52 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
     public class GetReservationsHandler : IRequestHandler<GetReservationsQuery, PaginatedResponse<GetReservationsResponse>>
     {
         private readonly IReservationRepository _reservationRepository;
+        private readonly ProjectScopeService _projectScope;
+        private readonly ICurrentUser _currentUser;
+        private readonly ApplicationDbContext _db;
 
-        public GetReservationsHandler(IReservationRepository reservationRepository)
+        public GetReservationsHandler(
+            IReservationRepository reservationRepository,
+            ProjectScopeService projectScope,
+            ICurrentUser currentUser,
+            ApplicationDbContext db)
         {
             _reservationRepository = reservationRepository;
+            _projectScope = projectScope;
+            _currentUser = currentUser;
+            _db = db;
         }
 
         public async Task<PaginatedResponse<GetReservationsResponse>> Handle(GetReservationsQuery request, CancellationToken cancellationToken)
         {
+            // §6.4 — an internal caller only ever lists reservations inside
+            // their assigned projects; null means unrestricted (GLOBAL_ADMIN).
+            var scopedProjectIds = await _projectScope.GetScopedProjectIdsAsync(cancellationToken);
+
+            // Project scope alone let any SALES_AGENT on a project see every
+            // other agent's reservations on that same project — there was no
+            // "this file is mine" boundary at all (unlike Appointments, which
+            // enforces SalesAgentId == caller for agent callers). A SALES_AGENT
+            // is now hard-scoped to their own AgentId; an explicit
+            // request.AgentId for a different agent is ignored rather than
+            // honoured, so an agent cannot widen their own query by asking for
+            // someone else's id. Admins are unaffected.
+            var effectiveAgentId = request.AgentId;
+            if (_currentUser.IsInRole(RoleCodes.SalesAgent))
+            {
+                effectiveAgentId = _currentUser.UserId;
+            }
+            HashSet<Guid>? scopedUnitIds = null;
+            if (scopedProjectIds is not null)
+            {
+                var ids = await _db.Set<UnitEntity>()
+                    .Join(_db.Set<Immeuble>(), u => u.ProjectId, im => im.Id, (u, im) => new { u.Id, im.ProjectId })
+                    .Where(x => scopedProjectIds.Contains(x.ProjectId))
+                    .Select(x => x.Id)
+                    .ToListAsync(cancellationToken);
+                scopedUnitIds = ids.ToHashSet();
+            }
+
             var reservations = await _reservationRepository.Find(
                 r =>
                     (string.IsNullOrEmpty(request.BuyerId) || r.BuyerId == request.BuyerId) &&
@@ -23,9 +67,10 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                     (string.IsNullOrEmpty(request.CIN) || r.CIN == request.CIN) &&
                     (string.IsNullOrEmpty(request.Email) || r.Email.Contains(request.Email)) &&
                     (!request.UnitId.HasValue || r.UnitId == request.UnitId.Value) &&
-                    (string.IsNullOrEmpty(request.AgentId) || r.AgentId == request.AgentId) &&
+                    (string.IsNullOrEmpty(effectiveAgentId) || r.AgentId == effectiveAgentId) &&
                     (string.IsNullOrEmpty(request.NotaireId) || r.NotaireId == request.NotaireId) &&
-                    (!request.IsUnderConstruction.HasValue || r.IsUnderConstruction == request.IsUnderConstruction.Value),
+                    (!request.IsUnderConstruction.HasValue || r.IsUnderConstruction == request.IsUnderConstruction.Value) &&
+                    (scopedUnitIds == null || scopedUnitIds.Contains(r.UnitId)),
                 null
             );
 

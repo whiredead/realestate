@@ -78,11 +78,19 @@ public class ActiveReservationPerUnitTests
             Status = "IN_PROGRESS"
         };
 
+        var floor = new Floor
+        {
+            Id = Guid.NewGuid(),
+            ImmeubleId = immeuble.Id,
+            Name = "1",
+            SequenceNo = 1
+        };
+
         var unit = new Unit
         {
             Id = Guid.NewGuid(),
             ProjectId = immeuble.Id, // column named ProjectId actually holds the Immeuble id
-            Floor = "1",
+            FloorId = floor.Id,
             UnitNumber = "A101",
             View = "Jardin",
             Orientation = "Nord",
@@ -91,6 +99,7 @@ public class ActiveReservationPerUnitTests
 
         db.Projects.Add(project);
         db.Immeubles.Add(immeuble);
+        db.Set<Floor>().Add(floor);
         db.Units.Add(unit);
         await db.SaveChangesAsync();
 

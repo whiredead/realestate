@@ -16,7 +16,8 @@ public class UpdateFileHandler : IRequestHandler<UpdateFileCommand, UpdateFileRe
 
     public async Task<UpdateFileResponse> Handle(UpdateFileCommand request, CancellationToken cancellationToken)
     {
-        var isDeleted = await _blobStorageService.DeleteBlobAsync(request.FileName, cancellationToken);
+        var container = _blobStorageService.ForContainer();
+        var isDeleted = await container.DeleteAsync(request.FileName, cancellationToken);
 
         if (!isDeleted)
         {
@@ -30,9 +31,7 @@ public class UpdateFileHandler : IRequestHandler<UpdateFileCommand, UpdateFileRe
         var newFileName = $"{Guid.NewGuid()}_{Path.GetFileName(request.File.FileName)}";
 
         using var stream = request.File.OpenReadStream();
-        await _blobStorageService.UploadBlobAsync(newFileName, stream, cancellationToken);
-
-        var fileLink = $"https://blobgpia.blob.core.windows.net/images/{newFileName}";
+        var fileLink = await container.UploadAsync(newFileName, stream, request.File.ContentType ?? "application/octet-stream", cancellationToken);
 
         return new UpdateFileResponse
         {

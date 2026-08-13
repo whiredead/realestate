@@ -1,28 +1,47 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Purchases.Interfaces;
 using ProjectAPI.Domain.Reservations.Interface;
 using ProjectAPI.Domain.Sales.Interfaces;
+using ProjectAPI.Domain.Users.Entities;
 
 namespace ProjectAPI.Api.Application.Purchases.GetUserPurchases
 {
     /// <summary>
     /// Handler to retrieve purchases for a given user and calculate aggregated totals.
+    ///
+    /// §6.4 — same gap as GetSalesByUserHandler: UserId came from the route
+    /// with no ownership check, so any authenticated caller could read
+    /// another buyer's full purchase history.
     /// </summary>
     public class GetUserPurchasesHandler : IRequestHandler<GetUserPurchasesQuery, PurchaseSummaryResponse>
     {
         private readonly IPurchaseRepository _purchaseRepository;
         private readonly IReservationRepository _reservationRepository;
         private readonly ISaleRepository _saleRepository;
+        private readonly ICurrentUser _currentUser;
 
-        public GetUserPurchasesHandler(IPurchaseRepository purchaseRepository, IReservationRepository reservationRepository,ISaleRepository saleRepository)
+        public GetUserPurchasesHandler(
+            IPurchaseRepository purchaseRepository,
+            IReservationRepository reservationRepository,
+            ISaleRepository saleRepository,
+            ICurrentUser currentUser)
         {
             _purchaseRepository = purchaseRepository;
             _reservationRepository = reservationRepository;
             _saleRepository = saleRepository;
+            _currentUser = currentUser;
         }
 
         public async Task<PurchaseSummaryResponse> Handle(GetUserPurchasesQuery request, CancellationToken cancellationToken)
         {
+            var isInternal = _currentUser.Roles.Any(role => RoleCodes.Internal.Contains(role, StringComparer.Ordinal));
+            if (!isInternal && !string.Equals(_currentUser.UserId, request.UserId, StringComparison.Ordinal))
+            {
+                throw BusinessRuleException.BuyerScopeDenied();
+            }
+
             var purchases = await _purchaseRepository.Find(p => p.UserId == request.UserId);
             var totalCount = purchases.Count();
 

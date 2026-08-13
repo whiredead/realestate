@@ -1,9 +1,12 @@
 using ProjectAPI.Api.Application.FinalVisits.AcknowledgeReport;
+using ProjectAPI.Api.Application.FinalVisits.GetFinalVisitCase;
+using ProjectAPI.Api.Application.FinalVisits.GetMyFinalVisitReport;
 using ProjectAPI.Api.Application.FinalVisits.GetNotaryEligibility;
 using ProjectAPI.Api.Application.FinalVisits.RequestFinalVisit;
 using ProjectAPI.Api.Application.FinalVisits.SubmitFinalVisitReport;
 using ProjectAPI.Api.Application.FinalVisits.TransitionSnag;
 using ProjectAPI.Api.Application.FinalVisits.TransitionVisitAppointment;
+using ProjectAPI.Api.Application.Common.Idempotency;
 using ProjectAPI.Api.Application.Common.Security;
 using Microsoft.AspNetCore.Authorization;
 
@@ -33,6 +36,10 @@ public class FinalVisitsController : ControllerBase
     public async Task<IActionResult> Request(Guid reservationId, [FromBody] RequestFinalVisitCommand body)
     {
         body.ReservationId = reservationId;
+        // HttpContext.Request, not the bare `Request` property: this action is
+        // itself named Request, which hides ControllerBase.Request within its
+        // own body.
+        body.IdempotencyKey ??= HttpContext.Request.GetIdempotencyKey();
         return Ok(await _mediator.Send(body));
     }
 
@@ -86,6 +93,34 @@ public class FinalVisitsController : ControllerBase
     {
         body.SnagId = snagId;
         return Ok(await _mediator.Send(body));
+    }
+
+    /// <summary>
+    /// §6.4/§17 — the internal (agent/admin) view of a reservation's final-visit
+    /// case: current appointment id and current report/snag ids, if any. Every
+    /// write endpoint above is keyed by one of these ids; this is how an
+    /// internal caller learns them without being told to type a GUID (N11).
+    /// </summary>
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [HttpGet("reservations/{reservationId:guid}/case")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetFinalVisitCase(Guid reservationId)
+    {
+        var res = await _mediator.Send(new GetFinalVisitCaseQuery { ReservationId = reservationId });
+        return res == null ? NotFound() : Ok(res);
+    }
+
+    /// <summary>§8/§17.3 — the buyer's own final-visit report and its reserves, for one of their reservations.</summary>
+    [HttpGet("reservations/{reservationId:guid}/report/mine")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMyFinalVisitReport(Guid reservationId)
+    {
+        var res = await _mediator.Send(new GetMyFinalVisitReportQuery { ReservationId = reservationId });
+        return res == null ? NotFound() : Ok(res);
     }
 
     /// <summary>

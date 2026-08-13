@@ -1,10 +1,14 @@
-﻿namespace ProjectAPI.Api.Application.Reservations.ApproveReservation;
+﻿using ProjectAPI.Api.Application.Common.Idempotency;
 
-public class ApproveReservationCommand : IRequest<bool>
+namespace ProjectAPI.Api.Application.Reservations.ApproveReservation;
+
+/// <summary>§7 — approval requires an Idempotency-Key: a retried approve must not double-grant.</summary>
+public class ApproveReservationCommand : IRequest<bool>, IIdempotentRequest
 {
     public Guid ReservationId { get; set; }
     public string AdminUserId { get; set; } = null!;
     public string? AdminNote { get; set; }
+    public string? IdempotencyKey { get; set; }
 
     public List<ReservationDocumentDto> Documents { get; set; } = new();
 }

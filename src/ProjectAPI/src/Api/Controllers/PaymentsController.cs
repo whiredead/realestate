@@ -1,8 +1,11 @@
 using ProjectAPI.Api.Application.Payments.CreatePaymentSchedule;
 using ProjectAPI.Api.Application.Payments.GetPaymentSchedule;
 using ProjectAPI.Api.Application.Payments.RecordPayment;
+using ProjectAPI.Api.Application.Payments.RejectPayment;
 using ProjectAPI.Api.Application.Payments.ReversePayment;
+using ProjectAPI.Api.Application.Payments.ValidatePayment;
 using ProjectAPI.Domain.Payments.Entities;
+using ProjectAPI.Api.Application.Common.Idempotency;
 using ProjectAPI.Api.Application.Common.Security;
 using Microsoft.AspNetCore.Authorization;
 
@@ -62,6 +65,7 @@ public class PaymentsController : ControllerBase
     public async Task<IActionResult> RecordPayment(Guid reservationId, [FromBody] RecordPaymentCommand body)
     {
         body.ReservationId = reservationId;
+        body.IdempotencyKey ??= Request.GetIdempotencyKey();
         return Ok(await _mediator.Send(body));
     }
 
@@ -72,6 +76,31 @@ public class PaymentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     public async Task<IActionResult> ReversePayment(Guid paymentId, [FromBody] ReversePaymentCommand body)
+    {
+        body.PaymentId = paymentId;
+        return Ok(await _mediator.Send(body));
+    }
+
+    /// <summary>Confirms a pending-validation payment (§14.3) — the missing second step of "declare, then confirm".</summary>
+    [HttpPost("{paymentId:guid}/validate")]
+    [Authorize(Roles = RoleGroups.Admins)] // §6.3 "C/M périmètre".
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ValidatePayment(Guid paymentId, [FromBody] ValidatePaymentCommand body)
+    {
+        body.PaymentId = paymentId;
+        return Ok(await _mediator.Send(body));
+    }
+
+    /// <summary>Refuses a pending-validation payment (§14.3) — the other missing half of "declare, then confirm/refuse".</summary>
+    [HttpPost("{paymentId:guid}/reject")]
+    [Authorize(Roles = RoleGroups.Admins)] // §6.3 "C/M périmètre".
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> RejectPayment(Guid paymentId, [FromBody] RejectPaymentCommand body)
     {
         body.PaymentId = paymentId;
         return Ok(await _mediator.Send(body));

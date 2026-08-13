@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -37,21 +38,29 @@ public class UpdateTitleStatusResponse
 public class UpdateTitleStatusHandler : IRequestHandler<UpdateTitleStatusCommand, UpdateTitleStatusResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public UpdateTitleStatusHandler(ApplicationDbContext db)
+    public UpdateTitleStatusHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<UpdateTitleStatusResponse> Handle(UpdateTitleStatusCommand request, CancellationToken ct)
     {
-        var unitExists = await _db.Set<Domain.Immeubles.Entities.Unit>()
-            .AnyAsync(u => u.Id == request.UnitId, ct);
+        // Unit.ProjectId is actually the FK to Immeuble (Building) — the real
+        // Project id is Immeuble.ProjectId (see Domain\Immeubles\Entities\Unit.cs).
+        var unitProjectId = await _db.Set<Domain.Immeubles.Entities.Unit>()
+            .Where(u => u.Id == request.UnitId)
+            .Select(u => (Guid?)u.Immeuble.ProjectId)
+            .FirstOrDefaultAsync(ct);
 
-        if (!unitExists)
+        if (unitProjectId is null)
         {
             throw new NotFoundException($"Unit {request.UnitId} not found.");
         }
+
+        await _projectScope.EnsureProjectAccessAsync(unitProjectId.Value, ct);
 
         var state = await _db.Set<UnitTitleState>()
             .FirstOrDefaultAsync(t => t.UnitId == request.UnitId, ct);

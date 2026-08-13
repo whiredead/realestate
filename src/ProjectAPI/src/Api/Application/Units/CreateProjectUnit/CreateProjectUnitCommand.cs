@@ -11,9 +11,9 @@ public class CreateProjectUnitCommand : IRequest<CreateProjectUnitResponse>
     public Guid ProjectId { get; set; }
 
     /// <summary>
-    /// Gets or sets the floor where the unit is located.
+    /// Gets or sets the floor the unit belongs to (must already exist under the building).
     /// </summary>
-    public string Floor { get; set; }
+    public Guid FloorId { get; set; }
 
     /// <summary>
     /// Gets or sets the unit number.
@@ -69,4 +69,10 @@ public class CreateProjectUnitCommand : IRequest<CreateProjectUnitResponse>
     /// Gets or sets the price of the unit, if applicable.
     /// </summary>
     public decimal? Price { get; set; }
+
+    /// <summary>
+    /// Gets or sets this unit's own photo URLs (comma-delimited), if any —
+    /// uploaded separately via the blob storage endpoint before this call.
+    /// </summary>
+    public string? Images { get; set; }
 }

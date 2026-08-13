@@ -1,5 +1,6 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Appointments.Interfaces;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
@@ -19,14 +20,16 @@ public class RemoveProjectHandler : IRequestHandler<RemoveProjectCommand, Remove
     private readonly IReservationRepository _reservationRepository;
     private readonly ISaleRepository _saleRepository;
     private readonly IUnitRepository _unitRepository;
-    
+    private readonly ProjectScopeService _projectScope;
+
     public RemoveProjectHandler(
         IProjectRepository projectRepository,
         IImmeubleRepository immeubleRepository,
         IAppointmentRepository appointmentRepository,
         IReservationRepository reservationRepository,
         ISaleRepository saleRepository,
-        IUnitRepository unitRepository)
+        IUnitRepository unitRepository,
+        ProjectScopeService projectScope)
     {
         _projectRepository = projectRepository;
         _immeubleRepository = immeubleRepository;
@@ -34,8 +37,9 @@ public class RemoveProjectHandler : IRequestHandler<RemoveProjectCommand, Remove
         _reservationRepository = reservationRepository;
         _saleRepository = saleRepository;
         _unitRepository = unitRepository;
+        _projectScope = projectScope;
     }
-    
+
     public async Task<RemoveProjectResponse> Handle(RemoveProjectCommand request, CancellationToken cancellationToken)
     {
         try
@@ -53,6 +57,12 @@ public class RemoveProjectHandler : IRequestHandler<RemoveProjectCommand, Remove
                     Details = new List<string> { "Please verify the project ID and try again." }
                 };
             }
+
+            // §6.4 — the single highest-blast-radius mutation in the codebase:
+            // an unscoped hard-delete of a project and everything under it
+            // (immeubles, units, reservations, sales, appointments). Must
+            // never run outside the caller's own assigned project.
+            await _projectScope.EnsureProjectAccessAsync(request.ProjectId, cancellationToken);
 
             var projectName = project.Name;
 
@@ -134,6 +144,13 @@ public class RemoveProjectHandler : IRequestHandler<RemoveProjectCommand, Remove
                     $"Deleted at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
                 }
             };
+        }
+        catch (BusinessRuleException)
+        {
+            // §6.4 — a scope denial is an authorization decision (403), not a
+            // soft "operation failed" outcome; let it reach the global
+            // exception filter like every other scope check in this codebase.
+            throw;
         }
         catch (Exception ex)
         {

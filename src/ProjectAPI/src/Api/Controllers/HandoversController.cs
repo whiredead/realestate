@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ProjectAPI.Api.Application.Common.Idempotency;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Handovers;
+using ProjectAPI.Api.Application.Handovers.GetMyHandoverStatus;
+using ProjectAPI.Api.Application.Handovers.GetMyWarranties;
 
 namespace ProjectAPI.Api.Controllers;
 
@@ -55,5 +58,29 @@ public class HandoversController : ControllerBase
         {
             ReportId = reportId,
             WarrantyMonths = command?.WarrantyMonths ?? 12,
+            IdempotencyKey = command?.IdempotencyKey ?? Request.GetIdempotencyKey(),
         }));
+
+    /// <summary>§8 — the buyer's own handover status for one of their reservations.</summary>
+    [HttpGet("reservations/{reservationId:guid}/mine")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMyHandoverStatus(Guid reservationId)
+    {
+        var res = await _mediator.Send(new GetMyHandoverStatusQuery { ReservationId = reservationId });
+        return res == null ? NotFound() : Ok(res);
+    }
+
+    /// <summary>§8/§20 — warranty coverage for one of the buyer's own reservations.</summary>
+    [HttpGet("reservations/{reservationId:guid}/warranties/mine")]
+    [Authorize]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMyWarranties(Guid reservationId)
+    {
+        return Ok(await _mediator.Send(new GetMyWarrantiesQuery { ReservationId = reservationId }));
+    }
 }

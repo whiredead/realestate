@@ -1,5 +1,6 @@
 using MediatR;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Projects.Interfaces;
@@ -8,22 +9,25 @@ namespace ProjectAPI.Api.Application.TypeBiens.AssociateToProject
 {
     /// <summary>
     /// Handler to link a TypeBien to a Project.
-    /// 
+    ///
     /// </summary>
     public class AssociateTypeBienToProjectHandler : IRequestHandler<AssociateTypeBienToProjectCommand, AssociateTypeBienToProjectResponse>
     {
         private readonly IProjectRepository _projectRepository;
         private readonly ITypeBienRepository _typeBienRepository;
         private readonly IProjectTypeBienRepository _projectTypeBienRepository;
+        private readonly ProjectScopeService _projectScope;
 
         public AssociateTypeBienToProjectHandler(
             IProjectRepository projectRepository,
             ITypeBienRepository typeBienRepository,
-            IProjectTypeBienRepository projectTypeBienRepository)
+            IProjectTypeBienRepository projectTypeBienRepository,
+            ProjectScopeService projectScope)
         {
             _projectRepository = projectRepository;
             _typeBienRepository = typeBienRepository;
             _projectTypeBienRepository = projectTypeBienRepository;
+            _projectScope = projectScope;
         }
 
         public async Task<AssociateTypeBienToProjectResponse> Handle(AssociateTypeBienToProjectCommand request, CancellationToken cancellationToken)
@@ -34,6 +38,10 @@ namespace ProjectAPI.Api.Application.TypeBiens.AssociateToProject
             {
                 throw new NotFoundException($"Project with ID {request.ProjectId} not found.");
             }
+
+            // §6.4 — a PROJECT_ADMIN with no membership on this project must
+            // not alter its catalogue composition.
+            await _projectScope.EnsureProjectAccessAsync(request.ProjectId, cancellationToken);
 
             // Validate TypeBien
             var typeBien = await _typeBienRepository.GetByIDAsync(request.TypeBienId);

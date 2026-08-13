@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Idempotency;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.FinalVisits.Entities;
 using ProjectAPI.Domain.Immeubles.Entities;
@@ -17,8 +19,10 @@ namespace ProjectAPI.Api.Application.FinalVisits.RequestFinalVisit;
 /// per reservation; a reschedule adds an attempt to the SAME case so history is
 /// preserved.
 /// </summary>
-public class RequestFinalVisitCommand : IRequest<RequestFinalVisitResponse>
+/// <summary>§7 — requires an Idempotency-Key: a retried request must not open a second attempt.</summary>
+public class RequestFinalVisitCommand : IRequest<RequestFinalVisitResponse>, IIdempotentRequest
 {
+    public string? IdempotencyKey { get; set; }
     public Guid ReservationId { get; set; }
 
     /// <summary>Requested slot start (half-open interval with EndsAt).</summary>
@@ -43,14 +47,22 @@ public class RequestFinalVisitResponse
 public class RequestFinalVisitHandler : IRequestHandler<RequestFinalVisitCommand, RequestFinalVisitResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public RequestFinalVisitHandler(ApplicationDbContext db)
+    public RequestFinalVisitHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<RequestFinalVisitResponse> Handle(RequestFinalVisitCommand request, CancellationToken ct)
     {
+        // §6.4 — the requester (buyer, agent or admin) must own or be scoped to
+        // this reservation. A buyer requesting their own final visit is the
+        // normal case (§17.1); an agent/admin outside the project is not.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+        await _projectScope.EnsureBuyerOwnsReservationAsync(request.ReservationId, ct);
+
         var reservation = await _db.Set<Reservation>()
             .FirstOrDefaultAsync(r => r.Id == request.ReservationId, ct)
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");

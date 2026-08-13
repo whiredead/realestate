@@ -1,4 +1,5 @@
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Appointments.Interfaces;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 using ProjectAPI.Domain.Reservations.Interface;
@@ -16,19 +17,22 @@ public class DeleteImmeublesHandler : IRequestHandler<DeleteImmeublesCommand, De
         private readonly IAppointmentRepository _appointmentRepository;
         private readonly IReservationRepository _reservationRepository;
         private readonly ISaleRepository _saleRepository;
-    
+        private readonly ProjectScopeService _projectScope;
+
         public DeleteImmeublesHandler(
             IImmeubleRepository immeubleRepository,
             IUnitRepository unitRepository,
             IAppointmentRepository appointmentRepository,
             IReservationRepository reservationRepository,
-            ISaleRepository saleRepository)
+            ISaleRepository saleRepository,
+            ProjectScopeService projectScope)
         {
             _immeubleRepository = immeubleRepository;
             _unitRepository = unitRepository;
             _appointmentRepository = appointmentRepository;
             _reservationRepository = reservationRepository;
             _saleRepository = saleRepository;
+            _projectScope = projectScope;
         }
 
 /// <summary>
@@ -42,10 +46,10 @@ public class DeleteImmeublesHandler : IRequestHandler<DeleteImmeublesCommand, De
         try
         {
             var deletedEntities = new List<string>();
-            
+
             // Get the immeuble
             var immeuble = await _immeubleRepository.GetByIdWithDependenciesAsync(request.Id);
-            
+
             if (immeuble == null)
             {
                 return new DeleteImmeubleResponse
@@ -55,6 +59,11 @@ public class DeleteImmeublesHandler : IRequestHandler<DeleteImmeublesCommand, De
                     Details = new List<string> { "Please verify the Immeuble ID and try again." }
                 };
             }
+
+            // §6.4 — this is the highest-blast-radius mutation in the codebase
+            // (cascades through Sales → Reservations → Units → Immeuble); it
+            // must never run outside the caller's own assigned project.
+            await _projectScope.EnsureProjectAccessAsync(immeuble.ProjectId, cancellationToken);
 
             var immeubleName = immeuble.Name;
 
@@ -108,6 +117,18 @@ public class DeleteImmeublesHandler : IRequestHandler<DeleteImmeublesCommand, De
                     $"Deleted at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
                 }
             };
+        }
+        catch (BusinessRuleException)
+        {
+            // §6.4 — a scope denial is an authorization decision (403 via
+            // ApiExceptionFilter/BusinessErrorCodes.PROJECT_SCOPE_DENIED), not
+            // a soft "operation failed" outcome. Swallowing it into
+            // Success = false here made ImmeubleController map it to a plain
+            // 400 with no stable error code, so the frontend's
+            // ApiError.isScopeDenied could never recognise it. Let it
+            // propagate to the global exception filter like every other
+            // authorization check in this codebase.
+            throw;
         }
         catch (Exception ex)
         {

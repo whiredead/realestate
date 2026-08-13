@@ -17,4 +17,12 @@ public class UpdateNotaryAppointmentCommand : IRequest<UpdateNotaryAppointmentRe
 
     public decimal? TaxFees { get; set; }
     public decimal? TahfidFees { get; set; }
+
+    /// <summary>Reassigns to a different eligible notary. Required together with <see cref="ReassignmentReason"/>.</summary>
+    public string? NewNotaireId { get; set; }
+
+    /// <summary>Required when NewNotaireId is supplied.</summary>
+    public string? ReassignmentReason { get; set; }
+
+    public string? ActorUserId { get; set; }
 }

@@ -51,14 +51,34 @@ public class UserRepository : IUserRepository
     /// <inheritdoc />
     public async Task<IEnumerable<User>> GetUsersByRole(string role)
     {
-        var roleEntity = await _context.Roles.FirstOrDefaultAsync(r => r.Name == role);
-        if (roleEntity == null)
+        // AspNetRoles carries BOTH vocabularies as separate rows (e.g. "Agent"
+        // AND "SALES_AGENT" both exist) — a seeded account's AspNetUserRoles
+        // link points at whichever row the seeder used (the legacy one, in
+        // practice). Matching Role.Name == role verbatim therefore only ever
+        // found results for the exact legacy label; a caller passing the spec
+        // code (as every other part of this codebase does, per RoleCodes'
+        // own doc comment: "Authorisation MUST be expressed in spec codes")
+        // got back an empty list. Normalize both sides through RoleCodes so
+        // either vocabulary resolves to the same accounts.
+        var wantedCode = RoleCodes.Normalize(role);
+
+        var matchingRoleIds = await _context.Roles
+            .Where(r => r.Name != null)
+            .Select(r => new { r.Id, r.Name })
+            .ToListAsync();
+
+        var roleIds = matchingRoleIds
+            .Where(r => RoleCodes.Normalize(r.Name) == wantedCode)
+            .Select(r => r.Id)
+            .ToHashSet();
+
+        if (roleIds.Count == 0)
         {
             return [];
         }
 
         return await _context.Users
-            .Where(u => u.UserRoles.Any(ur => ur.RoleId == roleEntity.Id))
+            .Where(u => u.UserRoles.Any(ur => roleIds.Contains(ur.RoleId)))
             .ToListAsync();
     }
 }

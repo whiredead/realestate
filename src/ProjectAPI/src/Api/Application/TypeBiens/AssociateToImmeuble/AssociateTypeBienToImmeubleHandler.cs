@@ -1,4 +1,5 @@
 ﻿using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 
@@ -12,15 +13,18 @@ namespace ProjectAPI.Api.Application.TypeBiens.AssociateToImmeuble
         private readonly IImmeubleRepository _immeubleRepository;
         private readonly ITypeBienRepository _typeBienRepository;
         private readonly IImmeubleTypeBienRepository _immeubleTypeBienRepository;
+        private readonly ProjectScopeService _projectScope;
 
         public AssociateTypeBienToImmeubleHandler(
             IImmeubleRepository immeubleRepository,
             ITypeBienRepository typeBienRepository,
-            IImmeubleTypeBienRepository immeubleTypeBienRepository)
+            IImmeubleTypeBienRepository immeubleTypeBienRepository,
+            ProjectScopeService projectScope)
         {
             _immeubleRepository = immeubleRepository;
             _typeBienRepository = typeBienRepository;
             _immeubleTypeBienRepository = immeubleTypeBienRepository;
+            _projectScope = projectScope;
         }
 
         public async Task<AssociateTypeBienToImmeubleResponse> Handle(AssociateTypeBienToImmeubleCommand request, CancellationToken cancellationToken)
@@ -31,6 +35,10 @@ namespace ProjectAPI.Api.Application.TypeBiens.AssociateToImmeuble
             {
                 throw new NotFoundException($"Immeuble with ID {request.ImmeubleId} not found.");
             }
+
+            // §6.4 — a PROJECT_ADMIN with no membership on this building's
+            // project must not alter its catalogue composition.
+            await _projectScope.EnsureProjectAccessAsync(immeuble.ProjectId, cancellationToken);
 
             // Validate TypeBien
             var typeBien = await _typeBienRepository.GetByIDAsync(request.TypeBienId);

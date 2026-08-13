@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Infrastructure.Context;
@@ -31,10 +32,12 @@ public class AddMilestoneResponse
 public class AddMilestoneHandler : IRequestHandler<AddMilestoneCommand, AddMilestoneResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public AddMilestoneHandler(ApplicationDbContext db)
+    public AddMilestoneHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<AddMilestoneResponse> Handle(AddMilestoneCommand request, CancellationToken ct)
@@ -44,6 +47,8 @@ public class AddMilestoneHandler : IRequestHandler<AddMilestoneCommand, AddMiles
         {
             throw new NotFoundException($"Project {request.ProjectId} not found.");
         }
+
+        await _projectScope.EnsureProjectAccessAsync(request.ProjectId, ct);
 
         if (request.WeightPercent is < 0 or > 100)
         {

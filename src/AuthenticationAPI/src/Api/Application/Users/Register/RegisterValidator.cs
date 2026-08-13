@@ -42,12 +42,20 @@ public class RegisterValidator : AbstractValidator<RegisterCommand>
             .NotEmpty().WithMessage("Email is required.")
             .EmailAddress().WithMessage("Invalid email format.");
 
-        // Validation rules for Role
+        // Validation rule for Role
+        //
+        // §6.2 — public sign-up sends no role at all (the frontend has no role
+        // selector, by design: RegisterHandler always produces PROSPECT
+        // regardless of what this list contains). Requiring a non-empty list
+        // here rejected every real public registration before the handler's
+        // own PROSPECT-only guard ever ran — the empty array the frontend
+        // sends is not itself invalid input, it's PROSPECT's normal, silent
+        // "the caller isn't choosing a role" case. Only validate contents
+        // when the caller actually supplied some (e.g. seed scripts).
         RuleFor(x => x.Roles)
-            .Cascade(CascadeMode.Stop)
-            .NotNull().WithMessage("Roles must not be null")
-            .NotEmpty().WithMessage("At least one role is required")
-            .Must(roles => roles.TrueForAll(IsValidRole))
+            .NotNull().WithMessage("Roles must not be null");
+        RuleForEach(x => x.Roles)
+            .Must(IsValidRole)
             .WithMessage("Invalid role. Allowed: " + string.Join(", ", AllowedRoles));
     }
 

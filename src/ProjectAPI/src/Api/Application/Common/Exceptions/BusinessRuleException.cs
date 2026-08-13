@@ -65,6 +65,24 @@ public class BusinessRuleException : Exception
             "Le dossier n'est pas éligible au rendez-vous notarial : " + string.Join(" ", reasons),
             StatusCodes.Status422UnprocessableEntity);
 
+    /// <summary>§5.9 — a SAV claim was opened against a unit that is not yet DELIVERED.</summary>
+    public static BusinessRuleException PropertyNotDelivered(Guid unitId) =>
+        new(BusinessErrorCodes.PropertyNotDelivered,
+            $"Le bien {unitId} n'a pas encore été livré ; le SAV n'est pas ouvert.",
+            StatusCodes.Status409Conflict);
+
+    /// <summary>§5.9 — no active warranty covers this unit at the time of the claim.</summary>
+    public static BusinessRuleException WarrantyExpired(Guid unitId) =>
+        new(BusinessErrorCodes.WarrantyExpired,
+            $"Aucune garantie active ne couvre le bien {unitId}.",
+            StatusCodes.Status409Conflict);
+
+    /// <summary>§5.11 — the file/project/rows changed since the batch was validated.</summary>
+    public static BusinessRuleException ImportSourceChanged() =>
+        new(BusinessErrorCodes.ImportSourceChanged,
+            "Le fichier ou les données ont changé depuis la validation. Revalidez avant de confirmer l'import.",
+            StatusCodes.Status409Conflict);
+
     // --- Project perimeter (§6.4) --------------------------------------------
 
     /// <summary>
@@ -91,6 +109,26 @@ public class BusinessRuleException : Exception
             StatusCodes.Status403Forbidden);
 
     /// <summary>
+    /// §6.3 — a NOTARY manages only their own weekly availability and blocks;
+    /// admins oversee. The route's {notaryId} segment must match the caller's
+    /// own id for a NOTARY caller, never an arbitrary target.
+    /// </summary>
+    public static BusinessRuleException NotaryCalendarScopeDenied() =>
+        new(BusinessErrorCodes.ProjectScopeDenied,
+            "Vous ne pouvez gérer que votre propre calendrier.",
+            StatusCodes.Status403Forbidden);
+
+    /// <summary>
+    /// §6.3 — a SALES_AGENT manages only their own availability calendar
+    /// (weekly hours, blocks, date overrides, appointment settings); admins
+    /// oversee. Mirrors <see cref="NotaryCalendarScopeDenied"/>.
+    /// </summary>
+    public static BusinessRuleException AgentCalendarScopeDenied() =>
+        new(BusinessErrorCodes.ProjectScopeDenied,
+            "Vous ne pouvez gérer que votre propre calendrier.",
+            StatusCodes.Status403Forbidden);
+
+    /// <summary>
     /// §6.4 — "Un agent commercial ne peut pas approuver sa propre réservation."
     /// A separation-of-duties rule: the owning agent, even with admin rights,
     /// may not be the one who validates the dossier they submitted.
@@ -99,4 +137,50 @@ public class BusinessRuleException : Exception
         new(BusinessErrorCodes.SelfApprovalForbidden,
             "Vous ne pouvez pas approuver une réservation que vous avez soumise.",
             StatusCodes.Status403Forbidden);
+
+    // --- Internal invitations (Phase 2) --------------------------------------
+
+    /// <summary>
+    /// Deliberately vague — do not confirm or deny that a token ever existed,
+    /// same reasoning as <see cref="ProjectScopeDenied"/> not naming the project.
+    /// </summary>
+    public static BusinessRuleException InvitationNotFound() =>
+        new(BusinessErrorCodes.InvitationNotFound,
+            "Ce lien d'invitation n'est pas valide.",
+            StatusCodes.Status404NotFound);
+
+    public static BusinessRuleException InvitationRevoked() =>
+        new(BusinessErrorCodes.InvitationRevoked,
+            "Cette invitation a été révoquée. Contactez votre administrateur pour en recevoir une nouvelle.",
+            StatusCodes.Status409Conflict);
+
+    public static BusinessRuleException InvitationAlreadyAccepted() =>
+        new(BusinessErrorCodes.InvitationAlreadyAccepted,
+            "Cette invitation a déjà été utilisée.",
+            StatusCodes.Status409Conflict);
+
+    public static BusinessRuleException InvitationExpired() =>
+        new(BusinessErrorCodes.InvitationExpired,
+            "Cette invitation a expiré. Demandez à votre administrateur d'en envoyer une nouvelle.",
+            StatusCodes.Status409Conflict);
+
+    /// <summary>
+    /// §6.3 permission matrix — a PROJECT_ADMIN may invite SALES_AGENT,
+    /// TECHNICIAN, or NOTARY only; inviting PROJECT_ADMIN or GLOBAL_ADMIN
+    /// requires GLOBAL_ADMIN.
+    /// </summary>
+    public static BusinessRuleException InvitationRoleForbidden(string roleCode) =>
+        new(BusinessErrorCodes.InvitationRoleForbidden,
+            $"Vous n'êtes pas autorisé à inviter le rôle {roleCode}.",
+            StatusCodes.Status403Forbidden);
+
+    /// <summary>
+    /// The AuthenticationAPI call (account creation/role grant) failed or
+    /// could not be reached. Nothing has been written on either side yet
+    /// (see AcceptInternalInvitationHandler) — safe to retry.
+    /// </summary>
+    public static BusinessRuleException InvitationProvisioningFailed() =>
+        new(BusinessErrorCodes.InvitationProvisioningFailed,
+            "La création du compte a échoué. Réessayez dans quelques instants.",
+            StatusCodes.Status503ServiceUnavailable);
 }

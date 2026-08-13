@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Domain.Construction.Entities;
+﻿using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Projects.Interfaces;
 using ProjectAPI.Api.Application.Common.Exceptions;
@@ -9,17 +10,24 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
 {
     private readonly IProjectRepository _projectRepository;
     private readonly IQuartierRepository _quartierRepository;
+    private readonly ProjectScopeService _projectScope;
 
-    public UpdateProjectHandler(IProjectRepository projectRepository, IQuartierRepository quartierRepository)
+    public UpdateProjectHandler(
+        IProjectRepository projectRepository,
+        IQuartierRepository quartierRepository,
+        ProjectScopeService projectScope)
     {
         _projectRepository = projectRepository;
         _quartierRepository = quartierRepository;
+        _projectScope = projectScope;
     }
 
     public async Task<ProjectResponse> Handle(UpdateProjectCommand request, CancellationToken cancellationToken)
     {
         var project = await _projectRepository.GetByIDAsync(request.Id)
             ?? throw new NotFoundException($"Project with ID {request.Id} not found.");
+
+        await _projectScope.EnsureProjectAccessAsync(request.Id, cancellationToken);
 
         // Update Quartier if needed
         if (request.QuartierId.HasValue)

@@ -88,6 +88,9 @@ public class Snag
     public string? ProofUrl { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>§31.6 — optimistic concurrency token; the agent and project admin can act on the same snag near-simultaneously.</summary>
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
 }
 
 /// <summary>Snag severity (§17.4 FR-FVI-009).</summary>

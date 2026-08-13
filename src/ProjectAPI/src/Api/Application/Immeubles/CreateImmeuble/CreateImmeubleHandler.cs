@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Domain.Immeubles.Entities;
+﻿using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 using ProjectAPI.Domain.Projects.Interfaces;
 
@@ -12,18 +13,25 @@ namespace ProjectAPI.Api.Application.Immeubles.CreateImmeuble
         private readonly IImmeubleRepository _repository;
         private readonly IProjectRepository _projectRepository;
         private readonly IImmeubleTrackingRepository _immeubleTrackingRepository;
+        private readonly ProjectScopeService _projectScope;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CreateImmeubleHandler"/> class.
         /// </summary>
         /// <param name="repository">The repository to handle immeuble data operations.</param>
         /// <param name="projectRepository">The repository to handle project data operations.</param>
-
-        public CreateImmeubleHandler(IImmeubleRepository repository, IProjectRepository projectRepository, IImmeubleTrackingRepository immeubleTrackingRepository)
+        /// <param name="immeubleTrackingRepository">The repository to handle immeuble tracking operations.</param>
+        /// <param name="projectScope">Enforces §6.4: a building may only be created within the caller's own assigned project.</param>
+        public CreateImmeubleHandler(
+            IImmeubleRepository repository,
+            IProjectRepository projectRepository,
+            IImmeubleTrackingRepository immeubleTrackingRepository,
+            ProjectScopeService projectScope)
         {
             _repository = repository;
             _projectRepository = projectRepository;
             _immeubleTrackingRepository = immeubleTrackingRepository;
+            _projectScope = projectScope;
         }
 
         /// <summary>
@@ -37,6 +45,8 @@ namespace ProjectAPI.Api.Application.Immeubles.CreateImmeuble
 
             // Check if the project exists
             var project = await _projectRepository.GetByIDAsync(request.ProjectId) ?? throw new Exception($"Project with ID {request.ProjectId} does not exist.");
+
+            await _projectScope.EnsureProjectAccessAsync(request.ProjectId, cancellationToken);
 
             var immeuble = new Immeuble
             {
@@ -75,7 +85,7 @@ namespace ProjectAPI.Api.Application.Immeubles.CreateImmeuble
             await _immeubleTrackingRepository.InsertAsync(immeubleTracking);
             await _immeubleTrackingRepository.SaveAsync();
 
-            return project.Id;
+            return immeuble.Id;
         }
     }
 }

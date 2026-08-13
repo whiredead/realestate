@@ -1,14 +1,18 @@
-﻿using ProjectAPI.Api.Application.Immeubles.CreateIImmeubleFeature;
+﻿using ProjectAPI.Api.Application.Floors.CreateFloor;
+using ProjectAPI.Api.Application.Floors.GetFloorsByImmeuble;
+using ProjectAPI.Api.Application.Immeubles.CreateIImmeubleFeature;
 using ProjectAPI.Api.Application.Immeubles.CreateImmeuble;
 using ProjectAPI.Api.Application.Immeubles.DeleteImmeuble;
 using ProjectAPI.Api.Application.Immeubles.GetAllImmeubles;
 using ProjectAPI.Api.Application.Immeubles.GetImmeubleById;
 using ProjectAPI.Api.Application.Immeubles.GetImmeubleFeatures;
+using ProjectAPI.Api.Application.Immeubles.GetImmeubleFloorStats;
 using ProjectAPI.Api.Application.Immeubles.Tracking.AddImmeubleTracking;
 using ProjectAPI.Api.Application.Immeubles.Tracking.GetImmeubleTracking;
 using ProjectAPI.Api.Application.Immeubles.UpdateImmeuble;
 using ProjectAPI.Api.Application.Units.CreateProjectUnit;
 using ProjectAPI.Api.Application.Units.GetAllUnits;
+using ProjectAPI.Api.Application.Units.GetUnitsByFloor;
 using ProjectAPI.Api.Application.Units.GetUnitsByProjectId;
 using ProjectAPI.Api.Application.Units.UpdateUnit;
 using ProjectAPI.Api.Application.Common.Security;
@@ -168,6 +172,50 @@ public class ImmeubleController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>Creates a floor under this building.</summary>
+    [HttpPost("{immeubleId}/floors")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateFloor(Guid immeubleId, [FromBody] CreateFloorCommand command)
+    {
+        command.ImmeubleId = immeubleId;
+        var response = await _mediator.Send(command);
+        return Ok(response);
+    }
+
+    /// <summary>Lists a building's floors, in display order.</summary>
+    [HttpGet("{immeubleId}/floors")]
+    [AllowAnonymous] // §6.3 Catalogue public — structure d'un immeuble.
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetFloors(Guid immeubleId)
+    {
+        var response = await _mediator.Send(new GetFloorsByImmeubleQuery { ImmeubleId = immeubleId });
+        return Ok(response);
+    }
+
+    /// <summary>Drill-down: a building's floors with live per-floor unit-status counts.</summary>
+    [HttpGet("{immeubleId}/floor-stats")]
+    [AllowAnonymous] // §6.3 Catalogue public — structure d'un immeuble.
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetFloorStats(Guid immeubleId)
+    {
+        var response = await _mediator.Send(new GetImmeubleFloorStatsQuery { ImmeubleId = immeubleId });
+        return Ok(response);
+    }
+
+    /// <summary>Drill-down: every unit on one floor, enriched with buyer/agent info when sold.</summary>
+    [HttpGet("floors/{floorId}/units")]
+    [AllowAnonymous] // §6.3 Catalogue public — biens d'un immeuble (same class of data as by-immeuble above).
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetUnitsByFloor(Guid floorId)
+    {
+        var response = await _mediator.Send(new GetUnitsByFloorQuery { FloorId = floorId });
+        return Ok(response);
+    }
+
     /// <summary>
     /// Gets units by immeuble ID with pagination.
     /// </summary>
@@ -220,7 +268,13 @@ public class ImmeubleController : ControllerBase
     public async Task<IActionResult> AddImmeubleFeatures([FromBody] AddImmeubleFeatureCommand command)
     {
         var result = await _mediator.Send(command);
-        return result ? Ok("Features added successfully.") : BadRequest("Failed to add features.");
+        // N25/N30 — a bare Ok("...") string throws on the client's JSON.parse
+        // of a genuinely successful response; every write endpoint on this
+        // controller returns a real object, so this one now does too instead
+        // of needing a special-cased text-only fetch for just two endpoints.
+        return result
+            ? Ok(new { message = "Features added successfully." })
+            : BadRequest(new { message = "Failed to add features." });
     }
 
     /// <summary>

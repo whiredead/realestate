@@ -11,6 +11,12 @@ namespace ProjectAPI.Api.Controllers;
 
 /// <summary>
 /// Controller for managing project assignments.
+///
+/// Legacy — superseded by ProjectMembershipController (Phase 1), which
+/// supports SALES_AGENT/TECHNICIAN/NOTARY/PROJECT_ADMIN with a validity
+/// window instead of this agent-or-notary-only shape. Retained as a
+/// compatibility shim so existing callers keep working; do not add new
+/// capabilities here.
 /// </summary>
 [ApiController]
 [Route("api/[controller]")]

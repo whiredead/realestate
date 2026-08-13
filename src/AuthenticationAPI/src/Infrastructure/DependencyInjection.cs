@@ -3,6 +3,7 @@ using AuthenticationAPI.Domain.ApplicationUser.Interfaces;
 using AuthenticationAPI.Domain.Common.Interfaces;
 using AuthenticationAPI.Infrastructure.Context;
 using AuthenticationAPI.Infrastructure.Providers;
+using AuthenticationAPI.Infrastructure.Security;
 using AuthenticationAPI.Infrastructure.Settings;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -29,8 +30,10 @@ public static class DependencyInjection
         services.ConfigureDbContexts(configuration);
         services.ConfigureIdentity();
         services.ConfigureJwtAuthentication(configuration);
+        services.ConfigureInternalApiKeyAuthentication(configuration);
         services.ConfigureIdentityOptions();
         services.ConfigureCustomServices();
+        services.ConfigureProjectApiClient();
 
         return services;
     }
@@ -41,13 +44,16 @@ public static class DependencyInjection
     {
         var jwtSettings = new JwtSettings();
         var otpSettings = new OtpSettings();
+        var internalApiSettings = new InternalApiSettings();
 
         configuration.Bind("JwtSettings", jwtSettings);
         configuration.Bind("OtpSettings", otpSettings);
+        configuration.Bind("InternalApi", internalApiSettings);
 
         services
             .AddSingleton(jwtSettings)
-            .AddSingleton(otpSettings);
+            .AddSingleton(otpSettings)
+            .AddSingleton(internalApiSettings);
     }
 
     private static void ConfigureDbContexts(this IServiceCollection services, IConfiguration configuration)
@@ -87,6 +93,24 @@ public static class DependencyInjection
         });
     }
 
+    /// <summary>
+    /// Adds InternalApiKeyDefaults.AuthenticationScheme alongside the default
+    /// JwtBearer scheme registered in ConfigureJwtAuthentication above — using
+    /// AddAuthentication() again here (with no options delegate) merges into
+    /// the same builder rather than resetting DefaultAuthenticateScheme, so
+    /// every existing [Authorize] (and the global FallbackPolicy) keeps
+    /// requiring a JWT exactly as before. Only a controller/action that
+    /// explicitly opts in with
+    /// [Authorize(AuthenticationSchemes = InternalApiKeyDefaults.AuthenticationScheme)]
+    /// is authenticated by this scheme instead.
+    /// </summary>
+    private static void ConfigureInternalApiKeyAuthentication(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddAuthentication()
+            .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, InternalApiKeyAuthenticationHandler>(
+                InternalApiKeyDefaults.AuthenticationScheme, _ => { });
+    }
+
     private static void ConfigureIdentityOptions(this IServiceCollection services)
     {
         services.Configure<IdentityOptions>(options =>
@@ -108,6 +132,16 @@ public static class DependencyInjection
             .AddScoped<IWeeklyAvailabilityRepository, WeeklyAvailabilityRepository>()
             .AddScoped<IPerformanceIndicatorRepository, PerformanceIndicatorRepository>()
             .AddScoped<IUserRepository, UserRepository>();
+    }
+
+    /// <summary>Mirrors a newly created internal account into ProjectAPI's own AspNetUsers table — see IProjectApiClient.</summary>
+    private static void ConfigureProjectApiClient(this IServiceCollection services)
+    {
+        services.AddHttpClient<Clients.IProjectApiClient, Clients.ProjectApiClient>((sp, client) =>
+        {
+            var settings = sp.GetRequiredService<InternalApiSettings>();
+            client.BaseAddress = new Uri(settings.ProjectApiBaseUrl);
+        });
     }
 
     #endregion

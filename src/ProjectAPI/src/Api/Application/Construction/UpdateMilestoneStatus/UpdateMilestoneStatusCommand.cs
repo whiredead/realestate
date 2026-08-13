@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -23,10 +24,12 @@ public class UpdateMilestoneStatusHandler
     : IRequestHandler<UpdateMilestoneStatusCommand, UpdateMilestoneStatusResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public UpdateMilestoneStatusHandler(ApplicationDbContext db)
+    public UpdateMilestoneStatusHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<UpdateMilestoneStatusResponse> Handle(
@@ -36,6 +39,8 @@ public class UpdateMilestoneStatusHandler
         var milestone = await _db.Set<ConstructionMilestone>()
             .FirstOrDefaultAsync(m => m.Id == request.MilestoneId, ct)
             ?? throw new NotFoundException($"Milestone {request.MilestoneId} not found.");
+
+        await _projectScope.EnsureProjectAccessAsync(milestone.ProjectId, ct);
 
         milestone.Status = request.Status;
 

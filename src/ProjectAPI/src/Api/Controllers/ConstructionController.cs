@@ -1,11 +1,10 @@
-using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Construction.AddMilestone;
 using ProjectAPI.Api.Application.Construction.CompleteProject;
+using ProjectAPI.Api.Application.Construction.GetProjectConstruction;
+using ProjectAPI.Api.Application.Construction.GetTitleStatus;
 using ProjectAPI.Api.Application.Construction.PublishConstructionUpdate;
 using ProjectAPI.Api.Application.Construction.UpdateMilestoneStatus;
 using ProjectAPI.Api.Application.Construction.UpdateTitleStatus;
-using ProjectAPI.Domain.Construction.Entities;
-using ProjectAPI.Infrastructure.Context;
 using ProjectAPI.Api.Application.Common.Security;
 using Microsoft.AspNetCore.Authorization;
 
@@ -20,12 +19,10 @@ namespace ProjectAPI.Api.Controllers;
 public class ConstructionController : ControllerBase
 {
     private readonly IMediator _mediator;
-    private readonly ApplicationDbContext _db;
 
-    public ConstructionController(IMediator mediator, ApplicationDbContext db)
+    public ConstructionController(IMediator mediator)
     {
         _mediator = mediator;
-        _db = db;
     }
 
     /// <summary>Milestones and published updates for a project (§15).</summary>
@@ -34,61 +31,7 @@ public class ConstructionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetProjectConstruction(Guid projectId, CancellationToken ct)
     {
-        var milestones = await _db.Set<ConstructionMilestone>()
-            .Where(m => m.ProjectId == projectId)
-            .OrderBy(m => m.SequenceNo)
-            .Select(m => new
-            {
-                m.Id,
-                m.Code,
-                m.NameFr,
-                m.NameEn,
-                m.SequenceNo,
-                m.WeightPercent,
-                m.PlannedDate,
-                m.ActualDate,
-                Status = m.Status.ToString(),
-                m.VisibleToBuyer,
-                m.VisibleToPublic
-            })
-            .ToListAsync(ct);
-
-        // Superseded versions are excluded: a correction creates a new version
-        // rather than editing the published one (§15.2 FR-CON-004).
-        var updates = await _db.Set<ConstructionUpdate>()
-            .Where(u => u.ProjectId == projectId)
-            .OrderByDescending(u => u.CreatedAt)
-            .Select(u => new
-            {
-                u.Id,
-                u.VersionNo,
-                u.ProgressPercent,
-                u.TitleFr,
-                u.DescriptionFr,
-                u.MediaUrls,
-                Visibility = u.Visibility.ToString(),
-                u.PublishedAt,
-                u.CreatedAt
-            })
-            .ToListAsync(ct);
-
-        // Overall progress is DERIVED from completed milestone weights (§5.8),
-        // not read from a stored field that could drift.
-        var totalWeight = milestones.Sum(m => m.WeightPercent);
-        var doneWeight = milestones
-            .Where(m => m.Status == MilestoneStatus.Completed.ToString())
-            .Sum(m => m.WeightPercent);
-
-        var progress = totalWeight > 0 ? Math.Round(doneWeight / totalWeight * 100, 2) : 0;
-
-        return Ok(new
-        {
-            projectId,
-            milestones,
-            updates,
-            computedProgressPercent = progress,
-            calculatedAt = DateTime.UtcNow
-        });
+        return Ok(await _mediator.Send(new GetProjectConstructionQuery { ProjectId = projectId }, ct));
     }
 
     /// <summary>Land-title status and history for a unit (§16).</summary>
@@ -96,34 +39,7 @@ public class ConstructionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetTitle(Guid unitId, CancellationToken ct)
     {
-        var state = await _db.Set<UnitTitleState>()
-            .FirstOrDefaultAsync(t => t.UnitId == unitId, ct);
-
-        var history = await _db.Set<UnitTitleHistory>()
-            .Where(h => h.UnitId == unitId)
-            .OrderByDescending(h => h.OccurredAt)
-            .Select(h => new
-            {
-                h.Id,
-                FromStatus = h.FromStatus != null ? h.FromStatus.ToString() : null,
-                ToStatus = h.ToStatus.ToString(),
-                h.OccurredAt,
-                h.Reason,
-                h.DocumentUrl
-            })
-            .ToListAsync(ct);
-
-        var status = state?.Status ?? TitleStatus.NotAvailable;
-
-        return Ok(new
-        {
-            unitId,
-            status = status.ToString(),
-            statusAt = state?.StatusAt,
-            documentUrl = state?.DocumentUrl,
-            allowsNotaryAppointment = TitleStateMachine.AllowsNotaryAppointment(status),
-            history
-        });
+        return Ok(await _mediator.Send(new GetTitleStatusQuery { UnitId = unitId }, ct));
     }
 
     /// <summary>Moves the title status, tracing the change (§16).</summary>

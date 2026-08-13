@@ -52,9 +52,15 @@ public class CreateImmeubleCommand : IRequest<Guid>
     public double Longitude { get; set; }
 
     /// <summary>
-    /// Gets or sets the status of the immeuble (e.g., ComingSoon, Available).
+    /// Unused: CreateImmeubleHandler always assigns "ComingSoon" regardless of
+    /// this value (a new building's status is not a caller choice). Nullable
+    /// because neither creation form sends it — an omitted non-nullable
+    /// string here made [ApiController]'s automatic model binding reject the
+    /// request with "The Status field is required" before FluentValidation
+    /// or the handler ever ran (F2's actual root cause: the relaxed surface-
+    /// range validator was correct but never reached).
     /// </summary>
-    public string Status { get; set; }
+    public string? Status { get; set; }
 
     /// <summary>
     /// Gets or sets the number of units in the immeuble.

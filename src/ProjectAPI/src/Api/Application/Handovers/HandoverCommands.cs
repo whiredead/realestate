@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Idempotency;
+using ProjectAPI.Api.Application.Common.Notifications;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Common.Units;
 using ProjectAPI.Domain.Crm.Entities;
@@ -34,16 +36,25 @@ public class ScheduleHandoverHandler : IRequestHandler<ScheduleHandoverCommand, 
     private readonly ApplicationDbContext _db;
     private readonly ICurrentUser _currentUser;
     private readonly ILogger<ScheduleHandoverHandler> _logger;
+    private readonly ProjectScopeService _projectScope;
 
-    public ScheduleHandoverHandler(ApplicationDbContext db, ICurrentUser currentUser, ILogger<ScheduleHandoverHandler> logger)
+    public ScheduleHandoverHandler(
+        ApplicationDbContext db,
+        ICurrentUser currentUser,
+        ILogger<ScheduleHandoverHandler> logger,
+        ProjectScopeService projectScope)
     {
         _db = db;
         _currentUser = currentUser;
         _logger = logger;
+        _projectScope = projectScope;
     }
 
     public async Task<Guid> Handle(ScheduleHandoverCommand request, CancellationToken ct)
     {
+        // §6.4 — scheduling is agent/admin work, scoped to their assigned projects.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+
         var reservation = await _db.Reservations.FirstOrDefaultAsync(r => r.Id == request.ReservationId, ct)
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");
 
@@ -61,6 +72,24 @@ public class ScheduleHandoverHandler : IRequestHandler<ScheduleHandoverCommand, 
         if (unit.Status == UnitCommercialStatus.Delivered)
         {
             throw BusinessRuleException.InvalidStatusTransition("DELIVERED", "HANDOVER");
+        }
+
+        // N19 — this handler had no duplicate guard at all (unlike
+        // RequestFinalVisitHandler's own BlockingStatuses check on the same
+        // shared appointment machine): scheduling twice on one reservation
+        // would have silently created a second HandoverAppointment row
+        // rather than refusing, which is exactly the risk that surfaced once
+        // a read-side bug made an already-scheduled handover look empty.
+        var hasActiveAppointment = await _db.HandoverAppointments.AnyAsync(a =>
+            a.ReservationId == request.ReservationId &&
+            AppointmentStateMachine.BlockingStatuses.Contains(a.Status), ct);
+
+        if (hasActiveAppointment)
+        {
+            throw new BusinessRuleException(
+                "HANDOVER_ALREADY_ACTIVE",
+                "Une livraison est déjà planifiée pour cette réservation.",
+                StatusCodes.Status409Conflict);
         }
 
         var appointment = new HandoverAppointment
@@ -96,13 +125,21 @@ public class ConfirmHandoverCommand : IRequest<bool>
 public class ConfirmHandoverHandler : IRequestHandler<ConfirmHandoverCommand, bool>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public ConfirmHandoverHandler(ApplicationDbContext db) => _db = db;
+    public ConfirmHandoverHandler(ApplicationDbContext db, ProjectScopeService projectScope)
+    {
+        _db = db;
+        _projectScope = projectScope;
+    }
 
     public async Task<bool> Handle(ConfirmHandoverCommand request, CancellationToken ct)
     {
         var appointment = await _db.HandoverAppointments.FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct)
             ?? throw new NotFoundException($"Handover appointment {request.AppointmentId} not found.");
+
+        // §6.4 — confirming is agent/admin work, scoped to their assigned projects.
+        await _projectScope.EnsureReservationAccessAsync(appointment.ReservationId, ct);
 
         // The shared §47.3 matrix, the same one final-visit and notary
         // appointments obey — no bespoke rules for handovers.
@@ -140,8 +177,13 @@ public class HandoverItemInput
 public class SubmitHandoverReportHandler : IRequestHandler<SubmitHandoverReportCommand, Guid>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public SubmitHandoverReportHandler(ApplicationDbContext db) => _db = db;
+    public SubmitHandoverReportHandler(ApplicationDbContext db, ProjectScopeService projectScope)
+    {
+        _db = db;
+        _projectScope = projectScope;
+    }
 
     public async Task<Guid> Handle(SubmitHandoverReportCommand request, CancellationToken ct)
     {
@@ -149,6 +191,9 @@ public class SubmitHandoverReportHandler : IRequestHandler<SubmitHandoverReportC
             .Include(a => a.Reports)
             .FirstOrDefaultAsync(a => a.Id == request.AppointmentId, ct)
             ?? throw new NotFoundException($"Handover appointment {request.AppointmentId} not found.");
+
+        // §6.4 — the agent/admin recording this must be scoped to its project.
+        await _projectScope.EnsureReservationAccessAsync(appointment.ReservationId, ct);
 
         if (appointment.Status != AppointmentAttemptStatus.Confirmed
             && appointment.Status != AppointmentAttemptStatus.Completed)
@@ -210,8 +255,10 @@ public class SubmitHandoverReportHandler : IRequestHandler<SubmitHandoverReportC
 // Acknowledge — the step that actually delivers the property
 // ---------------------------------------------------------------------------
 
-public class AcknowledgeHandoverCommand : IRequest<bool>
+/// <summary>§7 — handover completion requires an Idempotency-Key, alongside the handler's own idempotent re-acknowledgement guard.</summary>
+public class AcknowledgeHandoverCommand : IRequest<bool>, IIdempotentRequest
 {
+    public string? IdempotencyKey { get; set; }
     public Guid ReportId { get; set; }
 
     /// <summary>Warranty length; §20 leaves it configurable, 12 months by default.</summary>
@@ -234,17 +281,23 @@ public class AcknowledgeHandoverHandler : IRequestHandler<AcknowledgeHandoverCom
     private readonly IUnitStatusService _unitStatus;
     private readonly ICurrentUser _currentUser;
     private readonly ILogger<AcknowledgeHandoverHandler> _logger;
+    private readonly ProjectScopeService _projectScope;
+    private readonly INotificationService _notifications;
 
     public AcknowledgeHandoverHandler(
         ApplicationDbContext db,
         IUnitStatusService unitStatus,
         ICurrentUser currentUser,
-        ILogger<AcknowledgeHandoverHandler> logger)
+        ILogger<AcknowledgeHandoverHandler> logger,
+        ProjectScopeService projectScope,
+        INotificationService notifications)
     {
         _db = db;
         _unitStatus = unitStatus;
         _currentUser = currentUser;
         _logger = logger;
+        _projectScope = projectScope;
+        _notifications = notifications;
     }
 
     public async Task<bool> Handle(AcknowledgeHandoverCommand request, CancellationToken ct)
@@ -253,6 +306,11 @@ public class AcknowledgeHandoverHandler : IRequestHandler<AcknowledgeHandoverCom
             .Include(r => r.Appointment)
             .FirstOrDefaultAsync(r => r.Id == request.ReportId, ct)
             ?? throw new NotFoundException($"Handover report {request.ReportId} not found.");
+
+        // §6.4 — the buyer confirms their own handover; an agent recording it on
+        // a walk-in's behalf must be scoped to the project (§1.1).
+        await _projectScope.EnsureReservationAccessAsync(report.Appointment.ReservationId, ct);
+        await _projectScope.EnsureBuyerOwnsReservationAsync(report.Appointment.ReservationId, ct);
 
         if (report.Status == HandoverReportStatus.Acknowledged)
         {
@@ -319,6 +377,16 @@ public class AcknowledgeHandoverHandler : IRequestHandler<AcknowledgeHandoverCom
 
         await _db.SaveChangesAsync(ct);
         await transaction.CommitAsync(ct);
+
+        // §6.2 — non-fatal: delivery itself already committed.
+        if (!string.IsNullOrWhiteSpace(reservation.BuyerId))
+        {
+            await _notifications.NotifyAsync(
+                reservation.BuyerId, "UNIT_DELIVERED",
+                "Bien livré",
+                "La remise des clés est confirmée. Votre garantie et votre espace SAV sont désormais actifs.",
+                reservation.Id, "Reservation", ct);
+        }
 
         _logger.LogInformation(
             "[Handover] Unit {UnitId} DELIVERED via report {ReportId}; warranty active, SAV open.",

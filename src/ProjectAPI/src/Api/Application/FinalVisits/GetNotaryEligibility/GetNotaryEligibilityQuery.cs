@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.FinalVisits.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
@@ -40,14 +41,21 @@ public class GetNotaryEligibilityHandler
     : IRequestHandler<GetNotaryEligibilityQuery, NotaryEligibilityResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public GetNotaryEligibilityHandler(ApplicationDbContext db)
+    public GetNotaryEligibilityHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<NotaryEligibilityResponse> Handle(GetNotaryEligibilityQuery request, CancellationToken ct)
     {
+        // §6.4 — the buyer may read their own eligibility; internal roles are
+        // scoped to their assigned projects.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+        await _projectScope.EnsureBuyerOwnsReservationAsync(request.ReservationId, ct);
+
         var reservation = await _db.Set<Reservation>()
             .FirstOrDefaultAsync(r => r.Id == request.ReservationId, ct)
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");

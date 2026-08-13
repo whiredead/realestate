@@ -189,11 +189,25 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<string>("AgentId")
-                        .HasColumnType("nvarchar(450)");
-
                     b.Property<DateTime>("AppointmentDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AssignedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("AssignmentSource")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("CrmContactId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -217,15 +231,30 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
+                    b.Property<Guid?>("PreviousAppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PreviousSalesAgentId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("PropertyType")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("ReassignmentReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("SalesAgentId")
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("Status")
                         .IsRequired()
-                        .HasColumnType("nvarchar(max)");
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("TypeBienIds")
                         .IsRequired()
@@ -236,13 +265,68 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("AgentId");
+                    b.HasIndex("CrmContactId");
 
                     b.HasIndex("ImmeubleId");
 
+                    b.HasIndex("PreviousAppointmentId");
+
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("Appointments", (string)null);
+                    b.HasIndex("SalesAgentId", "AppointmentDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Appointments_ActiveSlotPerAgent")
+                        .HasFilter("[Status] IN ('Requested', 'Confirmed', 'RescheduleProposed') AND [SalesAgentId] IS NOT NULL");
+
+                    b.ToTable("Appointments", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Appointments_AssignmentSource", "[AssignmentSource] IS NULL OR [AssignmentSource] IN ('EXISTING_OWNER', 'ROUND_ROBIN', 'LOWEST_WORKLOAD', 'PRIMARY_AGENT', 'MANUAL_REASSIGNMENT')");
+
+                            t.HasCheckConstraint("CK_Appointments_Status", "[Status] IN ('Requested', 'Confirmed', 'RescheduleProposed', 'Rejected', 'Cancelled', 'Completed', 'NoShow', 'Superseded')");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.AppointmentAssignmentHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AssignmentSource")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("PreviousSalesAgentId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("SalesAgentId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.ToTable("AppointmentAssignmentHistories", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AppointmentAssignmentHistories_AssignmentSource", "[AssignmentSource] IN ('EXISTING_OWNER', 'ROUND_ROBIN', 'LOWEST_WORKLOAD', 'PRIMARY_AGENT', 'MANUAL_REASSIGNMENT')");
+                        });
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.AppointmentReview", b =>
@@ -302,6 +386,80 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.ToTable("AppointmentReviews", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.AppointmentVisitReport", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AuthorUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<decimal?>("ConfirmedBudget")
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ConfirmedRequirements")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("FollowUpDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InterestLevel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("InternalNotes")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("NextAction")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Objections")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("PropertiesPresentedUnitIds")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
+                    b.Property<int>("VersionNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("VisitResult")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppointmentId");
+
+                    b.ToTable("AppointmentVisitReports", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AppointmentVisitReports_InterestLevel", "[InterestLevel] IN ('LOW', 'MEDIUM', 'HIGH', 'VERY_HIGH')");
+
+                            t.HasCheckConstraint("CK_AppointmentVisitReports_VisitResult", "[VisitResult] IN ('INTERESTED_FOLLOW_UP', 'READY_TO_RESERVE', 'NOT_INTERESTED', 'NO_SHOW', 'RESCHEDULE_NEEDED')");
+                        });
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.NotaryAppointment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -338,6 +496,9 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("NotaireId")
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
@@ -357,8 +518,19 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
+                    b.Property<Guid?>("PreviousAppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PreviousNotaireId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<decimal>("PropertyPrice")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ReassignmentReason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
 
                     b.Property<Guid>("ReservationId")
                         .HasColumnType("uniqueidentifier");
@@ -376,14 +548,105 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("NotaireId");
+                    b.HasIndex("PreviousAppointmentId");
 
                     b.HasIndex("ReservationId");
+
+                    b.HasIndex("NotaireId", "AppointmentDate")
+                        .IsUnique()
+                        .HasDatabaseName("UX_NotaryAppointments_ActiveSlotPerNotary")
+                        .HasFilter("[Status] IN ('Requested', 'Confirmed', 'RescheduleProposed')");
 
                     b.ToTable("NotaryAppointments", null, t =>
                         {
                             t.HasCheckConstraint("CK_NotaryAppointments_Outcome", "[Outcome] IS NULL OR [Outcome] IN ('PURCHASE_COMPLETED', 'INCOMPLETE_FILE', 'BUYER_ABSENT', 'POSTPONED', 'NOT_COMPLETED_OTHER')");
                         });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.NotaryAppointmentAssignmentHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AssignmentSource")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("NotaireId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid>("NotaryAppointmentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PreviousNotaireId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NotaryAppointmentId");
+
+                    b.ToTable("NotaryAppointmentAssignmentHistories", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_NotaryAppointmentAssignmentHistories_AssignmentSource", "[AssignmentSource] IN ('MANUAL', 'MANUAL_REASSIGNMENT')");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Common.Idempotency.IdempotencyKeyRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("ResponseBody")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("ResponseTypeName")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Operation", "Key")
+                        .IsUnique()
+                        .HasDatabaseName("UX_IdempotencyKeys_OperationKey");
+
+                    b.ToTable("IdempotencyKeys", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Construction.Entities.ConstructionMilestone", b =>
@@ -575,6 +838,47 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasDatabaseName("IX_UnitTitleStates_Unit");
 
                     b.ToTable("UnitTitleStates", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Crm.Entities.AccountInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CrmContactId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Token")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CrmContactId");
+
+                    b.HasIndex("Token")
+                        .IsUnique();
+
+                    b.ToTable("AccountInvitations", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Crm.Entities.CrmContact", b =>
@@ -910,6 +1214,12 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<string>("ResponsibleSalesAgentId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<int>("Severity")
                         .HasColumnType("int");
 
@@ -1137,6 +1447,35 @@ namespace ProjectAPI.Infrastructure.Migrations
                         {
                             t.HasCheckConstraint("CK_Warranties_Period", "[EndsAt] > [StartsAt]");
                         });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Floor", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("ImmeubleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("SequenceNo")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ImmeubleId", "Name")
+                        .IsUnique()
+                        .HasDatabaseName("UX_Floors_ImmeubleName");
+
+                    b.ToTable("Floors", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>
@@ -1401,13 +1740,15 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<double?>("BalconySurface")
                         .HasColumnType("float");
 
-                    b.Property<string>("Floor")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("nvarchar(50)");
+                    b.Property<Guid>("FloorId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<double?>("GardenSurface")
                         .HasColumnType("float");
+
+                    b.Property<string>("Images")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
 
                     b.Property<decimal?>("LatestPrice")
                         .HasColumnType("decimal(18,2)");
@@ -1460,6 +1801,8 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasColumnType("nvarchar(150)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("FloorId");
 
                     b.HasIndex("ProjectId");
 
@@ -1543,6 +1886,260 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.HasIndex("UnitId");
 
                     b.ToTable("UnitTracking");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Imports.Entities.ImportBatch", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("CommittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("ErrorRowCount")
+                        .HasColumnType("int");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("FileHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(260)
+                        .HasColumnType("nvarchar(260)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalRows")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("ValidatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId", "Status");
+
+                    b.ToTable("ImportBatches", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Imports.Entities.ImportRow", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BatchId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("Committed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Errors")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsValid")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("RawData")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<int>("RowNumber")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Sheet")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BatchId", "Sheet", "RowNumber");
+
+                    b.ToTable("ImportRows", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Invitations.Entities.InternalInvitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AcceptedUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("InvitedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RevokedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("RoleCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .HasDatabaseName("IX_InternalInvitations_Email");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique()
+                        .HasDatabaseName("IX_InternalInvitations_TokenHash");
+
+                    b.ToTable("InternalInvitations", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Invitations.Entities.InternalInvitationProjectAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InternalInvitationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("InternalInvitationId", "ProjectId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_InternalInvitationProjectAssignments_InvitationId_ProjectId");
+
+                    b.ToTable("InternalInvitationProjectAssignments", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Notifications.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BodyEn")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("BodyFr")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("ReadAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("RelatedEntityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("TitleEn")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TitleFr")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "IsRead");
+
+                    b.ToTable("Notifications", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Notifications.Entities.SentReminder", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("SentAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EntityType", "EntityId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_SentReminders_EntityTypeId");
+
+                    b.ToTable("SentReminders", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.Payment", b =>
@@ -1718,6 +2315,12 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<Guid>("ReservationId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
+
                     b.Property<int>("Status")
                         .HasColumnType("int");
 
@@ -1848,6 +2451,49 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.ToTable("Projects", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectAgentAssignmentConfig", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("LastAssignedAgentId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime?>("LastAssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PrimaryAgentId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RuleType")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UpdatedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProjectId")
+                        .IsUnique();
+
+                    b.ToTable("ProjectAgentAssignmentConfigs", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ProjectAgentAssignmentConfigs_RuleType", "[RuleType] IN ('ROUND_ROBIN', 'LOWEST_WORKLOAD', 'PRIMARY_AGENT')");
+                        });
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectAssignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1904,6 +2550,58 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("ProjectFeature");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectMembership", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("AssignedByUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<Guid>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RoleCode")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("ValidFrom")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ValidUntil")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedByUserId");
+
+                    b.HasIndex("ProjectId");
+
+                    b.HasIndex("UserId", "IsActive")
+                        .HasDatabaseName("IX_ProjectMemberships_UserId_IsActive");
+
+                    b.HasIndex("UserId", "ProjectId", "RoleCode")
+                        .IsUnique()
+                        .HasDatabaseName("IX_ProjectMemberships_ActivePerUserProjectRole")
+                        .HasFilter("[IsActive] = 1");
+
+                    b.ToTable("ProjectMemberships", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectTypeBien", b =>
@@ -2036,8 +2734,14 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("nvarchar(50)");
 
+                    b.Property<decimal?>("CatalogPrice")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal>("Discount")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<string>("Email")
                         .HasMaxLength(150)
@@ -2045,6 +2749,9 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.Property<DateTime?>("ExpiresAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<decimal?>("FinalPrice")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<bool>("IsUnderConstruction")
                         .HasColumnType("bit");
@@ -2060,6 +2767,10 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<string>("NotaireId")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("OwnerSalesAgentId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
@@ -2072,6 +2783,12 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.Property<DateTime>("ReservationDate")
                         .HasColumnType("datetime2");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -2102,6 +2819,35 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.HasIndex(new[] { "UnitId" }, "IX_Reservations_UnitId");
 
                     b.ToTable("Reservations", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Reservations.Entities.ReservationBuyer", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CrmContactId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal?>("OwnershipPercent")
+                        .HasColumnType("decimal(7,4)");
+
+                    b.Property<Guid>("ReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CrmContactId");
+
+                    b.HasIndex("ReservationId", "CrmContactId")
+                        .IsUnique()
+                        .HasDatabaseName("UX_ReservationBuyers_ReservationContact");
+
+                    b.ToTable("ReservationBuyers", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Reservations.Entities.ReservationDocument", b =>
@@ -2162,6 +2908,9 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<int>("Category")
                         .HasColumnType("int");
 
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
@@ -2188,10 +2937,18 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<Guid?>("PurchaseId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("ReopenCount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("ResolutionSummary")
                         .HasColumnType("nvarchar(max)");
 
                     b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SlaTargetAt")
                         .HasColumnType("datetime2");
 
                     b.Property<int>("Status")
@@ -2208,11 +2965,16 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("WarrantyId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AssignedAgentId");
 
                     b.HasIndex("BuyerId");
+
+                    b.HasIndex("WarrantyId");
 
                     b.HasIndex("UnitId", "Status");
 
@@ -2434,6 +3196,119 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.HasIndex("UnitId");
 
                     b.ToTable("Sales", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.AgentAppointmentSettings", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AgentId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("BufferMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId")
+                        .IsUnique();
+
+                    b.ToTable("AgentAppointmentSettings", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.AgentBlock", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AgentId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("End")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("Start")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.ToTable("AgentBlocks", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.AgentDateOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AgentId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime>("DateCreation")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.ToTable("AgentDateOverrides", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AgentDateOverrides_Status", "[Status] IN ('Available', 'Unavailable')");
+                        });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.AgentWeeklyAvailability", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("AgentId")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("DayOfWeek")
+                        .HasColumnType("int");
+
+                    b.Property<TimeSpan>("EndTime")
+                        .HasColumnType("time");
+
+                    b.Property<TimeSpan>("StartTime")
+                        .HasColumnType("time");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AgentId");
+
+                    b.ToTable("AgentWeeklyAvailabilities", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.Lead", b =>
@@ -2715,14 +3590,19 @@ namespace ProjectAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.Appointment", b =>
                 {
-                    b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
-                        .WithMany("Appointments")
-                        .HasForeignKey("AgentId")
-                        .OnDelete(DeleteBehavior.Cascade);
+                    b.HasOne("ProjectAPI.Domain.Crm.Entities.CrmContact", "CrmContact")
+                        .WithMany()
+                        .HasForeignKey("CrmContactId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ProjectAPI.Domain.Immeubles.Entities.Immeuble", null)
                         .WithMany("Appointments")
                         .HasForeignKey("ImmeubleId");
+
+                    b.HasOne("ProjectAPI.Domain.Appointments.Entities.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousAppointmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("ProjectAPI.Domain.Projects.Entities.Project", "Project")
                         .WithMany("Appointments")
@@ -2730,15 +3610,44 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
+                        .WithMany("Appointments")
+                        .HasForeignKey("SalesAgentId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
                     b.Navigation("Agent");
 
+                    b.Navigation("CrmContact");
+
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.AppointmentAssignmentHistory", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Appointments.Entities.Appointment", "Appointment")
+                        .WithMany("AssignmentHistory")
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.AppointmentReview", b =>
                 {
                     b.HasOne("ProjectAPI.Domain.Appointments.Entities.Appointment", "Appointment")
                         .WithMany("Reviews")
+                        .HasForeignKey("AppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.AppointmentVisitReport", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Appointments.Entities.Appointment", "Appointment")
+                        .WithMany("VisitReports")
                         .HasForeignKey("AppointmentId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -2753,6 +3662,11 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasForeignKey("NotaireId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("ProjectAPI.Domain.Appointments.Entities.NotaryAppointment", null)
+                        .WithMany()
+                        .HasForeignKey("PreviousAppointmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("ProjectAPI.Domain.Reservations.Entities.Reservation", "Reservation")
                         .WithMany()
                         .HasForeignKey("ReservationId")
@@ -2762,6 +3676,28 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("Notary");
 
                     b.Navigation("Reservation");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.NotaryAppointmentAssignmentHistory", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Appointments.Entities.NotaryAppointment", "NotaryAppointment")
+                        .WithMany("AssignmentHistory")
+                        .HasForeignKey("NotaryAppointmentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("NotaryAppointment");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Crm.Entities.AccountInvitation", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Crm.Entities.CrmContact", "CrmContact")
+                        .WithMany()
+                        .HasForeignKey("CrmContactId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CrmContact");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.FeedBacks.Entities.Feedback", b =>
@@ -2834,6 +3770,17 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Appointment");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Floor", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Immeubles.Entities.Immeuble", "Immeuble")
+                        .WithMany()
+                        .HasForeignKey("ImmeubleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Immeuble");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>
@@ -2922,11 +3869,19 @@ namespace ProjectAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Unit", b =>
                 {
+                    b.HasOne("ProjectAPI.Domain.Immeubles.Entities.Floor", "Floor")
+                        .WithMany("Units")
+                        .HasForeignKey("FloorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("ProjectAPI.Domain.Immeubles.Entities.Immeuble", "Immeuble")
                         .WithMany("Units")
                         .HasForeignKey("ProjectId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Floor");
 
                     b.Navigation("Immeuble");
                 });
@@ -2951,6 +3906,36 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Imports.Entities.ImportRow", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Imports.Entities.ImportBatch", "Batch")
+                        .WithMany("Rows")
+                        .HasForeignKey("BatchId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Batch");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Invitations.Entities.InternalInvitationProjectAssignment", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Invitations.Entities.InternalInvitation", "InternalInvitation")
+                        .WithMany("ProjectAssignments")
+                        .HasForeignKey("InternalInvitationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectAPI.Domain.Projects.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("InternalInvitation");
+
+                    b.Navigation("Project");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.Payment", b =>
@@ -3030,6 +4015,17 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("Quartier");
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectAgentAssignmentConfig", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Projects.Entities.Project", "Project")
+                        .WithMany()
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Project");
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectAssignment", b =>
                 {
                     b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
@@ -3064,6 +4060,32 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectMembership", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Users.Entities.User", "AssignedByUser")
+                        .WithMany()
+                        .HasForeignKey("AssignedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ProjectAPI.Domain.Projects.Entities.Project", "Project")
+                        .WithMany("Memberships")
+                        .HasForeignKey("ProjectId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ProjectAPI.Domain.Users.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AssignedByUser");
+
+                    b.Navigation("Project");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectTypeBien", b =>
@@ -3114,6 +4136,25 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("PrimaryContact");
 
                     b.Navigation("Unit");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Reservations.Entities.ReservationBuyer", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Crm.Entities.CrmContact", "CrmContact")
+                        .WithMany()
+                        .HasForeignKey("CrmContactId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ProjectAPI.Domain.Reservations.Entities.Reservation", "Reservation")
+                        .WithMany("Buyers")
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CrmContact");
+
+                    b.Navigation("Reservation");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Reservations.Entities.ReservationDocument", b =>
@@ -3199,6 +4240,50 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("Unit");
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.AgentAppointmentSettings", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
+                        .WithOne("AppointmentSettings")
+                        .HasForeignKey("ProjectAPI.Domain.Users.Entities.AgentAppointmentSettings", "AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.AgentBlock", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
+                        .WithMany("Blocks")
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.AgentDateOverride", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
+                        .WithMany("DateOverrides")
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.AgentWeeklyAvailability", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Users.Entities.Agent", "Agent")
+                        .WithMany("WeeklyAvailabilities")
+                        .HasForeignKey("AgentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Agent");
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.Lead", b =>
                 {
                     b.HasOne("ProjectAPI.Domain.Projects.Entities.Project", "Project")
@@ -3245,7 +4330,16 @@ namespace ProjectAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.Appointment", b =>
                 {
+                    b.Navigation("AssignmentHistory");
+
                     b.Navigation("Reviews");
+
+                    b.Navigation("VisitReports");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.NotaryAppointment", b =>
+                {
+                    b.Navigation("AssignmentHistory");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitCase", b =>
@@ -3266,6 +4360,11 @@ namespace ProjectAPI.Infrastructure.Migrations
             modelBuilder.Entity("ProjectAPI.Domain.Handovers.Entities.HandoverReport", b =>
                 {
                     b.Navigation("Items");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Floor", b =>
+                {
+                    b.Navigation("Units");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.Immeuble", b =>
@@ -3299,6 +4398,16 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("UnitTrackings");
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Imports.Entities.ImportBatch", b =>
+                {
+                    b.Navigation("Rows");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Invitations.Entities.InternalInvitation", b =>
+                {
+                    b.Navigation("ProjectAssignments");
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.Payment", b =>
                 {
                     b.Navigation("Allocations");
@@ -3324,6 +4433,8 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.Navigation("Immeubles");
 
+                    b.Navigation("Memberships");
+
                     b.Navigation("TypeBiens");
 
                     b.Navigation("Videos");
@@ -3336,6 +4447,8 @@ namespace ProjectAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("ProjectAPI.Domain.Reservations.Entities.Reservation", b =>
                 {
+                    b.Navigation("Buyers");
+
                     b.Navigation("Documents");
                 });
 
@@ -3362,11 +4475,19 @@ namespace ProjectAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.Agent", b =>
                 {
+                    b.Navigation("AppointmentSettings");
+
                     b.Navigation("Appointments");
 
                     b.Navigation("Assignments");
 
+                    b.Navigation("Blocks");
+
+                    b.Navigation("DateOverrides");
+
                     b.Navigation("PerformanceIndicators");
+
+                    b.Navigation("WeeklyAvailabilities");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.Notary", b =>

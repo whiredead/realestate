@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Domain.Users.Interfaces;
+﻿using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Users.Interfaces;
 
 namespace ProjectAPI.Api.Application.Notary.GetNotaryBlocks;
 
@@ -6,11 +7,20 @@ public class GetNotaryBlocksHandler :
   IRequestHandler<GetNotaryBlocksQuery, List<NotaryBlockDto>>
 {
     private readonly INotaryBlockRepository _blockRepo;
+    private readonly ProjectScopeService _projectScope;
 
-    public GetNotaryBlocksHandler(INotaryBlockRepository blockRepo) => _blockRepo = blockRepo;
+    public GetNotaryBlocksHandler(INotaryBlockRepository blockRepo, ProjectScopeService projectScope)
+    {
+        _blockRepo = blockRepo;
+        _projectScope = projectScope;
+    }
 
     public async Task<List<NotaryBlockDto>> Handle(GetNotaryBlocksQuery q, CancellationToken ct)
     {
+        // §6.3 — NotaryId comes from the route; a NOTARY caller must only
+        // read their own blocks, never another notary's calendar.
+        _projectScope.EnsureNotaryOwnsCalendar(q.NotaryId);
+
         var from = q.From ?? DateTime.MinValue;
         var to = q.To ?? DateTime.MaxValue;
 

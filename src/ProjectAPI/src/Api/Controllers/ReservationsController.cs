@@ -2,11 +2,15 @@
 using ProjectAPI.Api.Application.Reservations.AssignNotaireToReservation;
 using ProjectAPI.Api.Application.Reservations.CancelReservation;
 using ProjectAPI.Api.Application.Reservations.CreateReservation;
+using ProjectAPI.Api.Application.Reservations.DeleteReservationDocument;
+using ProjectAPI.Api.Application.Reservations.GetMyReservations;
 using ProjectAPI.Api.Application.Reservations.GetReservationById;
 using ProjectAPI.Api.Application.Reservations.GetReservations;
 using ProjectAPI.Api.Application.Reservations.RejectReservation;
 using ProjectAPI.Api.Application.Reservations.RequestChanges;
 using ProjectAPI.Api.Application.Reservations.ResubmitReservation;
+using ProjectAPI.Api.Application.Reservations.UploadReservationDocument;
+using ProjectAPI.Api.Application.Common.Idempotency;
 using ProjectAPI.Api.Application.Common.Security;
 using Microsoft.AspNetCore.Authorization;
 
@@ -29,6 +33,7 @@ public class ReservationsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> CreateReservation([FromBody] CreateReservationCommand command)
     {
+        command.IdempotencyKey ??= Request.GetIdempotencyKey();
         var response = await _mediator.Send(command);
         return CreatedAtAction(nameof(GetReservationById), new { id = response.ReservationId }, response);
     }
@@ -43,6 +48,14 @@ public class ReservationsController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>§8 "My properties" — the buyer's own reservations, never anyone else's.</summary>
+    [HttpGet("mine")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyReservations()
+    {
+        return Ok(await _mediator.Send(new GetMyReservationsQuery()));
+    }
+
     [HttpGet("list")]
     [Authorize(Roles = RoleGroups.AdminsAgents)]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -52,6 +65,36 @@ public class ReservationsController : ControllerBase
         var response = await _mediator.Send(query);
         return Ok(response);
     }
+
+    /// <summary>
+    /// Uploads a document (contract, CIN, blueprint…) for this reservation to
+    /// blob storage and records it — ReservationDocument existed and was read
+    /// (GetReservationById already returns reservation.Documents) but had no
+    /// write path anywhere until now.
+    /// </summary>
+    [HttpPost("{id:guid}/documents")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> UploadDocument(Guid id, [FromForm] UploadReservationDocumentCommand command)
+    {
+        if (command.File == null || command.File.Length == 0)
+            return BadRequest("No file uploaded.");
+
+        command.ReservationId = id;
+        var response = await _mediator.Send(command);
+        return Ok(response);
+    }
+
+    [HttpDelete("documents/{documentId:guid}")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> DeleteDocument(Guid documentId)
+    {
+        var response = await _mediator.Send(new DeleteReservationDocumentCommand { DocumentId = documentId });
+        return response.IsSuccess ? Ok(response.Message) : BadRequest(response.Message);
+    }
     // §6.3 "V périmètre" — validation by the project administrator. §6.4 also
     // forbids the owning agent from approving their own reservation; that check
     // is enforced in ApproveReservationHandler (the caller id isn't visible here).
@@ -60,6 +103,7 @@ public class ReservationsController : ControllerBase
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApproveReservationCommand body)
     {
         body.ReservationId = id;
+        body.IdempotencyKey ??= Request.GetIdempotencyKey();
         return Ok(await _mediator.Send(body));
     }
 

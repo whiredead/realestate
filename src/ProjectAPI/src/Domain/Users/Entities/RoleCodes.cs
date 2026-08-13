@@ -62,6 +62,17 @@ public static class RoleCodes
     /// <summary>Either administrator level (§6.3 "Admin projet" / "Admin global").</summary>
     public static readonly string[] AnyAdmin = { ProjectAdmin, GlobalAdmin };
 
+    /// <summary>
+    /// Roles a <see cref="Projects.Entities.ProjectMembership"/> row may
+    /// grant. GLOBAL_ADMIN is deliberately excluded: it is platform-wide and
+    /// unrestricted (see ProjectScopeService.IsGlobalAdmin), so a per-project
+    /// membership row for it would be meaningless and must never be created.
+    /// </summary>
+    public static readonly string[] MembershipRoles =
+    {
+        SalesAgent, Technician, Notary, ProjectAdmin
+    };
+
     private static readonly IReadOnlyDictionary<string, string> LegacyMap =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {

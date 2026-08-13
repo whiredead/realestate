@@ -122,9 +122,20 @@ public class ContactResolver : IContactResolver
         return contact;
     }
 
+    /// <summary>
+    /// N5 — a reservation with co-buyers resolves several NEW contacts in the
+    /// same unsaved DbContext before a single SaveChanges. CountAsync() only
+    /// sees persisted rows, so the primary buyer and each co-buyer all
+    /// computed the same "next" number and collided on ContactNumber's
+    /// unique index at save time (409). Local (Added-but-unsaved) entries
+    /// must count too, since they occupy numbers this same call is about to
+    /// hand out again.
+    /// </summary>
     private async Task<string> NextContactNumberAsync(CancellationToken ct)
     {
-        var count = await _db.CrmContacts.CountAsync(ct);
-        return $"CT-{count + 1:D6}";
+        var persistedCount = await _db.CrmContacts.CountAsync(ct);
+        var pendingCount = _db.ChangeTracker.Entries<CrmContact>()
+            .Count(e => e.State == EntityState.Added);
+        return $"CT-{persistedCount + pendingCount + 1:D6}";
     }
 }

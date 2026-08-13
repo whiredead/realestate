@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Infrastructure.Context;
@@ -41,10 +42,12 @@ public class CompleteProjectResponse
 public class CompleteProjectHandler : IRequestHandler<CompleteProjectCommand, CompleteProjectResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public CompleteProjectHandler(ApplicationDbContext db)
+    public CompleteProjectHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<CompleteProjectResponse> Handle(CompleteProjectCommand request, CancellationToken ct)
@@ -52,6 +55,8 @@ public class CompleteProjectHandler : IRequestHandler<CompleteProjectCommand, Co
         var project = await _db.Set<Project>()
             .FirstOrDefaultAsync(p => p.Id == request.ProjectId, ct)
             ?? throw new NotFoundException($"Project {request.ProjectId} not found.");
+
+        await _projectScope.EnsureProjectAccessAsync(request.ProjectId, ct);
 
         if (!request.Confirm)
         {

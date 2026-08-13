@@ -41,6 +41,23 @@ public static class BusinessErrorCodes
     /// <summary>The dossier is not eligible for a notary appointment (§17.6).</summary>
     public const string NotaryNotEligible = "NOTARY_NOT_ELIGIBLE";
 
+    // --- SAV / warranty --------------------------------------------------------
+
+    /// <summary>A SAV claim was opened against a unit that is not yet DELIVERED (§5.9).</summary>
+    public const string PropertyNotDelivered = "PROPERTY_NOT_DELIVERED";
+
+    /// <summary>A SAV claim was opened outside any active warranty period (§5.9).</summary>
+    public const string WarrantyExpired = "WARRANTY_EXPIRED";
+
+    // --- Excel stock import ----------------------------------------------------
+
+    /// <summary>
+    /// §5.11 — the file, project or rows changed between validation and commit.
+    /// The commit re-checks the batch's fingerprint (file hash + row count)
+    /// before writing anything rather than trusting a stale validation result.
+    /// </summary>
+    public const string ImportSourceChanged = "IMPORT_SOURCE_CHANGED";
+
     // --- Generic -------------------------------------------------------------
 
     /// <summary>Input failed validation (field-level errors are in <c>errors</c>).</summary>
@@ -67,4 +84,30 @@ public static class BusinessErrorCodes
 
     /// <summary>An unexpected server-side failure.</summary>
     public const string InternalError = "INTERNAL_ERROR";
+
+    // --- Internal invitations (Phase 2) --------------------------------------
+
+    /// <summary>No invitation matches the supplied token.</summary>
+    public const string InvitationNotFound = "INVITATION_NOT_FOUND";
+
+    /// <summary>The invitation was revoked before being accepted.</summary>
+    public const string InvitationRevoked = "INVITATION_REVOKED";
+
+    /// <summary>The invitation has already been accepted once.</summary>
+    public const string InvitationAlreadyAccepted = "INVITATION_ALREADY_ACCEPTED";
+
+    /// <summary>The invitation's validity window has passed.</summary>
+    public const string InvitationExpired = "INVITATION_EXPIRED";
+
+    /// <summary>The caller may not invite this role (permission matrix, §6.3).</summary>
+    public const string InvitationRoleForbidden = "INVITATION_ROLE_FORBIDDEN";
+
+    /// <summary>AuthenticationAPI could not be reached or failed to provision the account.</summary>
+    public const string InvitationProvisioningFailed = "INVITATION_PROVISIONING_FAILED";
+
+    /// <summary>The chosen agent has no active SALES_AGENT ProjectMembership for the project.</summary>
+    public const string AgentNotEligibleForProject = "AGENT_NOT_ELIGIBLE_FOR_PROJECT";
+
+    /// <summary>No eligible agent could be found to auto-assign this appointment.</summary>
+    public const string NoEligibleAgentFound = "NO_ELIGIBLE_AGENT_FOUND";
 }

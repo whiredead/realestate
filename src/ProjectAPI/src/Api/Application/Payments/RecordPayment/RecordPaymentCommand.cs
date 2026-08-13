@@ -1,3 +1,5 @@
+using ProjectAPI.Api.Application.Common.Idempotency;
+
 namespace ProjectAPI.Api.Application.Payments.RecordPayment;
 
 /// <summary>
@@ -5,9 +7,15 @@ namespace ProjectAPI.Api.Application.Payments.RecordPayment;
 ///
 /// GPIA never collects money (§14.1): this only registers a declared receipt.
 /// The entry is immutable once created — corrections go through a reversal.
+///
+/// §7 — requires an Idempotency-Key: a retried "record payment" call must not
+/// create a duplicate ledger entry (MIN3 in the backend audit — previously
+/// only ExternalReference uniqueness guarded against this, and that field is
+/// optional).
 /// </summary>
-public class RecordPaymentCommand : IRequest<RecordPaymentResponse>
+public class RecordPaymentCommand : IRequest<RecordPaymentResponse>, IIdempotentRequest
 {
+    public string? IdempotencyKey { get; set; }
     public Guid ReservationId { get; set; }
 
     public DateTime PaymentDate { get; set; }

@@ -1,7 +1,10 @@
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Domain.Appointments.Entities;
+using ProjectAPI.Domain.Common.Idempotency;
 using ProjectAPI.Domain.Construction.Entities;
+using ProjectAPI.Domain.Imports.Entities;
+using ProjectAPI.Domain.Notifications.Entities;
 using ProjectAPI.Domain.FinalVisits.Entities;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Payments.Entities;
@@ -22,10 +25,18 @@ public class ApplicationDbContext : IdentityDbContext<User>
     public DbSet<Immeuble> Immeubles { get; set; }
     public DbSet<Project> Projects { get; set; }
     public DbSet<Unit> Units { get; set; }
+    public DbSet<Floor> Floors { get; set; }
     public DbSet<ImmeubleAssignment> Assignments { get; set; }
     public DbSet<Agent> Agents { get; set; }
+    public DbSet<AgentBlock> AgentBlocks { get; set; }
+    public DbSet<AgentWeeklyAvailability> AgentWeeklyAvailabilities { get; set; }
+    public DbSet<AgentDateOverride> AgentDateOverrides { get; set; }
+    public DbSet<AgentAppointmentSettings> AgentAppointmentSettings { get; set; }
     public DbSet<Appointment> Appointments { get; set; }
     public DbSet<AppointmentReview> AppointmentReviews { get; set; }
+    public DbSet<AppointmentAssignmentHistory> AppointmentAssignmentHistories { get; set; }
+    public DbSet<AppointmentVisitReport> AppointmentVisitReports { get; set; }
+    public DbSet<ProjectAgentAssignmentConfig> ProjectAgentAssignmentConfigs { get; set; }
     public DbSet<User> Users { get; set; }
     public DbSet<LikedProject> LikedProjects { get; set; }
     public DbSet<TypeBien> TypeBiens { get; set; }
@@ -76,6 +87,26 @@ public class ApplicationDbContext : IdentityDbContext<User>
     /// <summary>§1.1 — people the business knows, with or without a login.</summary>
     public DbSet<ProjectAPI.Domain.Crm.Entities.CrmContact> CrmContacts { get; set; }
 
+    /// <summary>§1.1/§6.2 — pending invitations for an approved buyer with no account yet.</summary>
+    public DbSet<ProjectAPI.Domain.Crm.Entities.AccountInvitation> AccountInvitations { get; set; }
+
+    /// <summary>Phase 2 — invitations to internal roles (SALES_AGENT/TECHNICIAN/NOTARY/PROJECT_ADMIN/GLOBAL_ADMIN). Separate from AccountInvitations (buyer-only).</summary>
+    public DbSet<ProjectAPI.Domain.Invitations.Entities.InternalInvitation> InternalInvitations { get; set; }
+    public DbSet<ProjectAPI.Domain.Invitations.Entities.InternalInvitationProjectAssignment> InternalInvitationProjectAssignments { get; set; }
+
+    /// <summary>§7 — one row per (operation, caller-supplied key), backing IdempotencyBehaviour.</summary>
+    public DbSet<IdempotencyKeyRecord> IdempotencyKeys { get; set; }
+
+    /// <summary>§5.11, §23 — Excel stock import batches and their row-level validation results.</summary>
+    public DbSet<ImportBatch> ImportBatches { get; set; }
+    public DbSet<ImportRow> ImportRows { get; set; }
+
+    /// <summary>§6.2 — per-user transactional notifications.</summary>
+    public DbSet<Notification> Notifications { get; set; }
+
+    /// <summary>§7 — dedup marker so scheduled jobs don't re-send the same reminder every pass.</summary>
+    public DbSet<SentReminder> SentReminders { get; set; }
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -124,30 +155,49 @@ public class ApplicationDbContext : IdentityDbContext<User>
         builder.ApplyConfiguration(new PerformanceIndicatorConfiguration());
         builder.ApplyConfiguration(new UnitConfiguration());
         builder.ApplyConfiguration(new UnitStatusHistoryConfiguration());
+        builder.ApplyConfiguration(new FloorConfiguration());
         builder.ApplyConfiguration(new FeedbackConfiguration()); 
         builder.ApplyConfiguration(new AppointmentConfiguration());
         builder.ApplyConfiguration(new AppointmentReviewConfiguration());
         builder.ApplyConfiguration(new IncidentConfiguration());
         builder.ApplyConfiguration(new NotaryAppointmentConfiguration());
+        builder.ApplyConfiguration(new NotaryAppointmentAssignmentHistoryConfiguration());
         builder.ApplyConfiguration(new PropertyDeliveryConfiguration());
         builder.ApplyConfiguration(new AssignmentConfiguration());
         builder.ApplyConfiguration(new LikedProjectsConfiguration());
         builder.ApplyConfiguration(new ImmeubleTrackingConfiguration());
         builder.ApplyConfiguration(new ReservationConfiguration());
+        builder.ApplyConfiguration(new ReservationBuyerConfiguration());
         builder.ApplyConfiguration(new LeadConfiguration());
         builder.ApplyConfiguration(new TypeBienConfiguration());
         builder.ApplyConfiguration(new ProjectTypeBienConfiguration());
         builder.ApplyConfiguration(new QuartierConfiguration());
         builder.ApplyConfiguration(new PurchaseConfiguration());
-        builder.ApplyConfiguration(new ProjectAssignmentConfiguration()); 
+        builder.ApplyConfiguration(new ProjectAssignmentConfiguration());
+        builder.ApplyConfiguration(new ProjectMembershipConfiguration());
+        builder.ApplyConfiguration(new ProjectAgentAssignmentConfigConfiguration());
+        builder.ApplyConfiguration(new AppointmentAssignmentHistoryConfiguration());
+        builder.ApplyConfiguration(new AppointmentVisitReportConfiguration());
         builder.ApplyConfiguration(new WeeklyAvailabilityConfiguration());
         builder.ApplyConfiguration(new NotaryBlockConfiguration());
+        builder.ApplyConfiguration(new AgentWeeklyAvailabilityConfiguration());
+        builder.ApplyConfiguration(new AgentBlockConfiguration());
+        builder.ApplyConfiguration(new AgentDateOverrideConfiguration());
+        builder.ApplyConfiguration(new AgentAppointmentSettingsConfiguration());
         builder.ApplyConfiguration(new ReservationDocumentConfiguration());
         builder.ApplyConfiguration(new AfterSaleClaimConfiguration());
         builder.ApplyConfiguration(new ClaimAttachmentConfiguration());
         builder.ApplyConfiguration(new ClaimCommentConfiguration());
         builder.ApplyConfiguration(new ClaimHistoryConfiguration());
         builder.ApplyConfiguration(new SaleConfiguration());
+        builder.ApplyConfiguration(new IdempotencyKeyRecordConfiguration());
+        builder.ApplyConfiguration(new ImportBatchConfiguration());
+        builder.ApplyConfiguration(new ImportRowConfiguration());
+        builder.ApplyConfiguration(new NotificationConfiguration());
+        builder.ApplyConfiguration(new SentReminderConfiguration());
+        builder.ApplyConfiguration(new AccountInvitationConfiguration());
+        builder.ApplyConfiguration(new InternalInvitationConfiguration());
+        builder.ApplyConfiguration(new InternalInvitationProjectAssignmentConfiguration());
     }
     /// <summary>
     /// Constructor for ApplicationDbContext.

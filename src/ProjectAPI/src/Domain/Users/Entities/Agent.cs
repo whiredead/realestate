@@ -29,6 +29,15 @@ public class Agent : User
     public ICollection<PerformanceIndicator> PerformanceIndicators { get; set; }
     public ICollection<ProjectAssignment> Assignments { get; set; } = new List<ProjectAssignment>();
 
+    /// <summary>Ad-hoc blocked time ranges — leave, closures, one-off unavailability.</summary>
+    public ICollection<AgentBlock> Blocks { get; set; } = new List<AgentBlock>();
 
+    /// <summary>Recurring weekly working-hours template.</summary>
+    public ICollection<AgentWeeklyAvailability> WeeklyAvailabilities { get; set; } = new List<AgentWeeklyAvailability>();
 
+    /// <summary>Date-specific overrides of the weekly schedule.</summary>
+    public ICollection<AgentDateOverride> DateOverrides { get; set; } = new List<AgentDateOverride>();
+
+    /// <summary>Optional per-agent slot duration/buffer configuration.</summary>
+    public AgentAppointmentSettings? AppointmentSettings { get; set; }
 }

@@ -1,6 +1,8 @@
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Crm;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Common.Units;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
@@ -13,12 +15,20 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
 {
     public class CreateReservationHandler : IRequestHandler<CreateReservationCommand, CreateReservationResponse>
     {
+        /// <summary>
+        /// §12.3 — default hold window before a SUBMITTED reservation expires
+        /// and its unit is released. No project-level override exists yet, so
+        /// every reservation gets the same deadline.
+        /// </summary>
+        private static readonly TimeSpan DefaultHoldDuration = TimeSpan.FromHours(72);
+
         private readonly IReservationRepository _reservationRepository;
         private readonly IUnitRepository _unitRepository;
         private readonly UserManager<User> _userManager;
         private readonly IUnitStatusService _unitStatus;
         private readonly ApplicationDbContext _db;
         private readonly IContactResolver _contacts;
+        private readonly ProjectScopeService _projectScope;
 
         public CreateReservationHandler(
             IReservationRepository reservationRepository,
@@ -26,7 +36,8 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
             UserManager<User> userManager,
             IUnitStatusService unitStatus,
             ApplicationDbContext db,
-            IContactResolver contacts)
+            IContactResolver contacts,
+            ProjectScopeService projectScope)
         {
             _reservationRepository = reservationRepository;
             _unitRepository = unitRepository;
@@ -34,6 +45,7 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
             _unitStatus = unitStatus;
             _db = db;
             _contacts = contacts;
+            _projectScope = projectScope;
         }
     
         public async Task<CreateReservationResponse> Handle(CreateReservationCommand request, CancellationToken cancellationToken)
@@ -43,6 +55,16 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                 // Validate Unit exists
                 var unit = await _unitRepository.GetByIDAsync(request.UnitId)
                     ?? throw new NotFoundException($"Unit with ID '{request.UnitId}' not found.");
+
+                // §6.4 — an agent may only create a reservation on a unit that
+                // belongs to one of their assigned projects. unit.ProjectId is
+                // the Immeuble FK (see Unit.cs); the Immeuble carries the real
+                // project id that ProjectMembership scopes against.
+                var immeubleProjectId = await _db.Set<Immeuble>()
+                    .Where(im => im.Id == unit.ProjectId)
+                    .Select(im => im.ProjectId)
+                    .FirstOrDefaultAsync(cancellationToken);
+                await _projectScope.EnsureProjectAccessAsync(immeubleProjectId, cancellationToken);
 
                 // Spec §7.7 — a unit may only carry ONE active reservation. The
                 // blocking set is owned by ReservationStateMachine and mirrored by
@@ -81,6 +103,13 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                     request.Name, request.LastName, request.Email, request.PhoneNumber,
                     request.CIN, request.BuyerId, cancellationToken);
 
+                // §5.3 — final_price = catalog_price - discount, frozen at submit
+                // and never recomputed even if the unit's catalogue price moves
+                // later. Falls back to the submitted total when the unit carries
+                // no catalogue price yet, so older/incomplete stock still works.
+                var catalogPrice = unit.LatestPrice ?? request.TotalPropertyPrice;
+                var finalPrice = catalogPrice - request.Discount;
+
                 // Create reservation - buyerId and notaireId are stored as-is without validation
                 var reservation = new Reservation
                 {
@@ -94,15 +123,68 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                     PhoneNumber = request.PhoneNumber,
                     UnitId = request.UnitId,
                     AgentId = request.AgentId,
+                    // §5.3 — frozen at submit; never reassigned afterward.
+                    OwnerSalesAgentId = request.AgentId,
                     NotaireId = request.NotaireId,
                     TotalPropertyPrice = request.TotalPropertyPrice,
                     ReservationAmount = request.ReservationAmount,
+                    CatalogPrice = catalogPrice,
+                    Discount = request.Discount,
+                    FinalPrice = finalPrice,
                     ReservationDate = DateTime.Now,
                     IsUnderConstruction = request.IsUnderConstruction,
                     UnitDetails = $"{unit.UnitNumber} - {unit.TotalSurface}m²",
                     Status = ReservationStatus.Pending,
-                    CreatedAt = DateTime.UtcNow
+                    CreatedAt = DateTime.UtcNow,
+                    // §12.3 — every SUBMITTED reservation gets a deadline; the
+                    // scheduled expiry job only acts on rows that have one.
+                    ExpiresAt = DateTime.UtcNow.Add(DefaultHoldDuration)
                 };
+
+                // §5.3/§6.2 — co-buyers are distinct CrmContacts, resolved the
+                // same way as the primary buyer so a repeat co-buyer is
+                // recognised rather than duplicated.
+                if (request.CoBuyers.Count > 0)
+                {
+                    foreach (var coBuyerInput in request.CoBuyers)
+                    {
+                        var coBuyerContact = await _contacts.ResolveAsync(
+                            coBuyerInput.Name, coBuyerInput.LastName, coBuyerInput.Email, coBuyerInput.Phone,
+                            coBuyerInput.Cin, ct: cancellationToken);
+
+                        reservation.Buyers.Add(new ReservationBuyer
+                        {
+                            Id = Guid.NewGuid(),
+                            ReservationId = reservation.Id,
+                            CrmContactId = coBuyerContact.Id,
+                            OwnershipPercent = coBuyerInput.OwnershipPercent
+                        });
+                    }
+
+                    var allPercentages = request.CoBuyers
+                        .Where(c => c.OwnershipPercent.HasValue)
+                        .Select(c => c.OwnershipPercent!.Value)
+                        .ToList();
+
+                    if (allPercentages.Count > 0)
+                    {
+                        // The primary buyer's implicit share plus every co-buyer's
+                        // explicit share must total 100% (§5.3).
+                        var total = allPercentages.Sum();
+                        if (allPercentages.Count == request.CoBuyers.Count)
+                        {
+                            // All co-buyers specified a percentage; primary buyer's
+                            // share is whatever remains, must not go negative.
+                            var primaryShare = 100m - total;
+                            if (primaryShare < 0)
+                            {
+                                throw new BusinessRuleException(
+                                    BusinessErrorCodes.ValidationFailed,
+                                    $"La somme des pourcentages de propriété des co-acquéreurs ({total:N2}%) dépasse 100%.");
+                            }
+                        }
+                    }
+                }
 
                 // §3 — the reservation row and the unit hold are one atomic act.
                 // Committing the reservation without the hold (or vice versa) is

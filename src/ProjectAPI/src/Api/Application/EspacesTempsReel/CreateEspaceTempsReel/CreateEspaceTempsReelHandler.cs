@@ -1,4 +1,5 @@
 ﻿using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Projects.Interfaces;
 
@@ -8,11 +9,16 @@ namespace ProjectAPI.Api.Application.EspacesTempsReel.CreateEspaceTempsReel
     {
         private readonly IEspaceTempsReelRepository _repository;
         private readonly IProjectRepository _projectRepository;
+        private readonly ProjectScopeService _projectScope;
 
-        public CreateEspaceTempsReelHandler(IEspaceTempsReelRepository repository, IProjectRepository projectRepository)
+        public CreateEspaceTempsReelHandler(
+            IEspaceTempsReelRepository repository,
+            IProjectRepository projectRepository,
+            ProjectScopeService projectScope)
         {
             _repository = repository;
             _projectRepository = projectRepository;
+            _projectScope = projectScope;
         }
 
         public async Task<CreateEspaceTempsReelResponse> Handle(CreateEspaceTempsReelCommand request, CancellationToken cancellationToken)
@@ -23,6 +29,10 @@ namespace ProjectAPI.Api.Application.EspacesTempsReel.CreateEspaceTempsReel
             {
                 throw new NotFoundException($"Project with ID {request.ProjectId} not found.");
             }
+
+            // §6.4 — a PROJECT_ADMIN with no membership on this project must
+            // not publish a video link onto its public page.
+            await _projectScope.EnsureProjectAccessAsync(request.ProjectId, cancellationToken);
 
             var entity = new EspaceTempsReel
             {

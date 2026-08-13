@@ -11,7 +11,12 @@ public class UnitResponse
     public Guid Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the floor or level of the unit (e.g., "RDC", "1er").
+    /// Gets or sets the id of the floor the unit belongs to.
+    /// </summary>
+    public Guid FloorId { get; set; }
+
+    /// <summary>
+    /// Gets or sets the floor's display name (e.g., "RDC", "1er").
     /// </summary>
     public string Floor { get; set; }
 
@@ -98,4 +103,7 @@ public class UnitResponse
     /// reported "no unit available" against a stock of 32 free units.
     /// </summary>
     public string Status { get; set; } = string.Empty;
+
+    /// <summary>This unit's own photo URLs (comma-delimited), distinct from the building's Images.</summary>
+    public string? Images { get; set; }
 }

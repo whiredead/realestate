@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Payments.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Infrastructure.Context;
@@ -19,16 +20,21 @@ public class CreatePaymentScheduleHandler
     : IRequestHandler<CreatePaymentScheduleCommand, CreatePaymentScheduleResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public CreatePaymentScheduleHandler(ApplicationDbContext db)
+    public CreatePaymentScheduleHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<CreatePaymentScheduleResponse> Handle(
         CreatePaymentScheduleCommand request,
         CancellationToken ct)
     {
+        // §6.4 — schedule creation is admin-only and project-scoped.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+
         var reservation = await _db.Set<Reservation>()
             .FirstOrDefaultAsync(r => r.Id == request.ReservationId, ct)
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");

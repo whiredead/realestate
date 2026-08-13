@@ -1,4 +1,4 @@
-﻿namespace ProjectAPI.Api.Application.AdminDashboards.Dashboard;
+namespace ProjectAPI.Api.Application.AdminDashboards.Dashboard;
 public class AdminDashboardResponse
 {
     /// <summary>
@@ -13,7 +13,7 @@ public class AdminDashboardResponse
 
     /// <summary>
     /// The total number of sales for the specified timeframe
-    /// (month, quarter, year).
+    /// (month, quarter, year, or explicit range).
     /// </summary>
     public int SalesThisMonth { get; set; }
 
@@ -26,7 +26,7 @@ public class AdminDashboardResponse
     /// <summary>
     /// A dictionary or list of performance stats for each agent,
     /// possibly aggregated by time period.
-    /// Key = AgentId / AgentName, 
+    /// Key = AgentId / AgentName,
     /// Value = Some aggregated data (like number of sales).
     /// </summary>
     public List<AgentPerformanceDto> AgentsPerformance { get; set; } = new();
@@ -36,4 +36,98 @@ public class AdminDashboardResponse
     /// (like highest sales, best conversion rate, etc.).
     /// </summary>
     public List<AgentPerformanceDto> TopPerformers { get; set; } = new();
+
+    /// <summary>
+    /// The resolved period this response actually covers (echoes back
+    /// whatever Year/Month/StartDate/EndDate combination the request
+    /// resolved to), so the frontend can render an unambiguous "which period
+    /// is active" indicator without re-deriving the same date math.
+    /// </summary>
+    public DateTime PeriodStart { get; set; }
+    public DateTime PeriodEnd { get; set; }
+
+    /// <summary>
+    /// Same figures computed for the immediately preceding period of equal
+    /// length (e.g. this month vs last month), so the frontend can show a
+    /// %-change without a second round trip.
+    /// </summary>
+    public PeriodComparisonDto? PreviousPeriod { get; set; }
+
+    /// <summary>Sales velocity (units sold per month) per project over the selected range, trending.</summary>
+    public List<ProjectVelocityDto> SalesVelocityByProject { get; set; } = new();
+
+    /// <summary>Occupancy/sell-through per project (% sold vs total units).</summary>
+    public List<ProjectSellThroughDto> TopPerformingProjects { get; set; } = new();
+    public List<ProjectSellThroughDto> BottomPerformingProjects { get; set; } = new();
+
+    /// <summary>Immeubles at or above the near-sellout threshold (default 90%).</summary>
+    public List<ImmeubleNearSelloutDto> NearSelloutBuildings { get; set; } = new();
+
+    /// <summary>Global inventory snapshot broken down per project, for a visual (not just one number) sense of what's left.</summary>
+    public List<ProjectInventoryDto> InventoryByProject { get; set; } = new();
+}
+
+public class PeriodComparisonDto
+{
+    public DateTime PeriodStart { get; set; }
+    public DateTime PeriodEnd { get; set; }
+    public int SalesCount { get; set; }
+    public decimal SalesVolume { get; set; }
+
+    /// <summary>Null when the previous period had zero sales (a % change against zero is undefined, not infinite).</summary>
+    public double? SalesCountChangePct { get; set; }
+    public double? SalesVolumeChangePct { get; set; }
+}
+
+/// <summary>Units sold per month for one project across the selected range — the trend line the dashboard plots.</summary>
+public class ProjectVelocityDto
+{
+    public Guid ProjectId { get; set; }
+    public string ProjectName { get; set; } = string.Empty;
+    public List<MonthlyVelocityPointDto> Points { get; set; } = new();
+
+    /// <summary>Average units/month across the selected range — the single figure a table column can show.</summary>
+    public double AverageUnitsPerMonth { get; set; }
+}
+
+public class MonthlyVelocityPointDto
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public int UnitsSold { get; set; }
+}
+
+public class ProjectSellThroughDto
+{
+    public Guid ProjectId { get; set; }
+    public string ProjectName { get; set; } = string.Empty;
+    public int TotalUnits { get; set; }
+    public int SoldUnits { get; set; }
+    public double SellThroughPct { get; set; }
+
+    /// <summary>Units sold within the selected date range only (drives the top/bottom ranking, distinct from all-time SellThroughPct).</summary>
+    public int UnitsSoldInPeriod { get; set; }
+}
+
+public class ImmeubleNearSelloutDto
+{
+    public Guid ImmeubleId { get; set; }
+    public string ImmeubleName { get; set; } = string.Empty;
+    public Guid ProjectId { get; set; }
+    public string ProjectName { get; set; } = string.Empty;
+    public int TotalUnits { get; set; }
+    public int SoldUnits { get; set; }
+    public double SellThroughPct { get; set; }
+    public int RemainingUnits { get; set; }
+}
+
+/// <summary>Per-project inventory breakdown for the "visual sense of what's left" requirement.</summary>
+public class ProjectInventoryDto
+{
+    public Guid ProjectId { get; set; }
+    public string ProjectName { get; set; } = string.Empty;
+    public int TotalUnits { get; set; }
+    public int AvailableUnits { get; set; }
+    public int ReservedUnits { get; set; }
+    public int SoldUnits { get; set; }
 }

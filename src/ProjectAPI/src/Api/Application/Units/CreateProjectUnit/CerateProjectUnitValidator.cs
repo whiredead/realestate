@@ -10,11 +10,9 @@ public class CreateProjectUnitValidator : AbstractValidator<CreateProjectUnitCom
     /// </summary>
     public CreateProjectUnitValidator()
     {
-        RuleFor(command => command.Floor)
+        RuleFor(command => command.FloorId)
             .NotEmpty()
-            .WithMessage("Floor number is required.")
-            .MaximumLength(50)
-            .WithMessage("Floor number must not exceed 50 characters.");
+            .WithMessage("FloorId is required.");
 
         RuleFor(command => command.UnitNumber)
             .NotEmpty()

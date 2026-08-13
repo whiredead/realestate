@@ -21,5 +21,9 @@
         public decimal PropertyPrice { get; set; }
         public decimal TaxFees { get; set; }
         public decimal TahfidFees { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public Guid? PreviousAppointmentId { get; set; }
+        public string? PreviousNotaireId { get; set; }
+        public string? ReassignmentReason { get; set; }
     }
 }

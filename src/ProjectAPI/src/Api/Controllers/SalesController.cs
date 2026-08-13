@@ -23,116 +23,18 @@ public class SalesController : ControllerBase
         _logger = logger;
     }
 
-    [HttpPost]
-    [ProducesResponseType(typeof(CreateSaleResponse), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status404NotFound)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
-    [Authorize(Roles = RoleGroups.AdminsNotary)] // §12.4 — conversion to sale is recorded by notary/admin.
-    public async Task<IActionResult> Create([FromBody] CreateSaleCommand cmd)
-    {
-        var requestId = Guid.NewGuid().ToString("N")[..8];
-        _logger.LogInformation("[Sales.Create][{RequestId}] Received request: {Request}",
-            requestId, JsonSerializer.Serialize(cmd));
-
-        try
-        {
-            var result = await _mediator.Send(cmd);
-            _logger.LogInformation("[Sales.Create][{RequestId}] Success: SaleId={SaleId}, PurchaseId={PurchaseId}",
-                requestId, result.SaleId, result.PurchaseId);
-            return Ok(result);
-        }
-        catch (NotFoundException ex)
-        {
-            _logger.LogWarning(ex, "[Sales.Create][{RequestId}] Not found: {Message}", requestId, ex.Message);
-            return NotFound(new ErrorResponse
-            {
-                RequestId = requestId,
-                Error = "NotFound",
-                Message = ex.Message,
-                Timestamp = DateTime.UtcNow
-            });
-        }
-        catch (FluentValidation.ValidationException ex)
-        {
-            var errors = ex.Errors.Select(e => $"{e.PropertyName}: {e.ErrorMessage}").ToList();
-            _logger.LogWarning(ex, "[Sales.Create][{RequestId}] Validation failed: {Errors}",
-                requestId, string.Join("; ", errors));
-            return BadRequest(new ErrorResponse
-            {
-                RequestId = requestId,
-                Error = "ValidationFailed",
-                Message = "One or more validation errors occurred.",
-                Details = errors,
-                Timestamp = DateTime.UtcNow
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[Sales.Create][{RequestId}] Internal error: {Message}\nStackTrace: {StackTrace}",
-                requestId, ex.Message, ex.StackTrace);
-            return StatusCode(500, new ErrorResponse
-            {
-                RequestId = requestId,
-                Error = "InternalServerError",
-                Message = ex.Message,
-                Details = new List<string>
-                {
-                    $"ExceptionType: {ex.GetType().Name}",
-                    $"InnerException: {ex.InnerException?.Message ?? "None"}",
-                    $"StackTrace: {ex.StackTrace}"
-                },
-                Timestamp = DateTime.UtcNow
-            });
-        }
-    }
-
-    [HttpPost("{saleId:guid}/payments")]
-    [Authorize(Roles = RoleGroups.Admins)] // §6.3 Paiements: "C/M périmètre" — admin records payments.
-    [ProducesResponseType(typeof(bool), StatusCodes.Status200OK)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status400BadRequest)]
-    [ProducesResponseType(typeof(ErrorResponse), StatusCodes.Status500InternalServerError)]
-    public async Task<IActionResult> AddPayment(Guid saleId, [FromBody] AddPaymentCommand cmd)
-    {
-        var requestId = Guid.NewGuid().ToString("N")[..8];
-        _logger.LogInformation("[Sales.AddPayment][{RequestId}] SaleId={SaleId}, Amount={Amount}",
-            requestId, saleId, cmd.AmountPaid);
-
-        try
-        {
-            cmd.SaleId = saleId;
-            var result = await _mediator.Send(cmd);
-            _logger.LogInformation("[Sales.AddPayment][{RequestId}] Success: {Result}", requestId, result);
-            return Ok(result);
-        }
-        catch (NotFoundException ex)
-        {
-            _logger.LogWarning(ex, "[Sales.AddPayment][{RequestId}] Not found: {Message}", requestId, ex.Message);
-            return NotFound(new ErrorResponse
-            {
-                RequestId = requestId,
-                Error = "NotFound",
-                Message = ex.Message,
-                Timestamp = DateTime.UtcNow
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "[Sales.AddPayment][{RequestId}] Internal error: {Message}", requestId, ex.Message);
-            return StatusCode(500, new ErrorResponse
-            {
-                RequestId = requestId,
-                Error = "InternalServerError",
-                Message = ex.Message,
-                Details = new List<string>
-                {
-                    $"ExceptionType: {ex.GetType().Name}",
-                    $"InnerException: {ex.InnerException?.Message ?? "None"}"
-                },
-                Timestamp = DateTime.UtcNow
-            });
-        }
-    }
+    // POST (create a Sale) and POST {saleId}/payments intentionally removed.
+    //
+    // §5.3/§5.7: the spec has no Sale entity — "a sale" is a reservation that
+    // reached CONVERTED via the notary's PURCHASE_COMPLETED outcome (see
+    // UpdateNotaryAppointmentHandler). This endpoint wrote a Sale row directly,
+    // with its own PaymentTracking ledger, entirely bypassing the reservation
+    // state machine and the immutable Payment ledger (§14.3) — a second,
+    // ungated door to the same consequential state change the frontend's old
+    // "Marquer comme vendu" button was (removed in work order #2 Part A).
+    //
+    // Existing Sale/PaymentTracking rows are read-only from here on (GetByUser
+    // below) and are never deleted — §9 forbids hard deletion of business data.
 
     [HttpGet("user/{userId}")]
     [ProducesResponseType(typeof(UserSalesResponse), StatusCodes.Status200OK)]

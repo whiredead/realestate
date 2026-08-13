@@ -1,4 +1,5 @@
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Common.Units;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
@@ -20,19 +21,26 @@ public class ResubmitReservationHandler : IRequestHandler<ResubmitReservationCom
     private readonly IReservationRepository _reservationRepo;
     private readonly IUnitStatusService _unitStatus;
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
     public ResubmitReservationHandler(
         IReservationRepository reservationRepo,
         IUnitStatusService unitStatus,
-        ApplicationDbContext db)
+        ApplicationDbContext db,
+        ProjectScopeService projectScope)
     {
         _reservationRepo = reservationRepo;
         _unitStatus = unitStatus;
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<bool> Handle(ResubmitReservationCommand request, CancellationToken ct)
     {
+        // §6.4 — project-scoped: the submitting agent must be assigned to the
+        // reservation's project.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+
         var reservation = await _reservationRepo.GetByIDAsync(request.ReservationId)
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");
 

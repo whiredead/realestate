@@ -106,6 +106,14 @@ namespace ProjectAPI.Api.Application.Common.Models
         /// </summary>
         public int NumberOfAvailableUnites { get; set; }
 
+        /// <summary>
+        /// Units spoken for but not yet sold: HoldPendingApproval, Reserved and
+        /// Contracted. Without this the three published figures don't add up to
+        /// NumberOfUnits — a 66-unit building reporting 44 sold and 9 available
+        /// left 13 units unaccounted for on every screen that showed it.
+        /// </summary>
+        public int NumberOfReservedUnites { get; set; }
+
         [JsonIgnore] 
         public int SellsPercentage { get; set; }
         public string RestPercentage => $"{SellsPercentage} %";

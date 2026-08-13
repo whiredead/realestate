@@ -11,14 +11,19 @@ public class UpdateUnitCommand : IRequest<UpdateUnitResponse>
     public Guid Id { get; set; }
 
     /// <summary>
-    /// Gets or sets the floor or level of the unit.
+    /// Gets or sets the id of the floor the unit belongs to.
     /// </summary>
-    public string Floor { get; set; }
+    public Guid? FloorId { get; set; }
 
     /// <summary>
-    /// Gets or sets the unit number.
+    /// Gets or sets the unit number. Null means "leave unchanged" — the
+    /// handler already only writes this when non-null (see updateActions
+    /// below); it was non-nullable only on the C# type, which made
+    /// [ApiController]'s implicit model validation reject a request that
+    /// omitted it, even for a caller (e.g. the price/image-only edit modal)
+    /// that never meant to touch it (N29).
     /// </summary>
-    public string UnitNumber { get; set; }
+    public string? UnitNumber { get; set; }
 
     /// <summary>
     /// Gets or sets the number of bedrooms in the unit.
@@ -51,14 +56,14 @@ public class UpdateUnitCommand : IRequest<UpdateUnitResponse>
     public double? GardenSurface { get; set; }
 
     /// <summary>
-    /// Gets or sets the view from the unit.
+    /// Gets or sets the view from the unit. Null means "leave unchanged" — see the UnitNumber note (N29).
     /// </summary>
-    public string View { get; set; }
+    public string? View { get; set; }
 
     /// <summary>
-    /// Gets or sets the orientation of the unit.
+    /// Gets or sets the orientation of the unit. Null means "leave unchanged" — see the UnitNumber note (N29).
     /// </summary>
-    public string Orientation { get; set; }
+    public string? Orientation { get; set; }
 
     /// <summary>
     /// Gets or sets the total surface area of the unit.
@@ -89,6 +94,13 @@ public class UpdateUnitCommand : IRequest<UpdateUnitResponse>
     /// Gets or sets the latest price of the unit.
     /// </summary>
     public decimal? LatestPrice { get; set; }
+
+    /// <summary>
+    /// Gets or sets this unit's own photo URLs (comma-delimited). Null means
+    /// "leave unchanged" (same convention as every other optional field here);
+    /// pass an empty string to clear it.
+    /// </summary>
+    public string? Images { get; set; }
 
     // Status is deliberately absent (§7: direct status updates are forbidden).
     // A unit's commercial status is a consequence of the sale workflow — it moves

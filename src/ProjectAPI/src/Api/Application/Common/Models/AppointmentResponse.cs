@@ -90,4 +90,16 @@ public class AppointmentResponse
     public string PhoneNumber { get; set; }
     public List<int> TypeBienIds { get; set; } = new List<int>();
 
+    /// <summary>How AgentId was chosen: "EXISTING_OWNER" | "ROUND_ROBIN" | "LOWEST_WORKLOAD" | "PRIMARY_AGENT" | "MANUAL_REASSIGNMENT". Null if never assigned.</summary>
+    public string? AssignmentSource { get; set; }
+
+    public DateTime? AssignedAt { get; set; }
+
+    /// <summary>The agent this appointment was assigned to immediately before the current one, if any.</summary>
+    public string? PreviousSalesAgentId { get; set; }
+
+    public string? ReassignmentReason { get; set; }
+
+    /// <summary>When this row exists because a confirmed appointment was reassigned/rescheduled, this points at the row it replaced.</summary>
+    public Guid? PreviousAppointmentId { get; set; }
 }

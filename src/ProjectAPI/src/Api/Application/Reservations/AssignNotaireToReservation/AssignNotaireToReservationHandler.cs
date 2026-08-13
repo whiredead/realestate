@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
 using ProjectAPI.Domain.Users.Entities;
@@ -10,13 +11,16 @@ public class AssignNotaireToReservationHandler : IRequestHandler<AssignNotaireTo
 {
     private readonly IReservationRepository _reservationRepository;
     private readonly UserManager<User> _userManager;
+    private readonly ProjectScopeService _projectScope;
 
     public AssignNotaireToReservationHandler(
         IReservationRepository reservationRepository,
-        UserManager<User> userManager)
+        UserManager<User> userManager,
+        ProjectScopeService projectScope)
     {
         _reservationRepository = reservationRepository;
         _userManager = userManager;
+        _projectScope = projectScope;
     }
 
     public async Task<AssignNotaireToReservationResponse> Handle(AssignNotaireToReservationCommand request, CancellationToken cancellationToken)
@@ -24,6 +28,11 @@ public class AssignNotaireToReservationHandler : IRequestHandler<AssignNotaireTo
         // Validate that the reservation exists
         var reservation = await _reservationRepository.GetByIDAsync(request.ReservationId)
             ?? throw new NotFoundException($"Reservation with ID {request.ReservationId} not found.");
+
+        // §6.4 — the only reservation mutation that was missing this check;
+        // every other reservation handler (Approve/Reject/Cancel/...) already
+        // enforces it.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, cancellationToken);
 
         // Validate that the notary exists if NotaireId is provided
         User? notary = null;

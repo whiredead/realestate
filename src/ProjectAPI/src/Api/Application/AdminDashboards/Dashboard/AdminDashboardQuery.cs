@@ -1,17 +1,21 @@
-﻿namespace ProjectAPI.Api.Application.AdminDashboards.Dashboard;
+namespace ProjectAPI.Api.Application.AdminDashboards.Dashboard;
 
 public class AdminDashboardQuery : IRequest<AdminDashboardResponse>
 {
     /// <summary>
-    /// Optional: filter by month, year, etc.
-    /// For example, we can pass a Year or Month if we want to see data for a given period.
+    /// Legacy filters, kept for backward compatibility with any existing
+    /// caller: filter to a single calendar month/year. Ignored once
+    /// <see cref="StartDate"/>/<see cref="EndDate"/> are supplied.
     /// </summary>
     public int? Year { get; set; }
     public int? Month { get; set; }
 
     /// <summary>
-    /// Could also have a Quarter, or a time range
-    /// (StartDate, EndDate), etc. depending on your needs.
+    /// Explicit date range (inclusive of StartDate, exclusive of the instant
+    /// after EndDate's calendar day — the handler treats EndDate as "through
+    /// end of that day"). Takes priority over Year/Month when present. Both
+    /// must be supplied together.
     /// </summary>
-    // public int? Quarter { get; set; }
+    public DateTime? StartDate { get; set; }
+    public DateTime? EndDate { get; set; }
 }

@@ -1,7 +1,10 @@
 using AuthenticationAPI.Api.Application.Common.Models;
 using AuthenticationAPI.Api.Application.Roles.GetAllRoles;
+using AuthenticationAPI.Api.Application.Users.AdminChangePassword;
 using AuthenticationAPI.Api.Application.Users.ConfirmEmail;
+using AuthenticationAPI.Api.Application.Users.CreateUserByAdmin;
 using AuthenticationAPI.Api.Application.Users.DeleteUser;
+using AuthenticationAPI.Api.Application.Users.ForgotPassword;
 using AuthenticationAPI.Api.Application.Users.GetAllUsers;
 using AuthenticationAPI.Api.Application.Users.GetUsersByIds;
 using AuthenticationAPI.Api.Application.Users.GetUsersByRole;
@@ -22,8 +25,10 @@ namespace AuthenticationAPI.Api.Controllers;
 [Authorize] // Fail closed: every action requires auth unless it opts out below.
 public class UserController : ControllerBase
 {
-    // §6.3 "Utilisateurs internes" / §6.4: only administrators manage accounts.
-    private const string Admins = RoleCodes.GlobalAdmin + "," + RoleCodes.ProjectAdmin;
+    // User account management (list/edit/lock/unlock/delete) is GLOBAL_ADMIN
+    // only — a PROJECT_ADMIN manages project staffing via ProjectMembership
+    // (ProjectAPI), never account records directly.
+    private const string Admins = RoleCodes.GlobalAdmin;
 
     private readonly ISender _mediator;
     /// <summary>
@@ -70,6 +75,24 @@ public class UserController : ControllerBase
     {
         var result = await _mediator.Send(command);
         return CreatedAtAction(nameof(Register), new { Id = result });
+    }
+
+    /// <summary>
+    /// Creates an account directly, for any role — GLOBAL_ADMIN only. Unlike
+    /// <see cref="Register"/> (public, PROSPECT-only), this can mint an
+    /// internal-role account or a BUYER in one call, with a password the
+    /// admin sets. See <see cref="CreateUserByAdminCommand"/> for how this
+    /// relates to the invitation flow.
+    /// </summary>
+    [HttpPost("admin-create")]
+    [Authorize(Roles = Admins)]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<IActionResult> CreateUserByAdmin([FromBody] CreateUserByAdminCommand command)
+    {
+        var result = await _mediator.Send(command);
+        return CreatedAtAction(nameof(CreateUserByAdmin), new { id = result.UserId }, result);
     }
 
     /// <summary>
@@ -176,14 +199,51 @@ public class UserController : ControllerBase
         return Ok(res);
     }
 
+    /// <summary>
+    /// First half of the forgot-password flow — issues and emails a reset
+    /// token. Always returns 200 regardless of whether the email has an
+    /// account, so this cannot be used to enumerate registered emails.
+    /// </summary>
+    [HttpPost("forgot-password")]
+    [AllowAnonymous] // The caller has no session at this point.
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordCommand command)
+    {
+        await _mediator.Send(command);
+        return Ok();
+    }
+
+    /// <summary>
+    /// Completes a forgot-password reset. Requires the token from
+    /// <see cref="ForgotPassword"/> — previously this accepted a bare UserId
+    /// with no token at all, so anyone could reset any account's password
+    /// without ever receiving the reset email; that gap is closed.
+    /// </summary>
     [HttpPost("reset-password")]
-    [AllowAnonymous] // Forgot-password flow: the user has no session at this point.
+    [AllowAnonymous] // The caller has no session at this point; the token is what proves legitimacy.
     [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordCommand command)
     {
         var res = await _mediator.Send(command);
         return Ok(res);
+    }
+
+    /// <summary>
+    /// GLOBAL_ADMIN sets a new password on any account directly — no reset
+    /// token needed, the admin's own authenticated session is the
+    /// authorization. See <see cref="AdminChangePasswordCommand"/>.
+    /// </summary>
+    [HttpPost("admin-change-password")]
+    [Authorize(Roles = Admins)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> AdminChangePassword([FromBody] AdminChangePasswordCommand command)
+    {
+        await _mediator.Send(command);
+        return Ok();
     }
 
     [HttpDelete("{id}")]

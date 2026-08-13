@@ -1,9 +1,11 @@
 ﻿using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
+using ProjectAPI.Domain.Sales.Entities;
 using ValidationException = ProjectAPI.Api.Application.Common.Exceptions.ValidationException;
 
 namespace ProjectAPI.Api.Filters;
@@ -41,6 +43,8 @@ public class ApiExceptionFilter : IExceptionFilter
             { typeof(BusinessRuleException), HandleBusinessRuleException },
             { typeof(InvalidReservationTransitionException), HandleInvalidTransitionException },
             { typeof(InvalidUnitTransitionException), HandleInvalidUnitTransitionException },
+            { typeof(InvalidClaimTransitionException), HandleInvalidClaimTransitionException },
+            { typeof(DbUpdateConcurrencyException), HandleConcurrencyException },
             { typeof(Exception), HandleGlobalException }
         };
     }
@@ -210,6 +214,54 @@ public class ApiExceptionFilter : IExceptionFilter
 
         _logger.LogInformation(
             "[UnitTransition] refused {From} -> {To} on {Path}",
+            exception.From, exception.To, context.HttpContext.Request.Path);
+
+        context.ExceptionHandled = true;
+    }
+
+    /// <summary>
+    /// §31.6 — a real EF-level optimistic concurrency conflict (RowVersion
+    /// mismatch on Reservation/PaymentSchedule/Snag), distinct from the
+    /// SQL-2601 unique-index path above: this fires when the caller's If-Match
+    /// / loaded version is genuinely stale, not from a double-submit racing a
+    /// uniqueness constraint.
+    /// </summary>
+    private void HandleConcurrencyException(ExceptionContext context)
+    {
+        var details = new ProblemDetails
+        {
+            Title = "Conflit de version.",
+            Detail = "La ressource a été modifiée entre-temps. Rechargez puis réessayez.",
+            Type = "https://docs.gpia.example/problems/resource-version-conflict"
+        };
+
+        Enrich(details, context, BusinessErrorCodes.ResourceVersionConflict, StatusCodes.Status409Conflict);
+
+        context.Result = new ObjectResult(details) { StatusCode = StatusCodes.Status409Conflict };
+        _logger.LogInformation("[Concurrency] stale write on {Path}", context.HttpContext.Request.Path);
+        context.ExceptionHandled = true;
+    }
+
+    /// <summary>
+    /// Maps a refused SAV claim transition to 409 INVALID_STATUS_TRANSITION (§20, §47.5).
+    /// </summary>
+    private void HandleInvalidClaimTransitionException(ExceptionContext context)
+    {
+        var exception = (InvalidClaimTransitionException)context.Exception;
+
+        var details = new ProblemDetails
+        {
+            Title = "Transition de statut non autorisée.",
+            Detail = exception.Message,
+            Type = "https://docs.gpia.example/problems/invalid-status-transition"
+        };
+
+        Enrich(details, context, BusinessErrorCodes.InvalidStatusTransition, StatusCodes.Status409Conflict);
+
+        context.Result = new ObjectResult(details) { StatusCode = StatusCodes.Status409Conflict };
+
+        _logger.LogInformation(
+            "[ClaimTransition] refused {From} -> {To} on {Path}",
             exception.From, exception.To, context.HttpContext.Request.Path);
 
         context.ExceptionHandled = true;

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.FinalVisits.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -34,10 +35,12 @@ public class AcknowledgeReportResponse
 public class AcknowledgeReportHandler : IRequestHandler<AcknowledgeReportCommand, AcknowledgeReportResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public AcknowledgeReportHandler(ApplicationDbContext db)
+    public AcknowledgeReportHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<AcknowledgeReportResponse> Handle(AcknowledgeReportCommand request, CancellationToken ct)
@@ -45,6 +48,20 @@ public class AcknowledgeReportHandler : IRequestHandler<AcknowledgeReportCommand
         var report = await _db.Set<FinalVisitReport>()
             .FirstOrDefaultAsync(r => r.Id == request.ReportId, ct)
             ?? throw new NotFoundException($"Final visit report {request.ReportId} not found.");
+
+        // §6.4 — only the buyer who owns this file (or a scoped agent/admin
+        // recording it on a walk-in's behalf) may acknowledge/dispute.
+        var reservationId = await (
+            from a in _db.Set<FinalVisitAppointment>()
+            join c in _db.Set<FinalVisitCase>() on a.CaseId equals c.Id
+            where a.Id == report.AppointmentId
+            select c.ReservationId).FirstOrDefaultAsync(ct);
+
+        if (reservationId != Guid.Empty)
+        {
+            await _projectScope.EnsureReservationAccessAsync(reservationId, ct);
+            await _projectScope.EnsureBuyerOwnsReservationAsync(reservationId, ct);
+        }
 
         if (report.Status != ReportStatus.AwaitingBuyerAcknowledgement)
         {

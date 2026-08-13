@@ -1,6 +1,7 @@
 ﻿using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByImmeuble;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 
 namespace ProjectAPI.Api.Application.Immeubles.GetImmeubleById;
@@ -29,10 +30,12 @@ public class GetImmeubleByIdHandler : IRequestHandler<GetImmeubleByIdQuery, Imme
     /// <returns>The response containing the project details.</returns>
     public async Task<ImmeubleResponse> Handle(GetImmeubleByIdQuery request, CancellationToken cancellationToken)
     {
-        // Retrieve the Immeuble, including PlanInterieurs
+        // Retrieve the Immeuble, including PlanInterieurs and Units (the
+        // latter to compute live stock figures — see the comment below).
         var immeubles = await _repository.Find(
             p => p.Id == request.Id,
-            p => p.PlanInterieurs
+            p => p.PlanInterieurs,
+            p => p.Units
         );
 
         var immeuble = immeubles.FirstOrDefault();
@@ -40,6 +43,24 @@ public class GetImmeubleByIdHandler : IRequestHandler<GetImmeubleByIdQuery, Imme
         {
             throw new NotFoundException($"Immeuble with ID {request.Id} not found.");
         }
+
+        // §3/§7 — NumberOfAvailableUnites/NumberOfSoldUnites are legacy
+        // denormalized counters nothing in the codebase ever writes to after
+        // creation, so they read as permanently stale (frequently 0, never
+        // reflecting a later sale). Unit.Status is the one continuously-
+        // maintained source of truth (UnitStatusService), so stock figures
+        // are computed live from it instead — see GetAllImmeublesHandler for
+        // the matching fix on the list endpoint.
+        var totalUnits = immeuble.Units.Count;
+        var availableUnits = immeuble.Units.Count(u => u.Status == UnitCommercialStatus.Available);
+        var soldUnits = immeuble.Units.Count(u =>
+            u.Status == UnitCommercialStatus.Sold || u.Status == UnitCommercialStatus.Delivered);
+        // Same in-between states as the list endpoint, so a building's detail
+        // page and its row in the inventory table can't disagree.
+        var reservedUnits = immeuble.Units.Count(u =>
+            u.Status == UnitCommercialStatus.HoldPendingApproval ||
+            u.Status == UnitCommercialStatus.Reserved ||
+            u.Status == UnitCommercialStatus.Contracted);
 
         // Build the response object
         return new ImmeubleResponse
@@ -65,13 +86,14 @@ public class GetImmeubleByIdHandler : IRequestHandler<GetImmeubleByIdQuery, Imme
             Description = immeuble.Description,
             Latitude = immeuble.Latitude,
             Longitude = immeuble.Longitude,
-            NumberOfUnits = immeuble.NumberOfUnits,
+            NumberOfUnits = totalUnits,
             MaxSellableSurfaceRange = immeuble.MaxSellableSurfaceRange,
             MinSellableSurfaceRange = immeuble.MinSellableSurfaceRange,
             Module3DLink = immeuble.Module3DLink,
-            NumberOfAvailableUnites = immeuble.NumberOfAvailableUnites,
-            NumberOfSoldUnites = immeuble.NumberOfSoldUnites,
-            SellsPercentage = immeuble.SellsPercentage,
+            NumberOfAvailableUnites = availableUnits,
+            NumberOfSoldUnites = soldUnits,
+            NumberOfReservedUnites = reservedUnits,
+            SellsPercentage = totalUnits > 0 ? (int)Math.Round(soldUnits * 100.0 / totalUnits) : 0,
 
             // PlanInterieurs sub-collection
             PlanInerieurs = immeuble.PlanInterieurs

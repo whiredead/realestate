@@ -1,6 +1,10 @@
-﻿using ProjectAPI.Api.Application.Common.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Domain.FeedBacks.Entities;
 using ProjectAPI.Domain.FeedBacks.Interfaces;
+using ProjectAPI.Domain.Projects.Entities;
+using ProjectAPI.Domain.Users.Entities;
+using ProjectAPI.Infrastructure.Context;
 using System.Linq.Expressions;
 
 namespace ProjectAPI.Api.Application.Feedbacks.GetFeedback;
@@ -11,18 +15,28 @@ namespace ProjectAPI.Api.Application.Feedbacks.GetFeedback;
 public class GetFeedbackHandler : IRequestHandler<GetFeedbackQuery, PaginatedResponse<FeedbackDetailsResponse>>
 {
     private readonly IFeedbackRepository _feedbackRepository;
+    private readonly ApplicationDbContext _db;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="GetFeedbackHandler"/> class.
     /// </summary>
     /// <param name="feedbackRepository">The repository used to retrieve feedback data.</param>
-    public GetFeedbackHandler(IFeedbackRepository feedbackRepository)
+    /// <param name="db">Used to resolve the AgentId filter against ProjectMembership — see remarks on Handle.</param>
+    public GetFeedbackHandler(IFeedbackRepository feedbackRepository, ApplicationDbContext db)
     {
         _feedbackRepository = feedbackRepository;
+        _db = db;
     }
 
     /// <summary>
     /// Handles the request to retrieve feedback based on the provided query filters.
+    ///
+    /// Phase 1 — the AgentId filter used to walk Project.Assignments (the
+    /// legacy ProjectAssignments table), which the Phase 1 rewrite of
+    /// ProjectAssignmentController no longer writes to at all: any staffing
+    /// change made through that controller since Phase 1 would have been
+    /// invisible here. Resolved against ProjectMembership instead, which is
+    /// the only source of truth for "which projects is this agent on."
     /// </summary>
     /// <param name="request">The query containing filters for user ID, project ID, and agent ID.</param>
     /// <param name="cancellationToken">A cancellation token for the asynchronous operation.</param>
@@ -36,11 +50,23 @@ public class GetFeedbackHandler : IRequestHandler<GetFeedbackQuery, PaginatedRes
             f => f.FeedBack_Project
         };
 
+        HashSet<Guid>? agentProjectIds = null;
+        if (request.AgentId.HasValue)
+        {
+            var agentIdString = request.AgentId.Value.ToString();
+            agentProjectIds = (await _db.Set<ProjectMembership>()
+                .Where(m => m.UserId == agentIdString && m.RoleCode == RoleCodes.SalesAgent && m.IsActive)
+                .Select(m => m.ProjectId)
+                .Distinct()
+                .ToListAsync(cancellationToken))
+                .ToHashSet();
+        }
+
         // Build a dynamic predicate based on the query filters
         Expression<Func<Feedback, bool>> predicate = f =>
             (string.IsNullOrEmpty(request.UserId) || f.UserId == request.UserId) &&
             (!request.ProjectId.HasValue || f.ProjectId == request.ProjectId) &&
-            (!request.AgentId.HasValue || f.FeedBack_Project.Assignments.Any(a => a.AgentId == request.AgentId.ToString()));
+            (agentProjectIds == null || (f.ProjectId.HasValue && agentProjectIds.Contains(f.ProjectId.Value)));
 
         // Retrieve feedback that matches the filters
         var feedback = (await _feedbackRepository.Find(predicate, includes)).ToList();

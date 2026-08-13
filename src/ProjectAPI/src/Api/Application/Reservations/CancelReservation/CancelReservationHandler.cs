@@ -1,4 +1,5 @@
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Common.Units;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
@@ -12,19 +13,25 @@ public class CancelReservationHandler : IRequestHandler<CancelReservationCommand
     private readonly IReservationRepository _reservationRepository;
     private readonly IUnitStatusService _unitStatus;
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
     public CancelReservationHandler(
         IReservationRepository reservationRepository,
         IUnitStatusService unitStatus,
-        ApplicationDbContext db)
+        ApplicationDbContext db,
+        ProjectScopeService projectScope)
     {
         _reservationRepository = reservationRepository;
         _unitStatus = unitStatus;
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<CancelReservationResponse> Handle(CancelReservationCommand request, CancellationToken cancellationToken)
     {
+        // §6.4 — cancellation is admin-only and project-scoped.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, cancellationToken);
+
         // Validate that the reservation exists
         var reservation = await _reservationRepository.GetByIDAsync(request.ReservationId)
             ?? throw new NotFoundException($"Reservation with ID {request.ReservationId} not found.");

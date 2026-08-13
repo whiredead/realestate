@@ -103,7 +103,7 @@ public class FileController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> DownloadFile(string fileName)
     {
-        var (content, contentType, exists) = await _blobStorageService.DownloadBlobAsync(fileName, HttpContext.RequestAborted);
+        var (content, contentType, exists) = await _blobStorageService.ForContainer().DownloadAsync(fileName, HttpContext.RequestAborted);
 
         if (!exists || content == null)
         {

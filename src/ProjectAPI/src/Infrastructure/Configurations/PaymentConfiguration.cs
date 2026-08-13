@@ -34,6 +34,9 @@ public class PaymentScheduleConfiguration : IEntityTypeConfiguration<PaymentSche
                .WithOne(i => i.Schedule)
                .HasForeignKey(i => i.ScheduleId)
                .OnDelete(DeleteBehavior.NoAction);
+
+        // §31.6 — real optimistic concurrency (see Reservation.RowVersion for rationale).
+        builder.Property(s => s.RowVersion).IsRowVersion();
     }
 }
 

@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Authorization;
+using ProjectAPI.Api.Application.Common.Idempotency;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Notary.Appointments.CreateNotaryAppointment;
+using ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointmentAssignmentHistory;
 using ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointmentById;
 using ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointments;
 using ProjectAPI.Api.Application.Notary.GetNotaryCalendar;
 using ProjectAPI.Api.Application.NotaryAppointments.UpdateNotaryAppointment;
+using ProjectAPI.Domain.Users.Entities;
 
 namespace ProjectAPI.Api.Controllers;
 
@@ -46,6 +49,7 @@ public class NotaryAppointmentsController : ControllerBase
             return BadRequest(ModelState);
         }
 
+        command.IdempotencyKey ??= Request.GetIdempotencyKey();
         var response = await _mediator.Send(command);
         return CreatedAtAction(nameof(GetNotaryAppointmentById), new { id = response.Id }, response);
     }
@@ -91,6 +95,11 @@ public class NotaryAppointmentsController : ControllerBase
     }
 
     [HttpGet("NotaireAvailability")]
+    // §6.4 — a notary's calendar has no reservation to scope by, so gate it by
+    // role instead: internal roles that book/manage notary appointments, plus
+    // the notary themself. A buyer/technician has no legitimate reason to
+    // browse an arbitrary notary's full schedule.
+    [Authorize(Roles = RoleGroups.AdminsAgentsNotary)]
     public async Task<IActionResult> GetNotaireAvailability(
         Guid notaryId,
         [FromQuery] DateTime? from,
@@ -143,6 +152,7 @@ public class NotaryAppointmentsController : ControllerBase
 
         // Set the ID from the route parameter
         command.Id = id;
+        command.ActorUserId ??= User.FindFirst("UserId")?.Value;
 
         var response = await _mediator.Send(command);
 
@@ -152,5 +162,25 @@ public class NotaryAppointmentsController : ControllerBase
         }
 
         return Ok(response);
+    }
+
+    /// <summary>Full notary assignment/reassignment history, including any prior appointment rows it was chained from.</summary>
+    [HttpGet("{id}/assignment-history")]
+    [Authorize(Roles = RoleGroups.AdminsNotary)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAssignmentHistory(Guid id)
+    {
+        var rolesClaim = User?.FindFirst("Roles")?.Value;
+        var roles = rolesClaim?.Split(',').Select(r => r.Trim()) ?? Enumerable.Empty<string>();
+        var callerId = User?.FindFirst("UserId")?.Value;
+
+        var res = await _mediator.Send(new GetNotaryAppointmentAssignmentHistoryQuery
+        {
+            NotaryAppointmentId = id,
+            RestrictToNotaryId = (roles.Contains(RoleCodes.Notary) || roles.Contains("Notaire")) ? callerId : null
+        });
+        return Ok(res);
     }
 }

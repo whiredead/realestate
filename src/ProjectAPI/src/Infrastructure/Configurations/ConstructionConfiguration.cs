@@ -158,6 +158,9 @@ public class SnagConfiguration : IEntityTypeConfiguration<Snag>
         // The eligibility calculation filters on severity + status.
         builder.HasIndex(s => new { s.ReportId, s.Severity, s.Status })
                .HasDatabaseName("IX_Snags_ReportSeverityStatus");
+
+        // §31.6 — real optimistic concurrency (see Reservation.RowVersion for rationale).
+        builder.Property(s => s.RowVersion).IsRowVersion();
     }
 }
 

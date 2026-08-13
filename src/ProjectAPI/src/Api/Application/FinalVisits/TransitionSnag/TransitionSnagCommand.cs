@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.FinalVisits.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -40,10 +41,12 @@ public class TransitionSnagResponse
 public class TransitionSnagHandler : IRequestHandler<TransitionSnagCommand, TransitionSnagResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public TransitionSnagHandler(ApplicationDbContext db)
+    public TransitionSnagHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<TransitionSnagResponse> Handle(TransitionSnagCommand request, CancellationToken ct)
@@ -51,6 +54,19 @@ public class TransitionSnagHandler : IRequestHandler<TransitionSnagCommand, Tran
         var snag = await _db.Set<Snag>()
             .FirstOrDefaultAsync(s => s.Id == request.SnagId, ct)
             ?? throw new NotFoundException($"Snag {request.SnagId} not found.");
+
+        // §6.4 — the agent/admin resolving this snag must be scoped to its project.
+        var reservationId = await (
+            from r in _db.Set<FinalVisitReport>()
+            join a in _db.Set<FinalVisitAppointment>() on r.AppointmentId equals a.Id
+            join c in _db.Set<FinalVisitCase>() on a.CaseId equals c.Id
+            where r.Id == snag.ReportId
+            select c.ReservationId).FirstOrDefaultAsync(ct);
+
+        if (reservationId != Guid.Empty)
+        {
+            await _projectScope.EnsureReservationAccessAsync(reservationId, ct);
+        }
 
         if (!SnagStateMachine.CanTransition(snag.Status, request.TargetStatus))
         {

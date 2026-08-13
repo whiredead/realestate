@@ -34,7 +34,7 @@ public async Task<PaginatedResponse<UnitResponse>> Handle(GetAllUnitsQuery reque
         // Note: Unit.ProjectId is the FK to Immeuble (confusing naming in the domain model)
         // To filter by actual Project, we must go through unit.Immeuble.ProjectId
         Expression<Func<Unit, bool>> predicate = unit =>
-            (string.IsNullOrEmpty(request.Floor) || unit.Floor.Contains(request.Floor)) &&
+            (string.IsNullOrEmpty(request.Floor) || unit.Floor.Name.Contains(request.Floor)) &&
             (!request.MinBedrooms.HasValue || unit.NumberOfBedrooms >= request.MinBedrooms) &&
             (!request.MaxBedrooms.HasValue || unit.NumberOfBedrooms <= request.MaxBedrooms) &&
             (!request.MinSurface.HasValue || unit.ApartmentSurface >= request.MinSurface) &&
@@ -44,8 +44,9 @@ public async Task<PaginatedResponse<UnitResponse>> Handle(GetAllUnitsQuery reque
             (!request.ProjectId.HasValue || unit.Immeuble.ProjectId == request.ProjectId) &&
             (!request.ImmeubleId.HasValue || unit.ProjectId == request.ImmeubleId);
 
-        // Fetch all filtered units from the repository first
-        var allMatchingUnits = (await _unitRepository.Find(predicate)).ToList();
+        // Fetch all filtered units from the repository first — Floor is
+        // eager-loaded since the projection below reads its display name.
+        var allMatchingUnits = (await _unitRepository.Find(predicate, u => u.Floor)).ToList();
         
         // Calculate the total number of items BEFORE pagination
         var totalItems = allMatchingUnits.Count;
@@ -57,7 +58,8 @@ public async Task<PaginatedResponse<UnitResponse>> Handle(GetAllUnitsQuery reque
             .Select(u => new UnitResponse
             {
                 Id = u.Id,
-                Floor = u.Floor,
+                FloorId = u.FloorId,
+                Floor = u.Floor.Name,
                 UnitNumber = u.UnitNumber,
                 NumberOfBedrooms = u.NumberOfBedrooms,
                 NumberOfBathrooms = u.NumberOfBathrooms,
@@ -75,7 +77,8 @@ public async Task<PaginatedResponse<UnitResponse>> Handle(GetAllUnitsQuery reque
                 LatestPrice = u.LatestPrice,
                 // Canonical §3 code, not the enum's numeric value: clients gate on
                 // "AVAILABLE", and an integer on the wire would be meaningless.
-                Status = u.Status.ToCode()
+                Status = u.Status.ToCode(),
+                Images = u.Images
             }).ToList();
 
         // Return the paginated response

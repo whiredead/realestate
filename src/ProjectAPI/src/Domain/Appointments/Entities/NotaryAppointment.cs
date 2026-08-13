@@ -51,4 +51,24 @@ public class NotaryAppointment
 
     public Reservation Reservation { get; set; } // Navigation property to Reservation
     public Notary Notary { get; set; }
+
+    /// <summary>When this row was created.</summary>
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// §5.1/§10.3 — when this attempt follows a reschedule/reassignment on a
+    /// CONFIRMED appointment, this points at the appointment it replaces.
+    /// Mirrors Appointment.PreviousAppointmentId. History is never rewritten
+    /// in place — see NotaryAppointmentAssignmentHistory for the full log.
+    /// </summary>
+    public Guid? PreviousAppointmentId { get; set; }
+
+    /// <summary>The notary this appointment was assigned to immediately before the current one. Null if never reassigned.</summary>
+    public string? PreviousNotaireId { get; set; }
+
+    /// <summary>Why the current notary replaced a previous one. Null for a first-time assignment.</summary>
+    public string? ReassignmentReason { get; set; }
+
+    /// <summary>Append-only log of every notary assignment/reassignment on this appointment.</summary>
+    public ICollection<NotaryAppointmentAssignmentHistory> AssignmentHistory { get; set; } = new List<NotaryAppointmentAssignmentHistory>();
 }

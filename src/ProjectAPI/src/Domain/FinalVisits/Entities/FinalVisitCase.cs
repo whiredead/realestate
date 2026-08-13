@@ -79,7 +79,14 @@ public enum AppointmentAttemptStatus
     Rejected = 3,
     Cancelled = 4,
     Completed = 5,
-    NoShow = 6
+    NoShow = 6,
+    /// <summary>
+    /// A confirmed appointment that was replaced by a reassignment or a
+    /// post-confirmation reschedule — distinct from Cancelled (the meeting
+    /// itself was called off) because the prospect's meeting continues on a
+    /// new Appointment row (see PreviousAppointmentId / AppointmentAssignmentHistory).
+    /// </summary>
+    Superseded = 7
 }
 
 /// <summary>Transition rules shared by every appointment type (§47.3).</summary>
@@ -105,13 +112,15 @@ public static class AppointmentStateMachine
             {
                 AppointmentAttemptStatus.Completed,
                 AppointmentAttemptStatus.Cancelled,
-                AppointmentAttemptStatus.NoShow
+                AppointmentAttemptStatus.NoShow,
+                AppointmentAttemptStatus.Superseded
             },
             // Terminal states (§10.3): a retry creates a NEW attempt.
             [AppointmentAttemptStatus.Rejected] = Array.Empty<AppointmentAttemptStatus>(),
             [AppointmentAttemptStatus.Cancelled] = Array.Empty<AppointmentAttemptStatus>(),
             [AppointmentAttemptStatus.Completed] = Array.Empty<AppointmentAttemptStatus>(),
-            [AppointmentAttemptStatus.NoShow] = Array.Empty<AppointmentAttemptStatus>()
+            [AppointmentAttemptStatus.NoShow] = Array.Empty<AppointmentAttemptStatus>(),
+            [AppointmentAttemptStatus.Superseded] = Array.Empty<AppointmentAttemptStatus>()
         };
 
     public static bool CanTransition(AppointmentAttemptStatus from, AppointmentAttemptStatus to) =>

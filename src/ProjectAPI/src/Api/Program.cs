@@ -79,7 +79,39 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]))
         };
-    });
+    })
+    // Service-to-service calls from AuthenticationAPI (e.g. mirroring a
+    // newly admin-created account into this service's own AspNetUsers
+    // table) — a separate scheme, only opted into by InternalController.
+    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ProjectAPI.Infrastructure.Security.InternalApiKeyAuthenticationHandler>(
+        ProjectAPI.Infrastructure.Security.InternalApiKeyDefaults.AuthenticationScheme, _ => { });
+
+builder.Services.AddSingleton(new ProjectAPI.Infrastructure.Settings.InternalApiSettings
+{
+    ApiKey = builder.Configuration["InternalApi:ApiKey"] ?? throw new InvalidOperationException("InternalApi:ApiKey is not configured."),
+    AuthApiBaseUrl = builder.Configuration["InternalApi:AuthApiBaseUrl"] ?? throw new InvalidOperationException("InternalApi:AuthApiBaseUrl is not configured.")
+});
+
+// The whole storage account (and default container) lives in these two
+// appsettings values — change either one and every upload path (images,
+// reservation documents, anything future) follows without touching code.
+var blobStorageSettings = new ProjectAPI.Infrastructure.Settings.BlobStorageSettings
+{
+    ConnectionString = builder.Configuration["BlobStorage:ConnectionString"] ?? throw new InvalidOperationException("BlobStorage:ConnectionString is not configured."),
+    ContainerName = builder.Configuration["BlobStorage:ContainerName"] ?? throw new InvalidOperationException("BlobStorage:ContainerName is not configured.")
+};
+builder.Services.AddSingleton(blobStorageSettings);
+builder.Services.AddSingleton(new Azure.Storage.Blobs.BlobServiceClient(blobStorageSettings.ConnectionString));
+
+// Phase 2 invitation-acceptance flow: this service validates the
+// AccountInvitation token, then calls AuthenticationAPI's own internal
+// endpoint to actually create the account (AuthenticationAPI is the source
+// of truth for accounts; ProjectAPI never writes AspNetUsers directly).
+builder.Services.AddHttpClient<ProjectAPI.Infrastructure.Clients.IAuthenticationApiClient, ProjectAPI.Infrastructure.Clients.AuthenticationApiClient>((sp, client) =>
+{
+    var settings = sp.GetRequiredService<ProjectAPI.Infrastructure.Settings.InternalApiSettings>();
+    client.BaseAddress = new Uri(settings.AuthApiBaseUrl);
+});
 
 builder.Services
     // Registers MVC & Web API services.
@@ -124,10 +156,26 @@ builder.Services.PostConfigure<Microsoft.AspNetCore.Authentication.Authenticatio
     o.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
 });
 
-// Scheduled jobs (spec §49.5)
+// Scheduled jobs (spec §7, §49.5)
 builder.Services.AddHostedService<ProjectAPI.Api.BackgroundJobs.ReservationExpiryJob>();
+builder.Services.AddHostedService<ProjectAPI.Api.BackgroundJobs.AppointmentReminderJob>();
+builder.Services.AddHostedService<ProjectAPI.Api.BackgroundJobs.InstallmentOverdueJob>();
+builder.Services.AddHostedService<ProjectAPI.Api.BackgroundJobs.SavSlaDetectionJob>();
 
 var app = builder.Build();
+
+// Seed reference and workflow data (spec §6.1, §14–§17).
+//
+// Development-only AND opt-in via SeedData, so a production start can never
+// reach it even if the environment is misconfigured. The seeder itself is
+// idempotent and insert-only, so repeated dev restarts are harmless.
+if (app.Environment.IsDevelopment() && builder.Configuration.GetValue<bool>("SeedData"))
+{
+    using var scope = app.Services.CreateScope();
+    var seeder = scope.ServiceProvider
+        .GetRequiredService<ProjectAPI.Infrastructure.Seeding.DevelopmentDataSeeder>();
+    await seeder.SeedAsync();
+}
 
 // Configure Application middlewares pipeline
 if (builder.Environment.IsDevelopment())

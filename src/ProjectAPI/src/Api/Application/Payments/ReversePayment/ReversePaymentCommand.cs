@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Payments.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -33,11 +34,13 @@ public class ReversePaymentHandler : IRequestHandler<ReversePaymentCommand, Reve
 {
     private readonly ApplicationDbContext _db;
     private readonly PurchaseTotalsService _purchaseTotals;
+    private readonly ProjectScopeService _projectScope;
 
-    public ReversePaymentHandler(ApplicationDbContext db, PurchaseTotalsService purchaseTotals)
+    public ReversePaymentHandler(ApplicationDbContext db, PurchaseTotalsService purchaseTotals, ProjectScopeService projectScope)
     {
         _db = db;
         _purchaseTotals = purchaseTotals;
+        _projectScope = projectScope;
     }
 
     public async Task<ReversePaymentResponse> Handle(ReversePaymentCommand request, CancellationToken ct)
@@ -52,6 +55,9 @@ public class ReversePaymentHandler : IRequestHandler<ReversePaymentCommand, Reve
         var original = await _db.Set<Payment>()
             .FirstOrDefaultAsync(p => p.Id == request.PaymentId, ct)
             ?? throw new NotFoundException($"Payment {request.PaymentId} not found.");
+
+        // §6.4 — reversal is admin-only and project-scoped.
+        await _projectScope.EnsureReservationAccessAsync(original.ReservationId, ct);
 
         if (original.Status == PaymentStatus.Reversed)
         {

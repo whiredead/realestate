@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Payments.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -78,14 +79,21 @@ public class PaymentScheduleResponse
 public class GetPaymentScheduleHandler : IRequestHandler<GetPaymentScheduleQuery, PaymentScheduleResponse>
 {
     private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
 
-    public GetPaymentScheduleHandler(ApplicationDbContext db)
+    public GetPaymentScheduleHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
+        _projectScope = projectScope;
     }
 
     public async Task<PaymentScheduleResponse> Handle(GetPaymentScheduleQuery request, CancellationToken ct)
     {
+        // §6.4 — the buyer reads their own schedule (L propre); internal roles
+        // are scoped to their assigned projects.
+        await _projectScope.EnsureReservationAccessAsync(request.ReservationId, ct);
+        await _projectScope.EnsureBuyerOwnsReservationAsync(request.ReservationId, ct);
+
         var now = DateTime.UtcNow;
 
         var payments = await _db.Set<Payment>()
