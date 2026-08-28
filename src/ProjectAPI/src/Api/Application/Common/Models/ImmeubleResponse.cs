@@ -9,11 +9,6 @@ namespace ProjectAPI.Api.Application.Common.Models
    // public enum PropertyType { Villa, Apartment, Commercial }
 
     /// <summary>
-    /// Enumeration for the status of a project.
-    /// </summary>
-    public enum ProjectStatus { ComingSoon, UnderConstruction, Available, Sold }
-
-    /// <summary>
     /// Represents the response model for project details.
     /// </summary>
     public class ImmeubleResponse
@@ -51,9 +46,15 @@ namespace ProjectAPI.Api.Application.Common.Models
         public decimal MaxPrice { get; set; }
 
         /// <summary>
-        /// Gets or sets the current status of the project.
+        /// Canonical lifecycle code (§3), normalized from the free-text
+        /// Immeuble.Status column via ProjectStatusCodes.Normalize — same
+        /// pattern as Project.StatusGlobal. Not a fixed enum: that broke on
+        /// every canonical/unrecognized value (see the removed ProjectStatus
+        /// enum, which silently mapped anything unparsed to "ComingSoon" in
+        /// GetAllImmeublesHandler and threw outright in GetImmeubleByIdHandler
+        /// and UpdateImmeubleHandler).
         /// </summary>
-        public ProjectStatus? Status { get; set; }
+        public string? Status { get; set; }
 
         /// <summary>
         /// Gets or sets the image URLs for the project, represented as JSON.

@@ -48,9 +48,10 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
         public int MaxSellableSurfaceRange { get; set; }
 
         /// <summary>
-        /// Gets or sets the status of the immeuble.
+        /// Canonical lifecycle code (§3) or a recognized legacy spelling;
+        /// normalized on write via ProjectStatusCodes.Normalize.
         /// </summary>
-        public ProjectStatus? Status { get; set; }
+        public string? Status { get; set; }
 
         /// <summary>
         /// Gets or sets the images of the immeuble.

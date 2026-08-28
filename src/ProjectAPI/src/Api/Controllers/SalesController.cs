@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Logging;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Sales.AddPayment;
+using ProjectAPI.Api.Application.Sales.GetAllSales;
 using ProjectAPI.Api.Application.Sales.GetSalesByUser;
 using ProjectAPI.Domain.Sales.CreateSale;
 using ProjectAPI.Api.Application.Common.Security;
@@ -35,6 +36,22 @@ public class SalesController : ControllerBase
     //
     // Existing Sale/PaymentTracking rows are read-only from here on (GetByUser
     // below) and are never deleted — §9 forbids hard deletion of business data.
+
+    /// <summary>
+    /// Company-wide sales for the admin console. GetByUser below answers "what
+    /// did I buy?" and is correct for a buyer, but it left an administrator's
+    /// /admin/sales page permanently empty — an admin has bought nothing. This
+    /// returns what the company has sold, scoped to the caller's own project
+    /// perimeter (§6.4).
+    /// </summary>
+    [HttpGet]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [ProducesResponseType(typeof(AllSalesResponse), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAll([FromQuery] GetAllSalesQuery query)
+    {
+        var result = await _mediator.Send(query);
+        return Ok(result);
+    }
 
     [HttpGet("user/{userId}")]
     [ProducesResponseType(typeof(UserSalesResponse), StatusCodes.Status200OK)]

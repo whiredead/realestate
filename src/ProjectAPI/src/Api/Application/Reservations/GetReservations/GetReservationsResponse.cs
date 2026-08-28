@@ -17,6 +17,8 @@ public class GetReservationsResponse
     // Reservation Details
     public Guid UnitId { get; set; }
     public string? UnitDetails { get; set; }
+    public Guid? ProjectId { get; set; }
+    public string? ProjectName { get; set; }
     public string? AgentId { get; set; }
     public string? NotaireId { get; set; }
     public decimal TotalPropertyPrice { get; set; }

@@ -59,6 +59,20 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                 scopedUnitIds = ids.ToHashSet();
             }
 
+            // Same Unit -> Immeuble join as the authorization perimeter above,
+            // but driven by the caller's own filter choice rather than their
+            // role — a project the caller can see, narrowed further.
+            HashSet<Guid>? requestedUnitIds = null;
+            if (request.ProjectId.HasValue)
+            {
+                var ids = await _db.Set<UnitEntity>()
+                    .Join(_db.Set<Immeuble>(), u => u.ProjectId, im => im.Id, (u, im) => new { u.Id, im.ProjectId })
+                    .Where(x => x.ProjectId == request.ProjectId.Value)
+                    .Select(x => x.Id)
+                    .ToListAsync(cancellationToken);
+                requestedUnitIds = ids.ToHashSet();
+            }
+
             var reservations = await _reservationRepository.Find(
                 r =>
                     (string.IsNullOrEmpty(request.BuyerId) || r.BuyerId == request.BuyerId) &&
@@ -70,49 +84,88 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                     (string.IsNullOrEmpty(effectiveAgentId) || r.AgentId == effectiveAgentId) &&
                     (string.IsNullOrEmpty(request.NotaireId) || r.NotaireId == request.NotaireId) &&
                     (!request.IsUnderConstruction.HasValue || r.IsUnderConstruction == request.IsUnderConstruction.Value) &&
-                    (scopedUnitIds == null || scopedUnitIds.Contains(r.UnitId)),
+                    (scopedUnitIds == null || scopedUnitIds.Contains(r.UnitId)) &&
+                    (requestedUnitIds == null || requestedUnitIds.Contains(r.UnitId)),
                 null
             );
 
             var totalItems = reservations.Count();
 
-            var paginatedData = reservations
+            var pageReservations = reservations
                 .Skip((request.PageNumber - 1) * request.PageSize)
                 .Take(request.PageSize)
-                .Select(reservation => new GetReservationsResponse
+                .ToList();
+
+            // Reservation.UnitDetails is a label frozen at submit time, and it
+            // is null on most historic rows — the list then fell back to
+            // printing the raw UnitId, so the widest column on the admin table
+            // read as "463d8967-5a10-4368-b30e-95cdd16baecc" instead of a unit
+            // anyone could recognise. The unit itself is always still there, so
+            // compose a readable label from it rather than showing a GUID.
+            var pageUnitIds = pageReservations.Select(r => r.UnitId).Distinct().ToList();
+            var unitInfo = await _db.Set<UnitEntity>()
+                .Where(u => pageUnitIds.Contains(u.Id))
+                .Join(_db.Set<Immeuble>(), u => u.ProjectId, im => im.Id,
+                    (u, im) => new { u.Id, u.UnitNumber, u.TotalSurface, ImmeubleName = im.Name, im.ProjectId })
+                .Join(_db.Projects, x => x.ProjectId, p => p.Id,
+                    (x, p) => new { x.Id, x.UnitNumber, x.TotalSurface, x.ImmeubleName, ProjectId = p.Id, ProjectName = p.Name })
+                .ToDictionaryAsync(x => x.Id, x => x, cancellationToken);
+
+            string? UnitLabel(Guid unitId) =>
+                unitInfo.TryGetValue(unitId, out var info)
+                    ? string.Join(" · ", new[]
+                        {
+                            info.ImmeubleName,
+                            info.UnitNumber,
+                            info.TotalSurface > 0 ? $"{info.TotalSurface} m²" : null
+                        }.Where(part => !string.IsNullOrWhiteSpace(part)))
+                    : null;
+
+            var paginatedData = pageReservations
+                .Select(reservation =>
                 {
-                    Id = reservation.Id,
-                    BuyerId = reservation.BuyerId,
-                    Name = reservation.Name,
-                    LastName = reservation.LastName,
-                    CIN = reservation.CIN,
-                    Email = reservation.Email,
-                    PhoneNumber = reservation.PhoneNumber,
-                    UnitId = reservation.UnitId,
-                    UnitDetails = reservation.UnitDetails,
-                    AgentId = reservation.AgentId,
-                    NotaireId = reservation.NotaireId,
-                    TotalPropertyPrice = reservation.TotalPropertyPrice,
-                    ReservationAmount = reservation.ReservationAmount,
-                    ReservationDate = reservation.ReservationDate,
-                    IsUnderConstruction = reservation.IsUnderConstruction,
-
-                    // NEW fields
-                    Status = reservation.Status,
-                    CreatedAt = reservation.CreatedAt,
-                    ValidatedAt = reservation.ValidatedAt,
-                    ValidatedBy = reservation.ValidatedBy,
-                    AdminNote = reservation.AdminNote,
-
-                    // Documents projection — adjust properties to match your entity
-                    Documents = reservation.Documents.Select(d => new ReservationDocumentResponse
+                    unitInfo.TryGetValue(reservation.UnitId, out var info);
+                    return new GetReservationsResponse
                     {
-                        Id = d.Id,
-                        Name = d.FileName,           // adjust if different
-                        Url = d.Url,             // adjust if different
-                        UploadedAt = d.UploadedAt, // adjust if different
-                        UploadedBy = d.UploadedBy  // optional
-                    }).ToList()
+                        Id = reservation.Id,
+                        BuyerId = reservation.BuyerId,
+                        Name = reservation.Name,
+                        LastName = reservation.LastName,
+                        CIN = reservation.CIN,
+                        Email = reservation.Email,
+                        PhoneNumber = reservation.PhoneNumber,
+                        UnitId = reservation.UnitId,
+                        // Frozen label when it exists, otherwise composed live from
+                        // the unit so the column never degrades to a GUID.
+                        UnitDetails = !string.IsNullOrWhiteSpace(reservation.UnitDetails)
+                            ? reservation.UnitDetails
+                            : UnitLabel(reservation.UnitId),
+                        ProjectId = info?.ProjectId,
+                        ProjectName = info?.ProjectName,
+                        AgentId = reservation.AgentId,
+                        NotaireId = reservation.NotaireId,
+                        TotalPropertyPrice = reservation.TotalPropertyPrice,
+                        ReservationAmount = reservation.ReservationAmount,
+                        ReservationDate = reservation.ReservationDate,
+                        IsUnderConstruction = reservation.IsUnderConstruction,
+
+                        // NEW fields
+                        Status = reservation.Status,
+                        CreatedAt = reservation.CreatedAt,
+                        ValidatedAt = reservation.ValidatedAt,
+                        ValidatedBy = reservation.ValidatedBy,
+                        AdminNote = reservation.AdminNote,
+
+                        // Documents projection — adjust properties to match your entity
+                        Documents = reservation.Documents.Select(d => new ReservationDocumentResponse
+                        {
+                            Id = d.Id,
+                            Name = d.FileName,           // adjust if different
+                            Url = d.Url,             // adjust if different
+                            UploadedAt = d.UploadedAt, // adjust if different
+                            UploadedBy = d.UploadedBy  // optional
+                        }).ToList()
+                    };
                 })
                 .ToList();
 

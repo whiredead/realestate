@@ -1,6 +1,7 @@
 ﻿using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByImmeuble;
+using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 
@@ -74,8 +75,7 @@ public class GetImmeubleByIdHandler : IRequestHandler<GetImmeubleByIdQuery, Imme
             MinPrice = immeuble.MinPrice,
             MaxPrice = immeuble.MaxPrice,
 
-            // Convert the stored string status to an enum (optional approach)
-            Status = Enum.Parse<ProjectStatus>(immeuble.Status),
+            Status = ProjectStatusCodes.Normalize(immeuble.Status),
 
             // If immeuble.Images is a comma-separated string
             // e.g., "img1.jpg,img2.jpg"

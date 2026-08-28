@@ -1,6 +1,7 @@
 ﻿using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 
@@ -54,7 +55,7 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
                 { () => !string.IsNullOrWhiteSpace(request.Type), () => immeuble.Type = request.Type },
                 { () => request.MinPrice > 0, () => immeuble.MinPrice = request.MinPrice },
                 { () => request.MaxPrice > 0, () => immeuble.MaxPrice = request.MaxPrice },
-                { () => request.Status.HasValue, () => immeuble.Status = request.Status!.Value.ToString() },
+                { () => !string.IsNullOrWhiteSpace(request.Status), () => immeuble.Status = ProjectStatusCodes.Normalize(request.Status) },
                 { () => request.Images != null && request.Images.Any(), () => immeuble.Images = request.Images },
                 { () => !string.IsNullOrWhiteSpace(request.Description), () => immeuble.Description = request.Description },
                 { () => request.Latitude != 0, () => immeuble.Latitude = request.Latitude },
@@ -98,7 +99,7 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
                 Type = immeuble.Type,
                 MinPrice = immeuble.MinPrice,
                 MaxPrice = immeuble.MaxPrice,
-                Status = Enum.Parse<ProjectStatus>(immeuble.Status),
+                Status = ProjectStatusCodes.Normalize(immeuble.Status),
                 Images = immeuble.Images.Split(',').ToList(),
                 Description = immeuble.Description,
                 Latitude = immeuble.Latitude,

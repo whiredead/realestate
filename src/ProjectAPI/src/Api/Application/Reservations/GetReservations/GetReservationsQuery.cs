@@ -13,6 +13,9 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
         public string? AgentId { get; set; }
         public string? NotaireId { get; set; }
         public bool? IsUnderConstruction { get; set; }
+
+        /// <summary>Optional filter to one project (Reservation -> Unit -> Immeuble -> Project).</summary>
+        public Guid? ProjectId { get; set; }
         public int PageNumber { get; set; } = 1;
         public int PageSize { get; set; } = 10;
     }

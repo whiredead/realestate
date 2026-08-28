@@ -52,6 +52,10 @@ obj/
 [Bb]in/
 [Tt]est[Rr]esults*/
 
+# Ignore deployment/provisioning scripts (may contain environment-specific
+# values not meant for version control)
+deploy/
+
 # Ignore NuGet packages
 *.nupkg
 **/packages/*

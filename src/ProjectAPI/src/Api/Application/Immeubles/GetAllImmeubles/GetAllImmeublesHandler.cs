@@ -1,5 +1,6 @@
 ﻿using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 using ProjectAPI.Domain.Users.Entities;
@@ -101,12 +102,10 @@ public class GetAllImmeublesHandler : IRequestHandler<GetAllImmeublesQuery, Pagi
                     Type = p.Type,
                     MinPrice = p.MinPrice,
                     MaxPrice = p.MaxPrice,
-                    // TryParse, not Parse: an immeuble carrying a legacy/
-                    // unrecognized status string must not take the whole
-                    // list down for every caller — same reasoning as the
-                    // Enum.TryParse convention already used for appointment
-                    // statuses (UpdateAppointmentStatusHandler).
-                    Status = Enum.TryParse<ProjectStatus>(p.Status, out var parsedStatus) ? parsedStatus : ProjectStatus.ComingSoon,
+                    // Normalize, not a fixed enum: Immeuble.Status is free
+                    // text and now carries canonical §3 codes as well as
+                    // legacy spellings (same shape as Project.StatusGlobal).
+                    Status = ProjectStatusCodes.Normalize(p.Status),
                     // Matches GetImmeubleByIdHandler's null-safety for the
                     // same field.
                     Images = p.Images != null ? [.. p.Images.Split(',')] : [],
