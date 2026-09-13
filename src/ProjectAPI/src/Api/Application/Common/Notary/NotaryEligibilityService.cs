@@ -23,8 +23,17 @@ public class NotaryEligibilityService
         _db = db;
     }
 
-    /// <summary>Throws <see cref="BusinessRuleException"/> when the dossier is not eligible.</summary>
-    public async Task EnsureEligibleAsync(Guid reservationId, Guid unitId, CancellationToken ct)
+    /// <summary>
+    /// The §17.6 result on its own, with no title check attached.
+    ///
+    /// Split out of <see cref="EnsureEligibleAsync"/> because the final-visit
+    /// half and the title half gate different things: the sale draft (§6) needs
+    /// the visit cleared, but a land title is a precondition of the notarial
+    /// act, not of agreeing a price. Folding the two together would have made
+    /// a sale undraftable for the entirely unrelated reason that the title
+    /// paperwork had not landed yet.
+    /// </summary>
+    public async Task<NotaryEligibilityResult> CalculateAsync(Guid reservationId, CancellationToken ct)
     {
         var visitCase = await _db.Set<FinalVisitCase>()
             .Include(c => c.Appointments)
@@ -39,7 +48,8 @@ public class NotaryEligibilityService
 
             currentReport = await _db.Set<FinalVisitReport>()
                 .Where(r => appointmentIds.Contains(r.AppointmentId) && r.Status != ReportStatus.Superseded)
-                .OrderByDescending(r => r.VersionNo)
+                .OrderByDescending(r => r.SubmittedAt)
+                .ThenByDescending(r => r.VersionNo)
                 .FirstOrDefaultAsync(ct);
 
             if (currentReport is not null)
@@ -50,7 +60,27 @@ public class NotaryEligibilityService
             }
         }
 
-        var eligibility = NotaryEligibilityCalculator.Calculate(visitCase, currentReport, snags);
+        return NotaryEligibilityCalculator.Calculate(visitCase, currentReport, snags);
+    }
+
+    /// <summary>
+    /// §6 — the final-visit gate alone: the visit is done, its report is
+    /// acknowledged, and no blocking or major snag is still active. Used before
+    /// a sale may be drafted.
+    /// </summary>
+    public async Task EnsureFinalVisitClearedAsync(Guid reservationId, CancellationToken ct)
+    {
+        var eligibility = await CalculateAsync(reservationId, ct);
+        if (!eligibility.CanRequestAppointment)
+        {
+            throw BusinessRuleException.NotaryNotEligible(eligibility.Reasons);
+        }
+    }
+
+    /// <summary>Throws <see cref="BusinessRuleException"/> when the dossier is not eligible.</summary>
+    public async Task EnsureEligibleAsync(Guid reservationId, Guid unitId, CancellationToken ct)
+    {
+        var eligibility = await CalculateAsync(reservationId, ct);
 
         var titleState = await _db.Set<UnitTitleState>()
             .FirstOrDefaultAsync(t => t.UnitId == unitId, ct);

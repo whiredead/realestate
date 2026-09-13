@@ -53,6 +53,9 @@ public async Task<PaginatedResponse<UnitResponse>> Handle(GetAllUnitsQuery reque
 
         // Apply pagination and projection
         var units = allMatchingUnits
+            // Stable order before paging: without it page contents are
+            // nondeterministic and rows repeat or vanish between pages.
+            .OrderBy(u => u.UnitNumber).ThenBy(u => u.Id)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(u => new UnitResponse

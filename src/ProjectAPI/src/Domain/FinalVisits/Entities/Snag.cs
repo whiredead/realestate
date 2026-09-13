@@ -17,7 +17,21 @@ public class FinalVisitReport
     public VisitResult ResultCode { get; set; }
 
     public string? GeneralCondition { get; set; }
+
+    /// <summary>"Remarques" — free observations of the agent.</summary>
     public string? Observations { get; set; }
+
+    /// <summary>"Feedback" — what the client said during the visit.</summary>
+    public string? ClientFeedback { get; set; }
+
+    /// <summary>"Motif" — why the visit is not satisfactory (required when non-compliant).</summary>
+    public string? NonComplianceReason { get; set; }
+
+    /// <summary>"Action corrective" — what will be done about it (required when non-compliant).</summary>
+    public string? CorrectiveAction { get; set; }
+
+    /// <summary>"Suivi" — follow-up notes (next steps, dates, people involved).</summary>
+    public string? FollowUpNotes { get; set; }
 
     public DateTime? SubmittedAt { get; set; }
 

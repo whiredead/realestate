@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Api.Application.Common.Models;
+﻿using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Domain.Reservations.Entities;
 
 namespace ProjectAPI.Api.Application.Reservations.GetReservations;
@@ -19,6 +20,14 @@ public class GetReservationsResponse
     public string? UnitDetails { get; set; }
     public Guid? ProjectId { get; set; }
     public string? ProjectName { get; set; }
+
+    // Location of the reserved unit — drives the cascading pickers
+    // (projet → immeuble → étage → unité → dossier) on screens built from this list.
+    public Guid? ImmeubleId { get; set; }
+    public string? ImmeubleName { get; set; }
+    public string? FloorName { get; set; }
+    public string? UnitNumber { get; set; }
+    public UnitContextDto? UnitContext { get; set; }
     public string? AgentId { get; set; }
     public string? NotaireId { get; set; }
     public decimal TotalPropertyPrice { get; set; }

@@ -38,6 +38,13 @@ public static class RoleCodes
     /// <summary>After-sales technician, sole owner of warranty claims (§6.1, §6.4).</summary>
     public const string Technician = "TECHNICIAN";
 
+    /// <summary>
+    /// After-sales technical lead ("responsable technique"): qualifies claims,
+    /// assigns them to technicians and validates their closure, within the
+    /// projects they hold a membership on. A TECHNICIAN may do neither.
+    /// </summary>
+    public const string TechLead = "TECH_LEAD";
+
     /// <summary>Notary: own availability and their projects' notary appointments (§6.1).</summary>
     public const string Notary = "NOTARY";
 
@@ -50,13 +57,13 @@ public static class RoleCodes
     /// <summary>Every role that may be stored on an account (VISITOR is not).</summary>
     public static readonly string[] Assignable =
     {
-        Prospect, Buyer, SalesAgent, Technician, Notary, ProjectAdmin, GlobalAdmin
+        Prospect, Buyer, SalesAgent, Technician, TechLead, Notary, ProjectAdmin, GlobalAdmin
     };
 
     /// <summary>Roles that grant access to the internal CRM at all (§6.3).</summary>
     public static readonly string[] Internal =
     {
-        SalesAgent, Technician, Notary, ProjectAdmin, GlobalAdmin
+        SalesAgent, Technician, TechLead, Notary, ProjectAdmin, GlobalAdmin
     };
 
     /// <summary>Either administrator level (§6.3 "Admin projet" / "Admin global").</summary>

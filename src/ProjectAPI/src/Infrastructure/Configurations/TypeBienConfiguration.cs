@@ -42,6 +42,20 @@ namespace ProjectAPI.Infrastructure.Configurations
             builder.Property(tb => tb.NbrSalleDeBain)
                    .IsRequired(false);
 
+            // Shower rooms, counted apart from bathrooms (optional).
+            builder.Property(tb => tb.NbrDouche)
+                   .IsRequired(false);
+
+            // Parking spaces included with the layout (optional).
+            builder.Property(tb => tb.NbrParking)
+                   .IsRequired(false);
+
+            // 3D tour for this layout (optional). Same 2048 ceiling MediaUrlPolicy
+            // enforces, so a link it accepts always fits the column.
+            builder.Property(tb => tb.Module3DLink)
+                   .HasMaxLength(2048)
+                   .IsRequired(false);
+
             // Configure the Surface property (optional)
             builder.Property(tb => tb.MinSurface)
                    .IsRequired(false);

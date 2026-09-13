@@ -35,6 +35,9 @@ public class GetAllProjectMembershipsHandler : IRequestHandler<GetAllProjectMemb
         var totalItems = memberships.Count();
 
         var pagedMemberships = memberships
+            // Stable order before paging: without it page contents are
+            // nondeterministic and rows repeat or vanish between pages.
+            .OrderByDescending(m => m.AssignedAt).ThenBy(m => m.Id)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(m => new GetProjectMembershipByIdResponse

@@ -19,14 +19,27 @@ public class GetFinalVisitCaseQuery : IRequest<FinalVisitCaseDto?>
     public Guid ReservationId { get; set; }
 }
 
-public class FinalVisitCaseDto
+public class FinalVisitCaseDto : Common.Units.IHasUnitLocation
 {
+    // Location of the unit (projet → immeuble → étage → unité).
+    public Guid? ProjectId { get; set; }
+    public string? ProjectName { get; set; }
+    public Guid? ImmeubleId { get; set; }
+    public string? ImmeubleName { get; set; }
+    public string? FloorName { get; set; }
+    public string? UnitNumber { get; set; }
+    public ProjectAPI.Api.Application.Common.Units.UnitContextDto? UnitContext { get; set; }
+
     public Guid CaseId { get; set; }
 
     /// <summary>Numeric wire value of FinalVisitCaseStatus — Open=0/RevisitRequired=1/ReadyForNotary=2/Closed=3.</summary>
     public int Status { get; set; }
 
     /// <summary>The most recent attempt (by AttemptNo), regardless of its own status.</summary>
+    /// <summary>Sales agent responsible for the visit ("agent commercial").</summary>
+    public string? ResponsibleSalesAgentId { get; set; }
+    public string? ResponsibleSalesAgentName { get; set; }
+
     public FinalVisitAppointmentDto? CurrentAppointment { get; set; }
 
     /// <summary>The latest report version for the current appointment, if one was submitted.</summary>
@@ -39,6 +52,8 @@ public class FinalVisitAppointmentDto
     public int AttemptNo { get; set; }
     public DateTime StartsAt { get; set; }
     public DateTime EndsAt { get; set; }
+    public string? CauseType { get; set; }
+    public string? CauseDescription { get; set; }
 
     /// <summary>Numeric wire value of AppointmentAttemptStatus, matching finalVisitAttemptStatusCode's map.</summary>
     public int Status { get; set; }
@@ -56,6 +71,10 @@ public class FinalVisitReportDto
     public int ResultCode { get; set; }
     public string? GeneralCondition { get; set; }
     public string? Observations { get; set; }
+    public string? ClientFeedback { get; set; }
+    public string? NonComplianceReason { get; set; }
+    public string? CorrectiveAction { get; set; }
+    public string? FollowUpNotes { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public DateTime? AcknowledgedAt { get; set; }
     public string? DisputeReason { get; set; }

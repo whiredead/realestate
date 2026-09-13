@@ -16,6 +16,12 @@ public class ProjectResponse
     public string? StatusGlobal { get; set; }
     public decimal OverAllProgress { get; set; }
     public long NumberLikes { get; set; }
+
+    /// <summary>§8 — warranty granted on this project's units, in months.</summary>
+    public int WarrantyMonths { get; set; }
+
+    /// <summary>Needed by the console to edit the quartier itself, not just show its name.</summary>
+    public Guid? QuartierId { get; set; }
     public string? QuartierName { get; set; }
     public string? QuartierDescription { get; set; }
     public string? QuartierImages { get; set; }

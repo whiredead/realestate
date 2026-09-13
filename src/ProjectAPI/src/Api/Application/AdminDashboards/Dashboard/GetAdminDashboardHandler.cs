@@ -88,6 +88,62 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
         response.SalesThisMonth = salesInPeriod.Count;
         response.SalesVolumeThisMonth = salesInPeriod.Sum(s => s.TotalPrice);
 
+        // 3a) Reservation KPIs. The period metrics use CreatedAt, the same
+        // immutable event timestamp used for other reporting data. The rate
+        // is intentionally current stock occupancy, so a manager can see how
+        // much of their scoped inventory is presently tied to a live dossier.
+        var reservationsInPeriodQuery = _context.Set<Reservation>()
+            .Where(r => r.CreatedAt >= periodStart
+                && r.CreatedAt < periodEnd
+                && (r.Status == ReservationStatus.Pending
+                    || r.Status == ReservationStatus.ChangesRequested
+                    || r.Status == ReservationStatus.Approved));
+        if (scopedUnitIds is not null)
+        {
+            reservationsInPeriodQuery = reservationsInPeriodQuery.Where(r => scopedUnitIds.Contains(r.UnitId));
+        }
+
+        var reservationPeriodMetrics = await reservationsInPeriodQuery
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Count = g.Count(),
+                Amount = g.Sum(r => r.ReservationAmount)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        response.ReservationsInPeriod = reservationPeriodMetrics?.Count ?? 0;
+        response.ReservationAmountInPeriod = reservationPeriodMetrics?.Amount ?? 0;
+        response.AverageReservationAmountInPeriod = response.ReservationsInPeriod == 0
+            ? 0
+            : Math.Round(response.ReservationAmountInPeriod / response.ReservationsInPeriod, 2);
+
+        var liveStatuses = new[]
+{
+    ReservationStatus.Pending,
+    ReservationStatus.ChangesRequested,
+    ReservationStatus.Approved
+};
+
+        var liveReservationsQuery = _context.Set<Reservation>()
+            .Where(r => liveStatuses.Contains(r.Status));
+
+        if (scopedUnitIds is not null)
+        {
+            liveReservationsQuery = liveReservationsQuery.Where(r => scopedUnitIds.Contains(r.UnitId));
+        }
+
+        var liveReservedUnitCount = await liveReservationsQuery
+            .Select(r => r.UnitId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+        var scopedUnitCount = scopedUnitIds is null
+            ? await _context.Set<UnitEntity>().CountAsync(cancellationToken)
+            : scopedUnitIds.Count;
+        response.ReservationRatePct = scopedUnitCount == 0
+            ? 0
+            : Math.Round(liveReservedUnitCount * 100.0 / scopedUnitCount, 1);
+
         // 3b) Comparison to the immediately preceding period of equal length.
         var periodLength = periodEnd - periodStart;
         var previousStart = periodStart - periodLength;

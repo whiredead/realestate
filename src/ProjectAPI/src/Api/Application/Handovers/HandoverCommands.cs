@@ -10,6 +10,8 @@ using ProjectAPI.Domain.FinalVisits.Entities;
 using ProjectAPI.Domain.Handovers.Entities;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
+using ProjectAPI.Domain.Sales.Entities;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Handovers;
@@ -262,7 +264,6 @@ public class AcknowledgeHandoverCommand : IRequest<bool>, IIdempotentRequest
     public Guid ReportId { get; set; }
 
     /// <summary>Warranty length; §20 leaves it configurable, 12 months by default.</summary>
-    public int WarrantyMonths { get; set; } = 12;
 }
 
 /// <summary>
@@ -309,7 +310,9 @@ public class AcknowledgeHandoverHandler : IRequestHandler<AcknowledgeHandoverCom
 
         // §6.4 — the buyer confirms their own handover; an agent recording it on
         // a walk-in's behalf must be scoped to the project (§1.1).
-        await _projectScope.EnsureReservationAccessAsync(report.Appointment.ReservationId, ct);
+        if (!_currentUser.IsInRole(RoleCodes.Buyer))
+            throw BusinessRuleException.BuyerScopeDenied();
+
         await _projectScope.EnsureBuyerOwnsReservationAsync(report.Appointment.ReservationId, ct);
 
         if (report.Status == HandoverReportStatus.Acknowledged)
@@ -326,6 +329,11 @@ public class AcknowledgeHandoverHandler : IRequestHandler<AcknowledgeHandoverCom
         var appointment = report.Appointment;
         var reservation = await _db.Reservations.FirstOrDefaultAsync(r => r.Id == appointment.ReservationId, ct)
             ?? throw new NotFoundException($"Reservation {appointment.ReservationId} not found.");
+
+        var sale = await _db.Set<Sale>()
+            .FirstOrDefaultAsync(s => s.ReservationId == reservation.Id && s.Status == SaleStatus.Confirmed, ct)
+            ?? throw BusinessRuleException.InvalidStatusTransition("CONVERTED_WITHOUT_CONFIRMED_SALE", "HANDOVER");
+        var warrantyMonths = sale.WarrantyMonths > 0 ? sale.WarrantyMonths : 12;
 
         await using var transaction = await _db.Database.BeginTransactionAsync(ct);
 
@@ -358,7 +366,7 @@ public class AcknowledgeHandoverHandler : IRequestHandler<AcknowledgeHandoverCom
                 ReservationId = reservation.Id,
                 WarrantyTypeCode = "GENERAL",
                 StartsAt = startsAt,
-                EndsAt = startsAt.AddMonths(request.WarrantyMonths <= 0 ? 12 : request.WarrantyMonths),
+                EndsAt = startsAt.AddMonths(warrantyMonths),
                 IsActive = true,
             });
         }

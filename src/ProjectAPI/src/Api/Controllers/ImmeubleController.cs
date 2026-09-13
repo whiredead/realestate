@@ -86,15 +86,9 @@ public class ImmeubleController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAllImmeubles([FromQuery] GetAllImmeublesQuery query)
     {
-        try
-        {
-            var response = await _mediator.Send(query);
-            return Ok(response);
-        }
-        catch (Exception ex)
-        {
-            return BadRequest(ex.Message);
-        }
+        // Errors flow to ApiExceptionFilter (typed status + code), never a raw 400 string.
+        var response = await _mediator.Send(query);
+        return Ok(response);
 
     }
 
@@ -103,6 +97,15 @@ public class ImmeubleController : ControllerBase
     /// </summary>
     /// <param name="id">The ID of the immeuble to retrieve.</param>
     /// <returns>The immeuble details.</returns>
+    /// <summary>A unit with its floor, building and project details (internal, in scope).</summary>
+    [HttpGet("units/{unitId:guid}/context")]
+    [Authorize(Roles = RoleGroups.InternalStaff)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetUnitContext(Guid unitId) =>
+        Ok(await _mediator.Send(new ProjectAPI.Api.Application.Units.GetUnitContext.GetUnitContextQuery { UnitId = unitId }));
+
     [HttpGet("{id}")]
     [AllowAnonymous] // §6.3 Catalogue public.
     [ProducesResponseType(StatusCodes.Status201Created)]

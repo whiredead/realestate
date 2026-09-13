@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using ProjectAPI.Api.Application.Common.Units;
+using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Appointments.Entities;
@@ -48,6 +49,9 @@ public class GetNotaryAppointmentsHandler : IRequestHandler<GetNotaryAppointment
         var totalItems = appointments.Count();
 
         var page = appointments
+            // Stable order before paging: without it page contents are
+            // nondeterministic and rows repeat or vanish between pages.
+            .OrderByDescending(a => a.AppointmentDate).ThenBy(a => a.Id)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
             .ToList();
@@ -60,6 +64,8 @@ public class GetNotaryAppointmentsHandler : IRequestHandler<GetNotaryAppointment
             .Where(u => notaireIds.Contains(u.Id))
             .Select(u => new { u.Id, Name = u.FirstName + " " + u.LastName })
             .ToDictionaryAsync(x => x.Id, x => x.Name, cancellationToken);
+
+        var locations = await Common.Units.UnitLocations.ForReservationsAsync(_db, page.Select(a => a.ReservationId), cancellationToken);
 
         var paginatedData = page
             .Select(na => new NotaryAppointmentResponse
@@ -82,7 +88,7 @@ public class GetNotaryAppointmentsHandler : IRequestHandler<GetNotaryAppointment
                 TahfidFees = na.TahfidFees,
                 Outcome = na.Outcome?.ToCode(),
                 OutcomeNote = na.OutcomeNote
-            })
+            }.WithLocation(locations.GetValueOrDefault(na.ReservationId)))
             .ToList();
 
         return new PaginatedResponse<NotaryAppointmentResponse>(paginatedData, request.PageNumber, request.PageSize, totalItems);

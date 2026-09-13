@@ -37,6 +37,14 @@ public class CreateUserByAdminHandler : IRequestHandler<CreateUserByAdminCommand
             });
         }
 
+        // The role must exist before the account is written: a failure here used
+        // to leave a created user with no role at all. Role derives from
+        // IdentityRole<string>, whose constructor assigns no Id.
+        if (!await _roleManager.RoleExistsAsync(roleCode))
+        {
+            await _roleManager.CreateAsync(new Role { Id = Guid.NewGuid().ToString(), Name = roleCode, DisplayName = roleCode });
+        }
+
         var user = new User
         {
             Id = Guid.NewGuid().ToString(),
@@ -56,11 +64,6 @@ public class CreateUserByAdminHandler : IRequestHandler<CreateUserByAdminCommand
             var failures = creation.Errors
                 .Select(e => new ValidationFailure(e.Code, e.Description));
             throw new Common.Exceptions.ValidationException(failures);
-        }
-
-        if (!await _roleManager.RoleExistsAsync(roleCode))
-        {
-            await _roleManager.CreateAsync(new Role { Name = roleCode, DisplayName = roleCode });
         }
 
         var addToRole = await _userManager.AddToRoleAsync(user, roleCode);

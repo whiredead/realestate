@@ -46,6 +46,9 @@ namespace ProjectAPI.Api.Application.Purchases.GetUserPurchases
             var totalCount = purchases.Count();
 
             var pagedPurchases = purchases
+                // Stable order before paging: without it page contents are
+                // nondeterministic and rows repeat or vanish between pages.
+                .OrderByDescending(p => p.CreatedAt).ThenBy(p => p.Id)
                 .Skip((request.PageNumber - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .ToList();

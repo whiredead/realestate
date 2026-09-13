@@ -10,6 +10,7 @@ public class ClaimAttachmentConfiguration : IEntityTypeConfiguration<ClaimAttach
     {
         b.ToTable("ClaimAttachments");
         b.HasKey(x => x.Id);
+        b.Property(x => x.Phase).HasMaxLength(10);
         b.Property(x => x.Url).IsRequired().HasMaxLength(2000);
         b.Property(x => x.FileName).HasMaxLength(255);
         b.Property(x => x.ContentType).HasMaxLength(200);

@@ -20,6 +20,9 @@ public static class BusinessErrorCodes
     /// <summary>The caller supplied a stale version (If-Match / ETag mismatch).</summary>
     public const string ResourceVersionConflict = "RESOURCE_VERSION_CONFLICT";
 
+    /// <summary>The row is still referenced by other data (foreign-key violation on delete/update).</summary>
+    public const string ResourceInUse = "RESOURCE_IN_USE";
+
     /// <summary>The same idempotency key was reused with a different payload.</summary>
     public const string IdempotencyKeyReused = "IDEMPOTENCY_KEY_REUSED";
 
@@ -35,6 +38,18 @@ public static class BusinessErrorCodes
 
     /// <summary>The requested discount exceeds the agent's authorised ceiling.</summary>
     public const string DiscountLimitExceeded = "DISCOUNT_LIMIT_EXCEEDED";
+
+    // --- Sale ------------------------------------------------------------------
+
+    /// <summary>
+    /// An active sale (Draft / PendingNotary / Confirmed) already exists for the
+    /// reservation. Enforced in the handler and, on a lost race, by the filtered
+    /// unique index IX_Sales_ActivePerReservation.
+    /// </summary>
+    public const string SaleAlreadyExists = "SALE_ALREADY_EXISTS";
+
+    /// <summary>The sale is Confirmed or Cancelled and no longer accepts edits.</summary>
+    public const string SaleNotEditable = "SALE_NOT_EDITABLE";
 
     // --- Notary / final visit -------------------------------------------------
 

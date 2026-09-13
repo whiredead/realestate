@@ -42,6 +42,9 @@ public async Task<PaginatedResponse<LikedProjectResponse>> Handle(GetLikedProjec
         var totalItems = items.Count();
 
         var paginatedData = items
+            // Stable order before paging: without it page contents are
+            // nondeterministic and rows repeat or vanish between pages.
+            .OrderByDescending(l => l.LikedAt).ThenBy(l => l.Id)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
 .Select(lp => new LikedProjectResponse

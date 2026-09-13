@@ -1,4 +1,8 @@
-﻿using ProjectAPI.Domain.Construction.Entities;
+﻿using ProjectAPI.Api.Application.Common.Media;
+using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Users.Entities;
+using ProjectAPI.Infrastructure.Context;
+using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Projects.Interfaces;
 
@@ -8,15 +12,40 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
 {
     private readonly IProjectRepository _projectRepository;
     private readonly IQuartierRepository _quartierRepository;
+    private readonly MediaUrlPolicy _media;
+    private readonly ICurrentUser _currentUser;
+    private readonly ApplicationDbContext _db;
 
-    public CreateProjectHandler(IProjectRepository projectRepository, IQuartierRepository quartierRepository)
+    public CreateProjectHandler(
+        IProjectRepository projectRepository,
+        IQuartierRepository quartierRepository,
+        MediaUrlPolicy media,
+        ICurrentUser currentUser,
+        ApplicationDbContext db)
     {
         _projectRepository = projectRepository;
         _quartierRepository = quartierRepository;
+        _media = media;
+        _currentUser = currentUser;
+        _db = db;
     }
+
+    /// <summary>Default reservation checklist seeded on every new project (codes are stored upper-case).</summary>
+    public static readonly (string Code, string LabelFr)[] DefaultDocumentRequirements =
+    {
+        ("CIN", "CIN ou passeport"),
+        ("RESERVATION_CONTRACT", "Contrat ou bulletin de réservation signé"),
+        ("RESERVATION_PAYMENT_PROOF", "Justificatif de paiement de la réservation"),
+    };
 
     public async Task<CreateProjectResponse> Handle(CreateProjectCommand request, CancellationToken cancellationToken)
     {
+        // §7.2 — these go straight into the public catalogue, so they are checked
+        // before anything is written rather than sanitised at render time.
+        _media.EnsureImageUrls(request.Images, "Images");
+        _media.Ensure3DLink(request.Module3DLink, "Module3DLink");
+        _media.EnsureImageUrl(request.QuartierImages, "QuartierImages");
+
         // Step 1: Resolve or create Quartier
         Guid? quartierId = null;
         if (request.QuartierId.HasValue)
@@ -57,12 +86,57 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
             // §3 / FR-CMS-001 — a project is created in DRAFT. Normalised so the
             // column only ever holds canonical codes, never the legacy (and
             // misspelled) "CommingSoon" spellings.
-            StatusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal ?? ProjectStatusCodes.Draft)
+            StatusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal ?? ProjectStatusCodes.Draft),
+            // §8 — omitted takes the entity default (12 months).
+            WarrantyMonths = request.WarrantyMonths ?? 12
         };
 
         // Step 3: Save to repository
         await _projectRepository.InsertAsync(project);
         await _projectRepository.SaveAsync();
+
+        // §12.1 — every project starts with the default reservation checklist
+        // (identity, signed reservation contract, proof of the deposit). The
+        // project admin can then change it per project; without a default, a
+        // new project required nothing and any file could be submitted bare.
+        var now0 = DateTime.UtcNow;
+        var seq = 1;
+        foreach (var (code, label) in DefaultDocumentRequirements)
+        {
+            _db.Add(new ProjectDocumentRequirement
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = project.Id,
+                DocumentType = code,
+                LabelFr = label,
+                IsRequired = true,
+                SequenceNo = seq++,
+                CreatedAt = now0,
+                CreatedBy = _currentUser.UserId
+            });
+        }
+        await _db.SaveChangesAsync(cancellationToken);
+
+        // §6.4 — a PROJECT_ADMIN's perimeter is their memberships. Without one on
+        // the project they just created, every later action on it (edit,
+        // buildings, approvals) was denied as out of scope. GLOBAL_ADMIN is
+        // unrestricted and never gets a membership row.
+        if (!_currentUser.IsGlobalAdmin && _currentUser.IsInRole(RoleCodes.ProjectAdmin) && !string.IsNullOrEmpty(_currentUser.UserId))
+        {
+            var now = DateTime.UtcNow;
+            _db.Add(new ProjectMembership
+            {
+                Id = Guid.NewGuid(),
+                ProjectId = project.Id,
+                UserId = _currentUser.UserId,
+                RoleCode = RoleCodes.ProjectAdmin,
+                ValidFrom = now,
+                IsActive = true,
+                AssignedByUserId = _currentUser.UserId,
+                AssignedAt = now
+            });
+            await _db.SaveChangesAsync(cancellationToken);
+        }
 
         // Step 4: Build response
         return new CreateProjectResponse

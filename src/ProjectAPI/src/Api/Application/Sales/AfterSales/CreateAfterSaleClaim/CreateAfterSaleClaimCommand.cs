@@ -15,12 +15,16 @@ public class CreateAfterSaleClaimCommand : IRequest<Guid>
     public ClaimCategory Category { get; set; } = ClaimCategory.General;
     public ClaimPriority Priority { get; set; } = ClaimPriority.Normal;
 
-    public List<FileDto> Files { get; set; } = new();
-}
-public class FileDto
-{
-    public string Url { get; set; }
-    public string? FileName { get; set; }
-    public string? ContentType { get; set; }
-    public long? SizeBytes { get; set; }
+    // Attachments are NOT accepted here.
+    //
+    // This command used to take a List<FileDto> whose Url was a raw
+    // client-supplied string, stored verbatim as the attachment's location and
+    // rendered as a link: anyone could point a claim attachment at any URL on
+    // the internet, and nothing validated the scheme, the host, or that the
+    // file had anything to do with this system. Nothing in the frontend ever
+    // sent it, so removing it breaks no caller.
+    //
+    // Photographs of a defect are uploaded as FILES, to a private container,
+    // via POST /api/claims/{claimId}/attachments — see
+    // UploadClaimAttachmentCommand.
 }

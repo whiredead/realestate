@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Domain.Appointments.Entities;
 using ProjectAPI.Domain.Common.Idempotency;
@@ -42,6 +42,9 @@ public class ApplicationDbContext : IdentityDbContext<User>
     public DbSet<TypeBien> TypeBiens { get; set; }
     public DbSet<ProjectTypeBien> ProjectTypeBiens { get; set; }
     public DbSet<QuartierAmenity> QuartierAmenities { get; set; }
+
+    /// <summary>§12.1 — per-project document rules. Empty means nothing is required.</summary>
+    public DbSet<ProjectDocumentRequirement> ProjectDocumentRequirements { get; set; }
     
     // Reservations and Documents
     public DbSet<Reservation> Reservations { get; set; }
@@ -135,6 +138,7 @@ public class ApplicationDbContext : IdentityDbContext<User>
         builder.ApplyConfiguration(new HandoverItemConfiguration());
         builder.ApplyConfiguration(new WarrantyConfiguration());
         builder.ApplyConfiguration(new QuartierAmenityConfiguration());
+        builder.ApplyConfiguration(new ProjectDocumentRequirementConfiguration());
         builder.ApplyConfiguration(new PaymentScheduleConfiguration());
         builder.ApplyConfiguration(new PaymentInstallmentConfiguration());
         builder.ApplyConfiguration(new PaymentConfiguration());

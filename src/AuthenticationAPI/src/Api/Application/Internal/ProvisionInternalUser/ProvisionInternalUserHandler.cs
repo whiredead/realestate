@@ -61,7 +61,9 @@ public class ProvisionInternalUserHandler : IRequestHandler<ProvisionInternalUse
 
         if (!await _roleManager.RoleExistsAsync(roleCode))
         {
-            await _roleManager.CreateAsync(new Role { Name = roleCode, DisplayName = roleCode });
+            // Role derives from IdentityRole<string>, whose constructor assigns no
+            // Id: without one EF refuses to track the entity.
+            await _roleManager.CreateAsync(new Role { Id = Guid.NewGuid().ToString(), Name = roleCode, DisplayName = roleCode });
         }
 
         var currentRoles = RoleCodes.Normalize(await _userManager.GetRolesAsync(user));

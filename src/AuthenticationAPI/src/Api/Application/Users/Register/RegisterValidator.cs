@@ -81,7 +81,7 @@ public class RegisterValidator : AbstractValidator<RegisterCommand>
     {
         // Spec §6.1 codes
         RoleCodes.Prospect, RoleCodes.SalesAgent,
-        RoleCodes.Technician, RoleCodes.Notary,
+        RoleCodes.Technician, RoleCodes.TechLead, RoleCodes.Notary,
         RoleCodes.ProjectAdmin, RoleCodes.GlobalAdmin,
 
         // Legacy labels still present in the database and seed scripts

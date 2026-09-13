@@ -24,6 +24,32 @@ public class AdminDashboardResponse
     public decimal SalesVolumeThisMonth { get; set; }
 
     /// <summary>
+    /// Live reservations created in the selected reporting period (submitted,
+    /// changes requested or approved).
+    /// </summary>
+    public int ReservationsInPeriod { get; set; }
+
+    /// <summary>
+    /// Sum of the reservation amounts declared on live reservations created
+    /// in the selected reporting period.
+    /// </summary>
+    public decimal ReservationAmountInPeriod { get; set; }
+
+    /// <summary>
+    /// Current reservation rate: live reservations (pending, changes
+    /// requested or approved) divided by all units in scope.
+    /// It is deliberately a point-in-time inventory metric, not a period
+    /// total, and is returned as a percentage in the 0-100 range.
+    /// </summary>
+    public double ReservationRatePct { get; set; }
+
+    /// <summary>
+    /// Mean reservation amount for reservations created in the selected
+    /// reporting period. Zero when the period contains no reservations.
+    /// </summary>
+    public decimal AverageReservationAmountInPeriod { get; set; }
+
+    /// <summary>
     /// A dictionary or list of performance stats for each agent,
     /// possibly aggregated by time period.
     /// Key = AgentId / AgentName,

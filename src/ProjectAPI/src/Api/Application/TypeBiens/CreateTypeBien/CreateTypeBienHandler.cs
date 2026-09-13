@@ -9,14 +9,23 @@ namespace ProjectAPI.Api.Application.TypeBiens.CreateTypeBien
     public class CreateTypeBienHandler : IRequestHandler<CreateTypeBienCommand, CreateTypeBienResponse>
     {
         private readonly ITypeBienRepository _typeBienRepository;
+        private readonly Common.Media.MediaUrlPolicy _media;
 
-        public CreateTypeBienHandler(ITypeBienRepository typeBienRepository)
+        public CreateTypeBienHandler(
+            ITypeBienRepository typeBienRepository,
+            Common.Media.MediaUrlPolicy media)
         {
             _typeBienRepository = typeBienRepository;
+            _media = media;
         }
 
         public async Task<CreateTypeBienResponse> Handle(CreateTypeBienCommand request, CancellationToken cancellationToken)
         {
+            // §7.2 — reference data feeds the public catalogue like everything else.
+            _media.EnsureImageUrl(request.Image, "Image");
+            _media.EnsureImageUrls(TypeBienMedia.SplitImages(request.ImagesInterieur), "ImagesInterieur");
+            _media.Ensure3DLink(request.Module3DLink, "Module3DLink");
+
             // Construct the new TypeBien entity
             var entity = new TypeBien
             {
@@ -27,9 +36,12 @@ namespace ProjectAPI.Api.Application.TypeBiens.CreateTypeBien
                 Price = request.Price,
                 NbrChambre = request.NbrChambre,
                 NbrSalleDeBain = request.NbrSalleDeBain,
+                NbrDouche = request.NbrDouche,
+                NbrParking = request.NbrParking,
                 MinSurface = request.MinSurface,
                 MaxSurface = request.MaxSurface,
-                ImagesInterieur = request.ImagesInterieur
+                ImagesInterieur = request.ImagesInterieur,
+                Module3DLink = request.Module3DLink
             };
 
             // Insert and save

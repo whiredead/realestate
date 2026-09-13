@@ -3,8 +3,17 @@ using ProjectAPI.Domain.Reservations.Entities;
 
 namespace ProjectAPI.Api.Application.Reservations.GetReservationById;
 
-public class GetReservationByIdResponse
+public class GetReservationByIdResponse : Common.Units.IHasUnitLocation
 {
+    // Location of the unit (projet → immeuble → étage → unité).
+    public Guid? ProjectId { get; set; }
+    public string? ProjectName { get; set; }
+    public Guid? ImmeubleId { get; set; }
+    public string? ImmeubleName { get; set; }
+    public string? FloorName { get; set; }
+    public string? UnitNumber { get; set; }
+    public ProjectAPI.Api.Application.Common.Units.UnitContextDto? UnitContext { get; set; }
+
     public Guid Id { get; set; }
     public string? BuyerId { get; set; }
     public string? Name { get; set; }

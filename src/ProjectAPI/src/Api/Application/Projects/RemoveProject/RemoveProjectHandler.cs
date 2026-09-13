@@ -50,12 +50,8 @@ public class RemoveProjectHandler : IRequestHandler<RemoveProjectCommand, Remove
             var project = await _projectRepository.GetByIDAsync(request.ProjectId);
             if (project == null)
             {
-                return new RemoveProjectResponse
-                {
-                    Success = false,
-                    Message = $"Project with ID '{request.ProjectId}' not found.",
-                    Details = new List<string> { "Please verify the project ID and try again." }
-                };
+                // 404, not a 400 "operation failed".
+                throw new NotFoundException($"Project {request.ProjectId} not found.");
             }
 
             // §6.4 — the single highest-blast-radius mutation in the codebase:
@@ -78,6 +74,21 @@ public class RemoveProjectHandler : IRequestHandler<RemoveProjectCommand, Remove
             // Step 3: Get all units for these immeubles
             var allUnits = await _unitRepository.GetAllAsync();
             var unitsInProject = allUnits.Where(u => projectImmeubles.Select(i => i.Id).Contains(u.ProjectId)).ToList();
+
+            // A project that carries a commercial history (a reservation or a
+            // sale on any of its units) is never hard-deleted: its lifecycle ends
+            // with finalisation (FINALISE), which keeps the record. Only a project
+            // with no business data yet may be removed.
+            var projectUnitIds = unitsInProject.Select(u => u.Id).ToHashSet();
+            var hasReservations = (await _reservationRepository.GetAllAsync()).Any(r => projectUnitIds.Contains(r.UnitId));
+            var hasSales = (await _saleRepository.GetAllAsync()).Any(s => projectUnitIds.Contains(s.UnitId));
+            if (hasReservations || hasSales)
+            {
+                throw new BusinessRuleException(
+                    BusinessErrorCodes.InvalidStatusTransition,
+                    "Ce projet porte déjà des réservations ou des ventes : il ne peut pas être supprimé, seulement finalisé.",
+                    StatusCodes.Status409Conflict);
+            }
 
             // Step 4: Delete items in specific order (child -> parent)
 
@@ -152,19 +163,9 @@ public class RemoveProjectHandler : IRequestHandler<RemoveProjectCommand, Remove
             // exception filter like every other scope check in this codebase.
             throw;
         }
-        catch (Exception ex)
-        {
-            return new RemoveProjectResponse
-            {
-                Success = false,
-                Message = $"Error deleting project ID '{request.ProjectId}': {ex.Message}",
-                Details = new List<string>
-                {
-                    $"Exception Type: {ex.GetType().Name}",
-                    $"Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC",
-                    $"Full Error: {ex.ToString()}"
-                }
-            };
-        }
+        // Anything else (e.g. a foreign-key violation on delete) propagates to
+        // ApiExceptionFilter: 409 RESOURCE_IN_USE for a referenced row, 500 with a
+        // requestId otherwise. It used to be returned as a 400 carrying the raw
+        // exception text and stack trace.
     }
 }

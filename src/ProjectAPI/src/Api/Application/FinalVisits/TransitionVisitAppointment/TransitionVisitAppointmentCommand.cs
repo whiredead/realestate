@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.FinalVisits.Entities;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.FinalVisits.TransitionVisitAppointment;
@@ -45,11 +46,13 @@ public class TransitionVisitAppointmentHandler
 {
     private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _projectScope;
+    private readonly ICurrentUser _currentUser;
 
-    public TransitionVisitAppointmentHandler(ApplicationDbContext db, ProjectScopeService projectScope)
+    public TransitionVisitAppointmentHandler(ApplicationDbContext db, ProjectScopeService projectScope, ICurrentUser currentUser)
     {
         _db = db;
         _projectScope = projectScope;
+        _currentUser = currentUser;
     }
 
     public async Task<TransitionVisitAppointmentResponse> Handle(
@@ -76,7 +79,8 @@ public class TransitionVisitAppointmentHandler
         // project admin explicitly authorises it.
         if (request.TargetStatus == AppointmentAttemptStatus.Completed
             && appointment.StartsAt > DateTime.UtcNow
-            && !request.AllowEarlyCompletion)
+            && (!request.AllowEarlyCompletion
+                || (!_currentUser.IsInRole(RoleCodes.ProjectAdmin) && !_currentUser.IsGlobalAdmin)))
         {
             throw new BusinessRuleException(
                 BusinessErrorCodes.ValidationFailed,

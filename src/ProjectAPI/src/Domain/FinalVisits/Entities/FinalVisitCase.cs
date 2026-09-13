@@ -119,7 +119,10 @@ public static class AppointmentStateMachine
             [AppointmentAttemptStatus.Rejected] = Array.Empty<AppointmentAttemptStatus>(),
             [AppointmentAttemptStatus.Cancelled] = Array.Empty<AppointmentAttemptStatus>(),
             [AppointmentAttemptStatus.Completed] = Array.Empty<AppointmentAttemptStatus>(),
-            [AppointmentAttemptStatus.NoShow] = Array.Empty<AppointmentAttemptStatus>(),
+            // Client absent: the attempt can be closed as cancelled (with a
+            // reason) when no new visit will be scheduled; rescheduling is a
+            // NEW attempt (RequestFinalVisit), as for every terminal state.
+            [AppointmentAttemptStatus.NoShow] = new[] { AppointmentAttemptStatus.Cancelled },
             [AppointmentAttemptStatus.Superseded] = Array.Empty<AppointmentAttemptStatus>()
         };
 

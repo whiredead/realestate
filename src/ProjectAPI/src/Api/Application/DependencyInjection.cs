@@ -29,6 +29,7 @@ public static class DependencyInjection
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(PaginationBehaviour<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
             // §7 — applies only to commands implementing IIdempotentRequest;
             // runs after validation so a malformed request never consumes a key.
@@ -62,6 +63,15 @@ public static class DependencyInjection
 
         // §6.2/§7 — shared writer for per-user transactional notifications.
         services.AddScoped<Common.Notifications.INotificationService, Common.Notifications.NotificationService>();
+
+        // §7.2 — every client-supplied media link (project images, site videos,
+        // 3D tours) passes through here before it is stored.
+        services.AddScoped<Common.Media.MediaUrlPolicy>();
+
+        // §12.1 — the per-project document requirements a reservation must
+        // satisfy before it may be submitted. Shared by the submit path and the
+        // checklist the console renders, so the two can never disagree.
+        services.AddScoped<Common.Reservations.ReservationDocumentChecklist>();
 
         return services;
     }

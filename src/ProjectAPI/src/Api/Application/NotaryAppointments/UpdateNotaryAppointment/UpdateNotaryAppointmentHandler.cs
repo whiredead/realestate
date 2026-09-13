@@ -90,6 +90,29 @@ public class UpdateNotaryAppointmentHandler : IRequestHandler<UpdateNotaryAppoin
                 StatusCodes.Status403Forbidden);
         }
 
+        var isAgentOnly = _currentUser.IsInRole(RoleCodes.SalesAgent)
+            && !_currentUser.IsGlobalAdmin
+            && !_currentUser.IsInRole(RoleCodes.ProjectAdmin)
+            && !_currentUser.IsInRole(RoleCodes.Notary);
+
+        if (isAgentOnly)
+        {
+            var agentStatusAllowed = request.Status is null
+                || request.Status.Equals(nameof(AppointmentAttemptStatus.Confirmed), StringComparison.OrdinalIgnoreCase)
+                || request.Status.Equals(nameof(AppointmentAttemptStatus.Cancelled), StringComparison.OrdinalIgnoreCase);
+
+            if (!agentStatusAllowed
+                || !string.IsNullOrWhiteSpace(request.Outcome)
+                || !string.IsNullOrWhiteSpace(request.NewNotaireId))
+            {
+                throw new BusinessRuleException(
+                    BusinessErrorCodes.Unauthorized,
+                    "Un agent commercial peut confirmer ou annuler un rendez-vous notarial, " +
+                    "mais ni le réaliser, ni en saisir le résultat, ni le réaffecter.",
+                    StatusCodes.Status403Forbidden);
+            }
+        }
+
         var hasUpdates = false;
         var completing = false;
 
@@ -135,6 +158,25 @@ public class UpdateNotaryAppointmentHandler : IRequestHandler<UpdateNotaryAppoin
 
             completing = targetStatus == AppointmentAttemptStatus.Completed && currentStatus != targetStatus;
 
+            // A cancelled appointment must say why (same rule as a failed outcome).
+            if (targetStatus == AppointmentAttemptStatus.Cancelled && currentStatus != targetStatus
+                && string.IsNullOrWhiteSpace(request.OutcomeNote))
+            {
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure("OutcomeNote", "Un motif est obligatoire pour annuler un rendez-vous notarial.")
+                });
+            }
+            if (targetStatus == AppointmentAttemptStatus.Cancelled && !string.IsNullOrWhiteSpace(request.OutcomeNote))
+            {
+                notaryAppointment.OutcomeNote = request.OutcomeNote;
+            }
+
+            if (currentStatus != targetStatus)
+            {
+                await SyncSaleWithAppointmentAsync(notaryAppointment.ReservationId, targetStatus, cancellationToken);
+            }
+
             notaryAppointment.Status = targetStatus.ToString();
             hasUpdates = true;
         }
@@ -153,6 +195,17 @@ public class UpdateNotaryAppointmentHandler : IRequestHandler<UpdateNotaryAppoin
         if (!string.IsNullOrWhiteSpace(request.Outcome))
         {
             outcome = NotaryOutcomeCodes.Parse(request.Outcome);
+
+            // §5.7 — any result other than a completed purchase (dossier
+            // incomplet, acheteur absent, reporté, autre) must carry its motif:
+            // the file is retried and the next person needs to know why.
+            if (outcome != NotaryAppointmentOutcome.PurchaseCompleted && string.IsNullOrWhiteSpace(request.OutcomeNote))
+            {
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure("OutcomeNote", "Une note / un motif est obligatoire pour ce résultat.")
+                });
+            }
 
             // An outcome is a record of what happened at the meeting, so it only
             // makes sense once the meeting is over.
@@ -178,6 +231,13 @@ public class UpdateNotaryAppointmentHandler : IRequestHandler<UpdateNotaryAppoin
             notaryAppointment.OutcomeRecordedBy = _currentUser.UserId;
             notaryAppointment.OutcomeNote = request.OutcomeNote;
             hasUpdates = true;
+
+            if (outcome != NotaryAppointmentOutcome.PurchaseCompleted)
+            {
+                var pending = await _db.Set<Sale>()
+                    .FirstOrDefaultAsync(s => s.ReservationId == notaryAppointment.ReservationId && s.Status == SaleStatus.PendingNotary, cancellationToken);
+                if (pending is not null) pending.Status = SaleStatus.Draft;
+            }
         }
 
         if (request.TaxFees.HasValue)
@@ -312,6 +372,16 @@ public class UpdateNotaryAppointmentHandler : IRequestHandler<UpdateNotaryAppoin
             // failing the whole update (§5.8's re-validation principle).
             if (reservation.Status != ReservationStatus.Sold)
             {
+                // Eligibility is deliberately checked once more at the
+                // irreversible business event, not only when the appointment
+                // was confirmed. A report can be disputed or a major snag can
+                // be raised after confirmation and before the notary records
+                // PURCHASE_COMPLETED.
+                await _eligibility.EnsureEligibleAsync(
+                    reservation.Id,
+                    reservation.UnitId,
+                    cancellationToken);
+
                 ReservationStateMachine.EnsureCanTransition(reservation.Status, ReservationStatus.Sold);
                 reservation.Status = ReservationStatus.Sold;
 
@@ -331,23 +401,15 @@ public class UpdateNotaryAppointmentHandler : IRequestHandler<UpdateNotaryAppoin
                 // existing Sale — though the newer HandoversController path
                 // (ScheduleHandoverHandler) doesn't, so handovers were never
                 // actually blocked by this gap, only sales reporting was.
-                if (!await _db.Set<Sale>().AnyAsync(s => s.UnitId == reservation.UnitId, cancellationToken))
-                {
-                    _db.Add(new Sale
-                    {
-                        Id = Guid.NewGuid(),
-                        BuyerId = reservation.BuyerId,
-                        BuyerFirstName = reservation.Name ?? string.Empty,
-                        BuyerLastName = reservation.LastName ?? string.Empty,
-                        BuyerEmail = reservation.Email ?? string.Empty,
-                        BuyerPhoneNumber = reservation.PhoneNumber ?? string.Empty,
-                        BuyerCIN = reservation.CIN,
-                        UnitId = reservation.UnitId,
-                        SaleDate = DateTime.UtcNow,
-                        TotalPrice = reservation.FinalPrice ?? reservation.TotalPropertyPrice,
-                        IsUnderConstruction = reservation.IsUnderConstruction
-                    });
-                }
+                //
+                // §6 — the notarial act CONFIRMS a sale; it does not invent one.
+                // Where the agent opened a draft (POST /api/sales), that draft
+                // IS the sale and is confirmed in place, so the price, deposit
+                // and warranty the buyer agreed are the ones on record. Only
+                // when no sale exists — every file converted before the draft
+                // flow, and any converted without one — is a Confirmed sale
+                // written here from the reservation, exactly as before.
+                await ConfirmOrCreateSaleAsync(reservation, cancellationToken);
 
                 converted = true;
             }
@@ -372,6 +434,104 @@ public class UpdateNotaryAppointmentHandler : IRequestHandler<UpdateNotaryAppoin
                 ? "Rendez-vous notarial mis à jour : achat finalisé, réservation convertie et bien vendu."
                 : "Notary appointment updated successfully."
         };
+    }
+
+    /// <summary>
+    /// §6 — moves the reservation's sale to Confirmed, creating one first if the
+    /// file never had a draft.
+    ///
+    /// Matching is by ReservationId, with a fallback on UnitId for rows created
+    /// before that column existed: without the fallback this would write a
+    /// second sale for a unit that already has one and the filtered unique index
+    /// IX_Sales_ActivePerUnit would reject the whole conversion.
+    /// </summary>
+    /// <summary>
+    /// A confirmed notary appointment puts the open sale "en attente notaire";
+    /// an appointment that falls through puts it back to draft (editable either way).
+    /// Tracked on the same context: saved with the appointment, in its transaction.
+    /// </summary>
+    private async Task SyncSaleWithAppointmentAsync(Guid reservationId, AppointmentAttemptStatus target, CancellationToken ct)
+    {
+        var sale = await _db.Set<Sale>()
+            .FirstOrDefaultAsync(s => s.ReservationId == reservationId
+                && (s.Status == SaleStatus.Draft || s.Status == SaleStatus.PendingNotary), ct);
+        if (sale is null) return;
+
+        if (target == AppointmentAttemptStatus.Confirmed && sale.Status == SaleStatus.Draft)
+        {
+            sale.Status = SaleStatus.PendingNotary;
+        }
+        else if (target is AppointmentAttemptStatus.Cancelled or AppointmentAttemptStatus.Rejected
+                     or AppointmentAttemptStatus.NoShow or AppointmentAttemptStatus.Superseded
+                 && sale.Status == SaleStatus.PendingNotary)
+        {
+            sale.Status = SaleStatus.Draft;
+        }
+    }
+
+    private async Task ConfirmOrCreateSaleAsync(Reservation reservation, CancellationToken ct)
+    {
+        var activeStatuses = SaleStateMachine.ActiveStatuses;
+
+        var sale = await _db.Set<Sale>()
+            .FirstOrDefaultAsync(
+                s => s.ReservationId == reservation.Id && activeStatuses.Contains(s.Status), ct);
+
+        sale ??= await _db.Set<Sale>()
+            .FirstOrDefaultAsync(
+                s => s.ReservationId == null
+                  && s.UnitId == reservation.UnitId
+                  && activeStatuses.Contains(s.Status), ct);
+
+        var now = DateTime.UtcNow;
+
+        if (sale is not null)
+        {
+            // Already Confirmed: a re-recorded outcome must not move ConfirmedAt.
+            if (sale.Status == SaleStatus.Confirmed) return;
+
+            SaleStateMachine.EnsureCanTransition(sale.Status, SaleStatus.Confirmed);
+            sale.Status = SaleStatus.Confirmed;
+            sale.ConfirmedAt = now;
+            sale.ReservationId ??= reservation.Id;
+            return;
+        }
+
+        // §8 — the warranty is frozen at confirmation for a sale that had no
+        // draft to freeze it at creation. 12 months if the project cannot be
+        // resolved, matching the figure StartHandoverHandler used to hard-code.
+        var warrantyMonths = await (
+            from u in _db.Set<UnitEntity>()
+            join im in _db.Set<Immeuble>() on u.ProjectId equals im.Id
+            join p in _db.Set<Project>() on im.ProjectId equals p.Id
+            where u.Id == reservation.UnitId
+            select (int?)p.WarrantyMonths).FirstOrDefaultAsync(ct) ?? 12;
+
+        var finalPrice = reservation.FinalPrice ?? reservation.TotalPropertyPrice;
+
+        _db.Add(new Sale
+        {
+            Id = Guid.NewGuid(),
+            ReservationId = reservation.Id,
+            UnitId = reservation.UnitId,
+            Status = SaleStatus.Confirmed,
+            BuyerId = reservation.BuyerId,
+            BuyerFirstName = reservation.Name ?? string.Empty,
+            BuyerLastName = reservation.LastName ?? string.Empty,
+            BuyerEmail = reservation.Email ?? string.Empty,
+            BuyerPhoneNumber = reservation.PhoneNumber ?? string.Empty,
+            BuyerCIN = reservation.CIN,
+            SaleDate = now,
+            TotalPrice = finalPrice,
+            FinalPrice = finalPrice,
+            ReservationAmount = reservation.ReservationAmount,
+            RemainingAmount = finalPrice - reservation.ReservationAmount,
+            WarrantyMonths = warrantyMonths,
+            IsUnderConstruction = reservation.IsUnderConstruction,
+            CreatedBy = _currentUser.UserId,
+            CreatedAt = now,
+            ConfirmedAt = now
+        });
     }
 
     /// <summary>The chosen notary must hold an active NOTARY ProjectMembership on the project the reservation's unit belongs to. Mirrors CreateNotaryAppointmentHandler's own check.</summary>

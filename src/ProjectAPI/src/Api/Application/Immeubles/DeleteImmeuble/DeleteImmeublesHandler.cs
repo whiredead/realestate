@@ -52,12 +52,8 @@ public class DeleteImmeublesHandler : IRequestHandler<DeleteImmeublesCommand, De
 
             if (immeuble == null)
             {
-                return new DeleteImmeubleResponse
-                {
-                    Success = false,
-                    Message = $"Immeuble with ID '{request.Id}' not found.",
-                    Details = new List<string> { "Please verify the Immeuble ID and try again." }
-                };
+                // 404, not a 400 "operation failed".
+                throw new NotFoundException($"Immeuble {request.Id} not found.");
             }
 
             // §6.4 — this is the highest-blast-radius mutation in the codebase
@@ -130,18 +126,9 @@ public class DeleteImmeublesHandler : IRequestHandler<DeleteImmeublesCommand, De
             // authorization check in this codebase.
             throw;
         }
-        catch (Exception ex)
-        {
-            return new DeleteImmeubleResponse
-            {
-                Success = false,
-                Message = $"Error deleting immeuble with ID '{request.Id}': {ex.Message}",
-                Details = new List<string>
-                {
-                    $"Exception Type: {ex.GetType().Name}",
-                    $"Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
-                }
-            };
-        }
+        // Anything else (e.g. a foreign-key violation on delete) propagates to
+        // ApiExceptionFilter: 409 RESOURCE_IN_USE for a referenced row, 500 with a
+        // requestId otherwise. It used to be returned as a 400 carrying the raw
+        // exception text and stack trace.
     }
 }

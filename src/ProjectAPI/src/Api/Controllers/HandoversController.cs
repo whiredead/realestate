@@ -57,7 +57,6 @@ public class HandoversController : ControllerBase
         => Ok(await _mediator.Send(new AcknowledgeHandoverCommand
         {
             ReportId = reportId,
-            WarrantyMonths = command?.WarrantyMonths ?? 12,
             IdempotencyKey = command?.IdempotencyKey ?? Request.GetIdempotencyKey(),
         }));
 

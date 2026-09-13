@@ -9,8 +9,17 @@ public class GetMyClaimsQuery : IRequest<PaginatedResponse<MyClaimSummary>>
     public int PageSize { get; set; } = 20;
 }
 
-public class MyClaimSummary
+public class MyClaimSummary : Common.Units.IHasUnitLocation
 {
+    // Location of the unit (projet → immeuble → étage → unité).
+    public Guid? ProjectId { get; set; }
+    public string? ProjectName { get; set; }
+    public Guid? ImmeubleId { get; set; }
+    public string? ImmeubleName { get; set; }
+    public string? FloorName { get; set; }
+    public string? UnitNumber { get; set; }
+    public ProjectAPI.Api.Application.Common.Units.UnitContextDto? UnitContext { get; set; }
+
     public Guid Id { get; set; }
     public Guid UnitId { get; set; }
     public string Title { get; set; } = string.Empty;

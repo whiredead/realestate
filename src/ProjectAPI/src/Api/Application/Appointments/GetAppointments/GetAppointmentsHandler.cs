@@ -86,6 +86,9 @@ public class GetAppointmentsHandler : IRequestHandler<GetAppointmentsQuery, Pagi
 
         var totalItems = appointments.Count();
         var paginatedData = appointments
+            // Stable order before paging: without it page contents are
+            // nondeterministic and rows repeat or vanish between pages.
+            .OrderByDescending(a => a.AppointmentDate).ThenBy(a => a.Id)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(a => new AppointmentResponse

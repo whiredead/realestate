@@ -17,6 +17,23 @@ public class TypeBien
     public double? Price { get; set; }
     public int? NbrChambre { get; set; }
     public int? NbrSalleDeBain { get; set; }
+
+    /// <summary>
+    /// Number of shower rooms, counted separately from
+    /// <see cref="NbrSalleDeBain"/>: a listing that advertises "2 salles de
+    /// bain" when one of them is a shower room is describing a different
+    /// property from the one the buyer will visit.
+    /// </summary>
+    public int? NbrDouche { get; set; }
+
+    /// <summary>
+    /// Parking spaces included with this layout. Null means "not recorded" —
+    /// distinct from 0, which is a positive statement that the plan comes with
+    /// no parking at all. The public catalogue shows the fact only when it is
+    /// non-null, so existing types are unaffected until someone fills it in.
+    /// </summary>
+    public int? NbrParking { get; set; }
+
     public int? MinSurface { get; set; }
     public int? MaxSurface { get; set; }
     public string? ImagesInterieur { get; set; }
@@ -26,6 +43,13 @@ public class TypeBien
     /// Gets or sets the images of the Type de Bien.
     /// </summary>
     public string? Image { get; set; }
+
+    /// <summary>
+    /// 3D tour / virtual visit for this property type (§7.2). Distinct from the
+    /// project's own Module3DLink: a buyer choosing between a T3 and a T4 wants
+    /// the tour of the layout, not of the development.
+    /// </summary>
+    public string? Module3DLink { get; set; }
     public ICollection<ProjectTypeBien> Projects { get; set; } = new List<ProjectTypeBien>();
     public ICollection<ImmeubleTypeBien> Immeubles { get; set; } = new List<ImmeubleTypeBien>();
 

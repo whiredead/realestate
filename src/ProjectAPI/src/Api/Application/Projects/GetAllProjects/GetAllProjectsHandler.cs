@@ -28,7 +28,6 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
 
     public async Task<PaginatedResponse<ProjectResponse>> Handle(GetAllProjectsQuery request, CancellationToken cancellationToken)
     {
-        var projects = await _projectRepository.GetProjects(request.UserId, request.Name, request.Location, request.Address!, request.Status, request.PageNumber, request.PageSize);
 
         // §6.3/§6.4 — this endpoint is [AllowAnonymous] because it also serves
         // the public catalogue ("L publié" pour le visiteur), so an anonymous
@@ -39,20 +38,37 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
         // membership-less PROJECT_ADMIN can list and open every project
         // (confirmed regression: F7).
         var isInternal = _currentUser.IsAuthenticated && RoleCodes.Internal.Any(_currentUser.IsInRole);
-        if (isInternal)
+        var scope = isInternal ? await _projectScope.GetScopedProjectIdsAsync(cancellationToken) : null;
+
+        var (projects, totalItems) = await _projectRepository.GetProjects(
+            request.UserId, request.Name, request.Location, request.Address!, request.Status,
+            scope, request.PageNumber, request.PageSize);
+
+        if (!isInternal)
         {
-            var scope = await _projectScope.GetScopedProjectIdsAsync(cancellationToken);
-            if (scope is not null)
+            // §6.4 — this route is [AllowAnonymous] because it also feeds the
+            // public catalogue, and ProjectResponse carries the project's
+            // assigned agents and notaries: full names, e-mail addresses,
+            // phone numbers and user ids. Any visitor calling
+            // GET /api/Projects was handed the staff directory.
+            //
+            // The staffing is only ever meaningful to an internal caller, so it
+            // is stripped for everyone else rather than the route being closed
+            // — closing it would break the public home page, which legitimately
+            // lists projects.
+            foreach (var project in projects)
             {
-                projects = projects.Where(p => scope.Contains(p.Id)).ToList();
+                project.AssignedAgents = new();
+                project.AssignedNotaries = new();
+                project.AgentId = null;
+                project.AgentPhoneNumber = null;
+                project.NotaryId = null;
+                project.NotaryPhoneNumber = null;
             }
         }
 
-        var totalItems = projects.Count;
-
+        // Already one page (and one total) from the repository — never re-paged here.
         var paginatedData = projects
-            .Skip((request.PageNumber - 1) * request.PageSize)
-            .Take(request.PageSize)
             .Select(project => new ProjectResponse
             {
                 Id = project.Id,
@@ -66,7 +82,9 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
                 StatusGlobal = project.StatusGlobal,
                 OverAllProgress = project.OverAllProgress,
                 NumberLikes = project.NumberLikes,
+                WarrantyMonths = project.WarrantyMonths,
                 IsLiked = project.IsLiked,
+                QuartierId = project.QuartierId,
                 QuartierName = project.QuartierName,
                 QuartierDescription = project.QuartierDescription,
                 QuartierImages = project.QuartierImages,
@@ -81,8 +99,10 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
                     MinSurface = tb.MinSurface,
                     MaxSurface = tb.MaxSurface,
                     SurfaceRange = tb.MaxSurface!= null ? $"de { tb.MinSurface} à {tb.MaxSurface}": $"à partir de {tb.MinSurface}",
-                    NbrSalleDeBain =tb.NbrSalleDeBain
-                    
+                    NbrSalleDeBain = tb.NbrSalleDeBain,
+                    NbrDouche = tb.NbrDouche,
+                    NbrParking = tb.NbrParking,
+                    Module3DLink = tb.Module3DLink
                 })],
                 AgentId = project.AgentId,
                 AgentPhoneNumber = project.AgentPhoneNumber,

@@ -178,7 +178,11 @@ public class ProjectMutationAndDashboardScopeTests
         var handler = new UpdateProjectHandler(
             new Infrastructure.Repositories.ProjectRepository(db),
             new QuartierRepository(db),
-            scope);
+            scope,
+            // §7.2 media validation. This test sends no media, so the policy is
+            // never consulted; it is opened up anyway so a future edit here
+            // fails on the perimeter rule under test, not on a host rule.
+            MediaPolicyStub.Permissive());
 
         var act = async () => await handler.Handle(
             new UpdateProjectCommand { Id = projectId, Name = "Renamed by intruder", Location = "Rabat" },

@@ -12,6 +12,7 @@ public class ClaimCommentConfiguration : IEntityTypeConfiguration<ClaimComment>
         b.HasKey(x => x.Id);
         b.Property(x => x.AuthorUserId).IsRequired().HasMaxLength(450);
         b.Property(x => x.Message).IsRequired().HasMaxLength(2000);
+        b.Property(x => x.Kind).IsRequired().HasMaxLength(20).HasDefaultValue("NOTE");
         b.HasIndex(x => x.ClaimId);
     }
 }

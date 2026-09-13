@@ -4,8 +4,10 @@ using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Crm;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
+using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Reservations.Interface;
 using ProjectAPI.Domain.Users.Entities;
@@ -29,6 +31,7 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
         private readonly ApplicationDbContext _db;
         private readonly IContactResolver _contacts;
         private readonly ProjectScopeService _projectScope;
+        private readonly Common.Reservations.ReservationDocumentChecklist _documents;
 
         public CreateReservationHandler(
             IReservationRepository reservationRepository,
@@ -37,7 +40,8 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
             IUnitStatusService unitStatus,
             ApplicationDbContext db,
             IContactResolver contacts,
-            ProjectScopeService projectScope)
+            ProjectScopeService projectScope,
+            Common.Reservations.ReservationDocumentChecklist documents)
         {
             _reservationRepository = reservationRepository;
             _unitRepository = unitRepository;
@@ -46,6 +50,7 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
             _db = db;
             _contacts = contacts;
             _projectScope = projectScope;
+            _documents = documents;
         }
     
         public async Task<CreateReservationResponse> Handle(CreateReservationCommand request, CancellationToken cancellationToken)
@@ -65,6 +70,24 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                     .Select(im => im.ProjectId)
                     .FirstOrDefaultAsync(cancellationToken);
                 await _projectScope.EnsureProjectAccessAsync(immeubleProjectId, cancellationToken);
+
+                // §5.2 — a reservation opens a commercial file on a project that
+                // is still selling off-plan. Once the project reaches delivery
+                // (EN_LIVRAISON) the remaining stock is sold, not reserved; a
+                // finalised or suspended project accepts nothing at all.
+                var projectStatus = await _db.Set<Project>()
+                    .Where(p => p.Id == immeubleProjectId)
+                    .Select(p => p.StatusGlobal)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                if (!ProjectStatusCodes.AllowsNewReservation(projectStatus))
+                {
+                    throw new BusinessRuleException(
+                        BusinessErrorCodes.InvalidStatusTransition,
+                        "Ce projet n'accepte plus de nouvelle réservation " +
+                        $"(phase actuelle : {ProjectStatusCodes.GetBusinessPhase(projectStatus)}).",
+                        StatusCodes.Status409Conflict);
+                }
 
                 // Spec §7.7 — a unit may only carry ONE active reservation. The
                 // blocking set is owned by ReservationStateMachine and mirrored by
@@ -86,6 +109,8 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                 // §3 — only an AVAILABLE unit is selectable. Checking the unit's own
                 // status as well as the reservation table catches a unit that was
                 // suspended or cancelled administratively without a live reservation.
+                // This applies to drafts too: a draft that could be opened on a
+                // sold unit would be a file that can never be submitted.
                 if (!UnitStateMachine.IsSelectable(unit.Status))
                 {
                     throw BusinessRuleException.UnitNotAvailable(request.UnitId);
@@ -134,11 +159,14 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                     ReservationDate = DateTime.Now,
                     IsUnderConstruction = request.IsUnderConstruction,
                     UnitDetails = $"{unit.UnitNumber} - {unit.TotalSurface}m²",
-                    Status = ReservationStatus.Pending,
+                    Status = request.CreateAsDraft ? ReservationStatus.Draft : ReservationStatus.Pending,
                     CreatedAt = DateTime.UtcNow,
                     // §12.3 — every SUBMITTED reservation gets a deadline; the
-                    // scheduled expiry job only acts on rows that have one.
-                    ExpiresAt = DateTime.UtcNow.Add(DefaultHoldDuration)
+                    // scheduled expiry job only acts on rows that have one. A
+                    // draft holds nothing, so it has nothing to expire: giving
+                    // it a deadline would have the job release a unit the draft
+                    // never took.
+                    ExpiresAt = request.CreateAsDraft ? null : DateTime.UtcNow.Add(DefaultHoldDuration)
                 };
 
                 // §5.3/§6.2 — co-buyers are distinct CrmContacts, resolved the
@@ -189,17 +217,42 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                 // §3 — the reservation row and the unit hold are one atomic act.
                 // Committing the reservation without the hold (or vice versa) is
                 // exactly the drift that left units AVAILABLE while reserved.
+                // §12.1 — a project's required documents are checked at the
+                // moment of SUBMISSION, and this path submits immediately. A
+                // brand-new reservation carries no documents yet, so when the
+                // project requires any, the file has to start as a draft: upload
+                // against its id, then submit. Saying that is far more use than
+                // the bare "document manquant" the generic check would give,
+                // which would look like the agent forgot something they never
+                // had the chance to attach.
+                if (!request.CreateAsDraft && immeubleProjectId != Guid.Empty)
+                {
+                    var required = await _documents.RequiredLabelsAsync(immeubleProjectId, cancellationToken);
+                    if (required.Count > 0)
+                    {
+                        throw BusinessRuleException.MissingRequiredDocument(
+                            $"{string.Join(", ", required)} — créez d'abord un brouillon, " +
+                            "joignez les pièces, puis soumettez");
+                    }
+                }
+
                 await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
                 await _reservationRepository.InsertAsync(reservation);
 
-                await _unitStatus.TransitionAsync(
-                    request.UnitId,
-                    UnitCommercialStatus.HoldPendingApproval,
-                    UnitStatusCause.ReservationSubmitted,
-                    reservationId: reservation.Id,
-                    actorUserId: request.AgentId,
-                    ct: cancellationToken);
+                // §12.1 — a DRAFT does not block its unit. The hold is taken when
+                // the file is submitted (ResubmitReservationHandler), not when it
+                // is opened.
+                if (!request.CreateAsDraft)
+                {
+                    await _unitStatus.TransitionAsync(
+                        request.UnitId,
+                        UnitCommercialStatus.HoldPendingApproval,
+                        UnitStatusCause.ReservationSubmitted,
+                        reservationId: reservation.Id,
+                        actorUserId: request.AgentId,
+                        ct: cancellationToken);
+                }
 
                 await _reservationRepository.SaveAsync();
                 await transaction.CommitAsync(cancellationToken);

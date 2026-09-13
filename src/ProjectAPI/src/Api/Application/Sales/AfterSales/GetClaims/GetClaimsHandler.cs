@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using ProjectAPI.Api.Application.Common.Units;
+using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Entities;
@@ -50,7 +51,10 @@ public class GetClaimsHandler : IRequestHandler<GetClaimsQuery, PaginatedRespons
 
         // §6.1 — TECHNICIAN sees only claims assigned to them, regardless of
         // what AgentId filter (if any) was supplied.
-        if (_currentUser.IsInRole(RoleCodes.Technician))
+        if (_currentUser.IsInRole(RoleCodes.Technician)
+            && !_currentUser.IsInRole(RoleCodes.TechLead)
+            && !_currentUser.IsGlobalAdmin
+            && !_currentUser.IsInRole(RoleCodes.ProjectAdmin))
         {
             q = q.Where(c => c.AssignedAgentId == _currentUser.UserId);
         }
@@ -88,9 +92,13 @@ public class GetClaimsHandler : IRequestHandler<GetClaimsQuery, PaginatedRespons
                 Status = c.Status,
                 CreatedAt = c.CreatedAt,
                 ResolvedAt = c.ResolvedAt,
+                AssignedAgentId = c.AssignedAgentId,
                 AttachmentUrls = c.Attachments.Select(a => a.Url)
             })
             .ToList();
+
+        var locations = await Common.Units.UnitLocations.ForUnitsAsync(_db, data.Select(c => c.UnitId), ct);
+        foreach (var claim in data) claim.WithLocation(locations.GetValueOrDefault(claim.UnitId));
 
         return new PaginatedResponse<AfterSaleClaimResponse>(data, r.PageNumber, r.PageSize, total);
     }

@@ -13,6 +13,8 @@ public class ProjectDTO
     public string? StatusGlobal { get; set; }
     public decimal OverAllProgress { get; set; }
     public long NumberLikes { get; set; }
+    public int WarrantyMonths { get; set; }
+    public Guid? QuartierId { get; set; }
     public string? QuartierName { get; set; }
     public string? QuartierDescription { get; set; }
     public string? QuartierImages { get; set; }
@@ -37,6 +39,9 @@ public class TypeBienDTO
     public double? Price { get; set; }
     public int? NbrChambre { get; set; }
     public int? NbrSalleDeBain { get; set; }
+    public int? NbrDouche { get; set; }
+    public int? NbrParking { get; set; }
+    public string? Module3DLink { get; set; }
     public int? MinSurface { get; set; }
     public int? MaxSurface { get; set; }
     public string SurfaceRange { get; set; }

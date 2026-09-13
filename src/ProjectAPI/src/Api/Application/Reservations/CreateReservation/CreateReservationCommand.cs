@@ -19,6 +19,17 @@ public class CreateReservationCommand : IRequest<CreateReservationResponse>, IId
     public decimal ReservationAmount { get; set; }
     public bool IsUnderConstruction { get; set; }
 
+    /// <summary>
+    /// §12.1 — create the file as a DRAFT instead of submitting it immediately.
+    ///
+    /// A draft does not hold the unit and is not yet subject to the project's
+    /// document requirements, which is what makes "attach the documents, then
+    /// submit" possible at all: documents are uploaded against a reservation
+    /// id, so one has to exist before they can be attached. Default false keeps
+    /// the original create-and-submit behaviour for every existing caller.
+    /// </summary>
+    public bool CreateAsDraft { get; set; }
+
     /// <summary>§5.3 — discount off the unit's catalogue price, 0 when none.</summary>
     public decimal Discount { get; set; }
 

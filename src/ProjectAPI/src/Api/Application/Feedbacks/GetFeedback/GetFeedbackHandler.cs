@@ -74,6 +74,9 @@ public class GetFeedbackHandler : IRequestHandler<GetFeedbackQuery, PaginatedRes
         // Paginate and map feedback to the response model
         var totalItems = feedback.Count;
         var paginatedData = feedback
+            // Stable order before paging: without it page contents are
+            // nondeterministic and rows repeat or vanish between pages.
+            .OrderByDescending(f => f.CreatedAt).ThenBy(f => f.Id)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(p => new FeedbackDetailsResponse

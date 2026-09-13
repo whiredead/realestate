@@ -51,13 +51,11 @@ public class TypeBiensController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> UpdateTypeBien(int id, [FromBody] UpdateTypeBienCommand command)
     {
-        if (id != command.Id)
-        {
-            return BadRequest("TypeBien ID in the URL does not match the command ID.");
-        }
-
-        var response = await _mediator.Send(command);
-        return response.IsSuccess ? Ok(response) : BadRequest(response);
+        // The route is the identity (same as every other PUT in this API). The
+        // admin screen sends the fields only, so requiring a matching body id
+        // made every edit fail with a 400.
+        command.Id = id;
+        return Ok(await _mediator.Send(command));
     }
 
     /// <summary>
@@ -73,6 +71,7 @@ public class TypeBiensController : ControllerBase
     {
         var command = new DeleteTypeBienCommand { Id = id };
         var response = await _mediator.Send(command);
-        return response.IsSuccess ? Ok(response) : BadRequest(response);
+        // Failures are thrown (404 / 409 RESOURCE_IN_USE) and mapped by ApiExceptionFilter.
+        return Ok(response);
     }
 }

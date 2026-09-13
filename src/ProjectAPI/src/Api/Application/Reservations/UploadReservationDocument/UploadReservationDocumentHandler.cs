@@ -37,9 +37,14 @@ public class UploadReservationDocumentHandler : IRequestHandler<UploadReservatio
     {
         await _projectScope.EnsureReservationAccessAsync(request.ReservationId, cancellationToken);
 
-        var reservationExists = await _db.Set<Reservation>().AnyAsync(r => r.Id == request.ReservationId, cancellationToken);
-        if (!reservationExists)
-            throw new KeyNotFoundException($"Reservation {request.ReservationId} not found.");
+        // KeyNotFoundException is not mapped by ApiExceptionFilter (it was a 500).
+        var status = await _db.Set<Reservation>()
+            .Where(r => r.Id == request.ReservationId)
+            .Select(r => (ReservationStatus?)r.Status)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new Common.Exceptions.NotFoundException($"Reservation {request.ReservationId} not found.");
+
+        Common.Reservations.ReservationDocumentPolicy.EnsureCanAdd(status);
 
         var blobName = $"{request.ReservationId}/{Guid.NewGuid()}_{Path.GetFileName(request.File.FileName)}";
         var contentType = request.File.ContentType ?? "application/octet-stream";
