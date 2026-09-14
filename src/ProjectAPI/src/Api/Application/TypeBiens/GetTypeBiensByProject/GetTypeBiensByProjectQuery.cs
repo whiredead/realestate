@@ -1,4 +1,4 @@
-namespace ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByProject
+﻿namespace ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByProject
 {
     /// <summary>
     /// Query to retrieve TypeBiens linked to a specific Project.
@@ -20,6 +20,9 @@ namespace ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByProject
         public double? Price { get; set; }
         public int? NbrChambre { get; set; }
         public int? NbrSalleDeBain { get; set; }
+        public int? NbrDouche { get; set; }
+        public int? NbrParking { get; set; }
+        public string? Module3DLink { get; set; }
         public int? MinSurface { get; set; }
         public int? MaxSurface { get; set; }
         public string? SurfaceRange { get; set; }

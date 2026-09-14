@@ -12,6 +12,22 @@ public class AdminDashboardResponse
     public int TotalProjects { get; set; }
 
     /// <summary>
+    /// Construction progress in %, weighted by milestone weights (completed
+    /// milestones / total weight), averaged over the projects in scope. A
+    /// project with no milestone counts with its stored OverAllProgress.
+    /// </summary>
+    public double ConstructionProgressPct { get; set; }
+
+    /// <summary>Current stock in scope, by commercial state.</summary>
+    public int TotalUnits { get; set; }
+    public int AvailableUnits { get; set; }
+    /// <summary>Held pending approval, reserved or contracted.</summary>
+    public int ReservedUnits { get; set; }
+    /// <summary>Sold, not yet handed over.</summary>
+    public int SoldUnits { get; set; }
+    public int DeliveredUnits { get; set; }
+
+    /// <summary>
     /// The total number of sales for the specified timeframe
     /// (month, quarter, year, or explicit range).
     /// </summary>
@@ -22,6 +38,32 @@ public class AdminDashboardResponse
     /// E.g., sum of prices.
     /// </summary>
     public decimal SalesVolumeThisMonth { get; set; }
+
+    /// <summary>
+    /// Live reservations created in the selected reporting period (submitted,
+    /// changes requested or approved).
+    /// </summary>
+    public int ReservationsInPeriod { get; set; }
+
+    /// <summary>
+    /// Sum of the reservation amounts declared on live reservations created
+    /// in the selected reporting period.
+    /// </summary>
+    public decimal ReservationAmountInPeriod { get; set; }
+
+    /// <summary>
+    /// Current reservation rate: live reservations (pending, changes
+    /// requested or approved) divided by all units in scope.
+    /// It is deliberately a point-in-time inventory metric, not a period
+    /// total, and is returned as a percentage in the 0-100 range.
+    /// </summary>
+    public double ReservationRatePct { get; set; }
+
+    /// <summary>
+    /// Mean reservation amount for reservations created in the selected
+    /// reporting period. Zero when the period contains no reservations.
+    /// </summary>
+    public decimal AverageReservationAmountInPeriod { get; set; }
 
     /// <summary>
     /// A dictionary or list of performance stats for each agent,

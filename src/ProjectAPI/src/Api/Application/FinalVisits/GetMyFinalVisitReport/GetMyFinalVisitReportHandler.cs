@@ -43,8 +43,9 @@ public class GetMyFinalVisitReportHandler : IRequestHandler<GetMyFinalVisitRepor
 
         var report = await _db.Set<FinalVisitReport>()
             .Include(r => r.Snags)
-            .Where(r => appointmentIds.Contains(r.AppointmentId))
-            .OrderByDescending(r => r.VersionNo)
+            .Where(r => appointmentIds.Contains(r.AppointmentId) && r.Status != ReportStatus.Superseded)
+            .OrderByDescending(r => r.SubmittedAt)
+            .ThenByDescending(r => r.VersionNo)
             .FirstOrDefaultAsync(ct);
 
         if (report == null) return null;
@@ -57,6 +58,10 @@ public class GetMyFinalVisitReportHandler : IRequestHandler<GetMyFinalVisitRepor
             ResultCode = (int)report.ResultCode,
             GeneralCondition = report.GeneralCondition,
             Observations = report.Observations,
+            ClientFeedback = report.ClientFeedback,
+            NonComplianceReason = report.NonComplianceReason,
+            CorrectiveAction = report.CorrectiveAction,
+            FollowUpNotes = report.FollowUpNotes,
             SubmittedAt = report.SubmittedAt,
             AcknowledgedAt = report.AcknowledgedAt,
             DisputeReason = report.DisputeReason,

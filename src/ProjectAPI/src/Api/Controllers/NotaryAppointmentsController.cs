@@ -60,7 +60,12 @@ public class NotaryAppointmentsController : ControllerBase
     /// <param name="id">The ID of the notary appointment.</param>
     /// <returns>The appointment details.</returns>
     [HttpGet("{id}")]
+    // §6.3 — parties to the deed plus admins. The handler's §6.4 scope check
+    // cannot substitute for this: it classes TECHNICIAN as an internal role,
+    // so a technician with a membership on the project passed it.
+    [Authorize(Roles = RoleGroups.NotaryAppointmentReaders)]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetNotaryAppointmentById(Guid id)
     {
@@ -81,8 +86,14 @@ public class NotaryAppointmentsController : ControllerBase
     /// <param name="query">The query containing filters.</param>
     /// <returns>A paginated list of notary appointments.</returns>
     [HttpGet]
+    // §6.3 — see NotaryAppointmentReaders. A BUYER is allowed through here and
+    // narrowed to their own rows by the handler; a TECHNICIAN is refused at the
+    // door, because the handler would class it as staff and hand it the whole
+    // project's deed files.
+    [Authorize(Roles = RoleGroups.NotaryAppointmentReaders)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetNotaryAppointments([FromQuery] GetNotaryAppointmentsQuery query)
     {
         if (!ModelState.IsValid)
@@ -92,6 +103,15 @@ public class NotaryAppointmentsController : ControllerBase
 
         var response = await _mediator.Send(query);
         return Ok(response);
+    }
+
+    /// <summary>The signed-in buyer's own notary appointments (optionally for one reservation).</summary>
+    [HttpGet("mine")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyNotaryAppointments([FromQuery] GetNotaryAppointmentsQuery query)
+    {
+        query.MineOnly = true;
+        return Ok(await _mediator.Send(query));
     }
 
     [HttpGet("NotaireAvailability")]
@@ -139,7 +159,10 @@ public class NotaryAppointmentsController : ControllerBase
     // §18.4 — confirming, rescheduling and recording the OUTCOME are the
     // notary's acts (admins may act for them). An agent or buyer must not be
     // able to declare a purchase finalised: that outcome converts the sale.
-    [Authorize(Roles = RoleGroups.AdminsNotary)]
+    // The responsible sales agent may confirm or cancel the slot (spec: RDV
+    // confirmable par agent, admin ou notaire); the handler refuses them the
+    // outcome, the completion and the reassignment.
+    [Authorize(Roles = RoleGroups.AdminsAgentsNotary)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]

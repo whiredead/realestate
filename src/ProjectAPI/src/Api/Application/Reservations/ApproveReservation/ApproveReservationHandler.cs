@@ -30,6 +30,7 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
     private readonly ProjectScopeService _projectScope;
     private readonly INotificationService _notifications;
     private readonly IAccountInvitationService _accountInvitations;
+    private readonly Common.Reservations.ReservationDocumentChecklist _documents;
 
     public ApproveReservationHandler(
         IReservationRepository reservationRepo,
@@ -41,8 +42,10 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
         UserManager<User> userManager,
         ProjectScopeService projectScope,
         INotificationService notifications,
-        IAccountInvitationService accountInvitations)
+        IAccountInvitationService accountInvitations,
+        Common.Reservations.ReservationDocumentChecklist documents)
     {
+        _documents = documents;
         _reservationRepo = reservationRepo;
         _purchaseRepo = purchaseRepo;
         _logger = logger;
@@ -90,6 +93,11 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
             // §12.4 — single source of truth for the lifecycle. Replaces the
             // previous ad-hoc checks so every handler enforces the same matrix.
             ReservationStateMachine.EnsureCanTransition(reservation.Status, ReservationStatus.Approved);
+
+            // §12.1 — the project's required documents gate approval too, not only
+            // submission: a document deleted after submission (or a file submitted
+            // before the project declared the requirement) must not be approved.
+            await _documents.EnsureSubmittableAsync(reservation.Id, reservation.UnitId, ct);
 
             // A buyer without a login is legitimate (§1.1): the agent records a
             // walk-in on the reservation's own identity fields and no account

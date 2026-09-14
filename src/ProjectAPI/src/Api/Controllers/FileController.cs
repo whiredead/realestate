@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Api.Application.Common.BlobOperations.DeleteFromBlob;
+﻿using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Api.Application.Common.BlobOperations.DeleteFromBlob;
 using ProjectAPI.Api.Application.Common.BlobOperations.UpdateBlob;
 using ProjectAPI.Api.Application.Common.BlobOperations.UploadToblob;
 using ProjectAPI.Domain.Common.Interfaces;
@@ -37,6 +38,9 @@ public class FileController : ControllerBase
     /// Returns a bad request if no files are uploaded or an error occurs.
     /// </returns>
     [HttpPost("upload")]
+    // Catalogue media (public images): staff who manage stock only. Any signed-in
+    // account — a buyer included — could upload, overwrite or delete them.
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadFiles(UploadFilesCommand command)
@@ -59,6 +63,9 @@ public class FileController : ControllerBase
     /// Returns a bad request if the file does not exist or cannot be deleted.
     /// </returns>
     [HttpDelete("delete/{fileName}")]
+    // Catalogue media (public images): staff who manage stock only. Any signed-in
+    // account — a buyer included — could upload, overwrite or delete them.
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> DeleteFile(string fileName)
@@ -77,6 +84,9 @@ public class FileController : ControllerBase
     /// Returns a bad request if the file does not exist, cannot be updated, or no file is uploaded.
     /// </returns>
     [HttpPut("update/{fileName}")]
+    // Catalogue media (public images): staff who manage stock only. Any signed-in
+    // account — a buyer included — could upload, overwrite or delete them.
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UpdateFile(UpdateFileCommand command)

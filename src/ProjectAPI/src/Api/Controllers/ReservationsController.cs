@@ -38,6 +38,40 @@ public class ReservationsController : ControllerBase
         return CreatedAtAction(nameof(GetReservationById), new { id = response.ReservationId }, response);
     }
 
+    /// <summary>
+    /// Corrects a DRAFT or CHANGES_REQUESTED reservation (§12.2). Refused (409)
+    /// once submitted or decided — see the command for why.
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // §6.3 "C/M soumission" — the agent who owns the file corrects it.
+    [ProducesResponseType(typeof(Application.Reservations.UpdateReservation.UpdateReservationResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> UpdateReservation(
+        Guid id,
+        [FromBody] Application.Reservations.UpdateReservation.UpdateReservationCommand command)
+    {
+        command.ReservationId = id;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>
+    /// §12.1 — the document checklist for this reservation: what the project
+    /// requires, and what has already been attached. Empty when the project
+    /// declares no requirements.
+    /// </summary>
+    [HttpGet("{id:guid}/document-checklist")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [ProducesResponseType(typeof(Application.Reservations.GetDocumentChecklist.ReservationChecklistResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetDocumentChecklist(Guid id)
+    {
+        return Ok(await _mediator.Send(
+            new Application.Reservations.GetDocumentChecklist.GetReservationChecklistQuery { ReservationId = id }));
+    }
+
     [HttpGet("{id}")]
     [Authorize(Roles = RoleGroups.AdminsAgents)]
     [ProducesResponseType(StatusCodes.Status200OK)]
@@ -79,11 +113,42 @@ public class ReservationsController : ControllerBase
     public async Task<IActionResult> UploadDocument(Guid id, [FromForm] UploadReservationDocumentCommand command)
     {
         if (command.File == null || command.File.Length == 0)
-            return BadRequest("No file uploaded.");
+        {
+            // A typed 422 with a field error, like every other validation failure,
+            // instead of a bare text/plain 400 the frontend cannot parse.
+            throw new Application.Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure("File", "Aucun fichier n'a été envoyé.")
+            });
+        }
 
         command.ReservationId = id;
         var response = await _mediator.Send(command);
         return Ok(response);
+    }
+
+    /// <summary>
+    /// §24.2/§34 — streams a reservation document to a caller entitled to see
+    /// it. The console links here rather than to the raw blob URL: the
+    /// container is private, and a document of this kind must not be readable
+    /// by anyone who merely holds its address.
+    ///
+    /// A buyer may fetch their own file's documents, so this is NOT restricted
+    /// to AdminsAgents — the handler checks perimeter and ownership instead.
+    /// </summary>
+    [HttpGet("documents/{documentId:guid}/content")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadDocument(Guid documentId)
+    {
+        var file = await _mediator.Send(
+            new Application.Reservations.DownloadReservationDocument.DownloadReservationDocumentQuery
+            {
+                DocumentId = documentId
+            });
+
+        return File(file.Content, file.ContentType, file.FileName);
     }
 
     [HttpDelete("documents/{documentId:guid}")]

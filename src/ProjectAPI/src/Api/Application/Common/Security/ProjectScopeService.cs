@@ -28,23 +28,28 @@ public class ProjectScopeService
 {
     private readonly ApplicationDbContext _db;
     private readonly ICurrentUser _user;
+    private readonly ILogger<ProjectScopeService>? _logger;
 
-    public ProjectScopeService(ApplicationDbContext db, ICurrentUser user)
+    public ProjectScopeService(
+        ApplicationDbContext db,
+        ICurrentUser user,
+        ILogger<ProjectScopeService>? logger = null)
     {
         _db = db;
         _user = user;
+        _logger = logger;
     }
 
     /// <summary>
     /// Projects the caller may act on, or <c>null</c> meaning "all projects"
     /// (GLOBAL_ADMIN only, §6.3). Callers must treat null as unrestricted.
     /// </summary>
-    public async Task<HashSet<Guid>?> GetScopedProjectIdsAsync(CancellationToken ct)
+    public async Task<List<Guid>?> GetScopedProjectIdsAsync(CancellationToken ct)
     {
         if (_user.IsGlobalAdmin) return null;
 
         var userId = _user.UserId;
-        if (string.IsNullOrEmpty(userId)) return new HashSet<Guid>();
+        if (string.IsNullOrEmpty(userId)) return new List<Guid>();
 
         // "Now" is always server UTC — ValidFrom/ValidUntil are stored and
         // compared in UTC consistently; see ProjectMembership's doc comments.
@@ -59,7 +64,10 @@ public class ProjectScopeService
             .Distinct()
             .ToListAsync(ct);
 
-        return ids.ToHashSet();
+        // A List, not a HashSet: EF Core parameterizes List.Contains (one cached
+        // plan), but expands HashSet.Contains into a literal IN (...) list — a new
+        // compiled plan for every caller and every change of perimeter.
+        return ids;
     }
 
     /// <summary>True when the caller may act on the given project.</summary>
@@ -75,9 +83,46 @@ public class ProjectScopeService
     /// </summary>
     public async Task EnsureProjectAccessAsync(Guid projectId, CancellationToken ct)
     {
-        if (!await CanAccessProjectAsync(projectId, ct))
+        if (await CanAccessProjectAsync(projectId, ct)) return;
+
+        // The 403 the caller receives deliberately names nothing (see
+        // BusinessRuleException.ProjectScopeDenied). That is right for the
+        // client and useless for whoever has to answer "why can't this agent
+        // create a reservation?" — by far the most common cause is a correctly
+        // roled user with no ProjectMembership at all, which is invisible from
+        // the response. Log the three facts that distinguish the cases: who,
+        // what they hold, and what perimeter they actually have.
+        LogScopeDenial(projectId, ct);
+
+        throw BusinessRuleException.ProjectScopeDenied(projectId);
+    }
+
+    /// <summary>
+    /// Server-side only — never reaches the client. Fire-and-forget on the
+    /// scope lookup so diagnostics can never be the thing that fails a request.
+    /// </summary>
+    private void LogScopeDenial(Guid projectId, CancellationToken ct)
+    {
+        if (_logger is null) return;
+
+        try
         {
-            throw BusinessRuleException.ProjectScopeDenied(projectId);
+            var scope = GetScopedProjectIdsAsync(ct).GetAwaiter().GetResult();
+
+            _logger.LogWarning(
+                "[ProjectScope] DENIED user={UserId} roles={Roles} project={ProjectId} " +
+                "assignedProjects={AssignedCount} reason={Reason}",
+                _user.UserId ?? "(anonymous)",
+                string.Join(",", _user.Roles),
+                projectId,
+                scope?.Count ?? -1,
+                scope is null ? "global-admin-should-not-reach-here"
+                    : scope.Count == 0 ? "no-active-ProjectMembership"
+                    : "membership-exists-but-not-for-this-project");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "[ProjectScope] could not enrich denial diagnostics");
         }
     }
 

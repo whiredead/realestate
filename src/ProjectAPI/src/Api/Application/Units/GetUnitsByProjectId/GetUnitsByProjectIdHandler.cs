@@ -30,7 +30,12 @@ public class GetUnitsByProjectIdHandler : IRequestHandler<GetUnitsByProjectIdQue
     {
         // Retrieve filtered units based on the project ID — Floor is
         // eager-loaded since the projection below reads its display name.
-        var units = (await _unitRepository.Find(u => u.ProjectId == request.ImmeubleId, u => u.Floor))
+        var matching = (await _unitRepository.Find(u => u.ProjectId == request.ImmeubleId, u => u.Floor)).ToList();
+        // The total is the count BEFORE paging; it used to be the size of the
+        // returned page, so clients never knew another page existed.
+        var totalItems = matching.Count;
+        var units = matching
+                    .OrderBy(u => u.UnitNumber).ThenBy(u => u.Id)
                     .Skip((request.PageNumber - 1) * request.PageSize)
                     .Take(request.PageSize)
                     .Select(u => new UnitResponse
@@ -58,7 +63,6 @@ public class GetUnitsByProjectIdHandler : IRequestHandler<GetUnitsByProjectIdQue
                     }).ToList();
 
         // Calculate the total number of items for pagination
-        var totalItems = units.Count;
 
         // Return the paginated response
         return new PaginatedResponse<UnitResponse>(units, request.PageNumber, request.PageSize, totalItems);

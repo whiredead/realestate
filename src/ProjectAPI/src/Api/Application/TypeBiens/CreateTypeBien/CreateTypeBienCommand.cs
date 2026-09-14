@@ -23,9 +23,19 @@
         public double? Price { get; set; }
         public int? NbrChambre { get; set; }
         public int? NbrSalleDeBain { get; set; }
+
+        /// <summary>Shower rooms, counted apart from bathrooms (§7.2).</summary>
+        public int? NbrDouche { get; set; }
+
+        /// <summary>Parking spaces included with this layout.</summary>
+        public int? NbrParking { get; set; }
+
         public int? MinSurface { get; set; }
         public int? MaxSurface { get; set; }
         public string? ImagesInterieur { get; set; }
+
+        /// <summary>3D tour of this layout. Validated by MediaUrlPolicy.</summary>
+        public string? Module3DLink { get; set; }
     }
 
     /// <summary>

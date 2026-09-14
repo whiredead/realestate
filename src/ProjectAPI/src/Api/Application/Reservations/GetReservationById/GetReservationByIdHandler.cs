@@ -1,4 +1,5 @@
-﻿using ProjectAPI.Api.Application.Common.Exceptions;
+﻿using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Reservations.Interface;
@@ -12,8 +13,11 @@ public class GetReservationByIdHandler : IRequestHandler<GetReservationByIdQuery
     private readonly ProjectScopeService _projectScope;
     private readonly ICurrentUser _currentUser;
 
-    public GetReservationByIdHandler(IReservationRepository reservationRepository, ProjectScopeService projectScope, ICurrentUser currentUser)
+    private readonly ProjectAPI.Infrastructure.Context.ApplicationDbContext _db;
+
+    public GetReservationByIdHandler(IReservationRepository reservationRepository, ProjectScopeService projectScope, ICurrentUser currentUser, ProjectAPI.Infrastructure.Context.ApplicationDbContext db)
     {
+        _db = db;
         _reservationRepository = reservationRepository;
         _projectScope = projectScope;
         _currentUser = currentUser;
@@ -45,6 +49,8 @@ public class GetReservationByIdHandler : IRequestHandler<GetReservationByIdQuery
                 "Ce dossier n'est pas accessible.",
                 StatusCodes.Status403Forbidden);
         }
+
+        var location = (await Common.Units.UnitLocations.ForUnitsAsync(_db, new[] { reservation.UnitId }, cancellationToken)).GetValueOrDefault(reservation.UnitId);
 
         return new GetReservationByIdResponse
         {
@@ -92,6 +98,6 @@ public class GetReservationByIdHandler : IRequestHandler<GetReservationByIdQuery
                 Phone = b.CrmContact.Phone,
                 OwnershipPercent = b.OwnershipPercent
             }).ToList()
-        };
+        }.WithLocation(location);
     }
 }

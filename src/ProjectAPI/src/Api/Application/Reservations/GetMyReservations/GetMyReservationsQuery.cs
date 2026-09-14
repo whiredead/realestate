@@ -1,3 +1,4 @@
+using ProjectAPI.Api.Application.Common.Units;
 namespace ProjectAPI.Api.Application.Reservations.GetMyReservations;
 
 /// <summary>
@@ -12,8 +13,16 @@ public class GetMyReservationsQuery : IRequest<List<MyReservationSummary>>
 {
 }
 
-public class MyReservationSummary
+public class MyReservationSummary : IHasUnitLocation
 {
+    public Guid? ProjectId { get; set; }
+    public string? ProjectName { get; set; }
+    public Guid? ImmeubleId { get; set; }
+    public string? ImmeubleName { get; set; }
+    public string? FloorName { get; set; }
+    public string? UnitNumber { get; set; }
+    public UnitContextDto? UnitContext { get; set; }
+
     public Guid Id { get; set; }
     public Guid UnitId { get; set; }
     public string? UnitDetails { get; set; }

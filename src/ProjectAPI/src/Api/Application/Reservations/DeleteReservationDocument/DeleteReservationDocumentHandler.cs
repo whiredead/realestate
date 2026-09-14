@@ -24,9 +24,15 @@ public class DeleteReservationDocumentHandler : IRequestHandler<DeleteReservatio
     {
         var document = await _db.Set<ReservationDocument>().FirstOrDefaultAsync(d => d.Id == request.DocumentId, cancellationToken);
         if (document == null)
-            return new DeleteReservationDocumentResponse { IsSuccess = false, Message = "Document not found." };
+            throw new Common.Exceptions.NotFoundException($"Document {request.DocumentId} not found.");
 
         await _projectScope.EnsureReservationAccessAsync(document.ReservationId, cancellationToken);
+
+        var status = await _db.Set<Reservation>()
+            .Where(r => r.Id == document.ReservationId)
+            .Select(r => r.Status)
+            .FirstAsync(cancellationToken);
+        Common.Reservations.ReservationDocumentPolicy.EnsureCanDelete(status);
 
         // The stored Url is the blob's full URI (…/documents/{blobName}); the
         // container client only needs the path segment after the container.

@@ -31,6 +31,9 @@ public class TypeBienRepository : BaseRepository<TypeBien>, ITypeBienRepository
                 Price = tb.Price,
                 NbrChambre = tb.NbrChambre,
                 NbrSalleDeBain = tb.NbrSalleDeBain,
+                NbrDouche = tb.NbrDouche,
+                NbrParking = tb.NbrParking,
+                Module3DLink = tb.Module3DLink,
                 MinSurface = tb.MinSurface,
                 MaxSurface = tb.MaxSurface,
                 SurfaceRange = tb.MaxSurface != null

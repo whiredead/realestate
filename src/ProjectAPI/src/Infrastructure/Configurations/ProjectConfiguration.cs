@@ -16,6 +16,9 @@ public class ProjectConfiguration : IEntityTypeConfiguration<Project>
         builder.Property(p => p.Description);
         builder.Property(p => p.Location).HasMaxLength(250);
         builder.Property(p => p.Address).HasMaxLength(250);
+        // §8 — default matches the 12 months StartHandoverHandler used to
+        // hard-code, so the migration changes no existing project's warranty.
+        builder.Property(p => p.WarrantyMonths).IsRequired().HasDefaultValue(12);
         builder.Property(p => p.Images).HasConversion(
                 v => string.Join(',', v),
                 v => v.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList());

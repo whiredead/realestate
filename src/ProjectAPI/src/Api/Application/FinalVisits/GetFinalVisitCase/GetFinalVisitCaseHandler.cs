@@ -1,3 +1,4 @@
+using ProjectAPI.Api.Application.Common.Units;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
@@ -56,6 +57,10 @@ public class GetFinalVisitCaseHandler : IRequestHandler<GetFinalVisitCaseQuery, 
                     ResultCode = (int)report.ResultCode,
                     GeneralCondition = report.GeneralCondition,
                     Observations = report.Observations,
+                    ClientFeedback = report.ClientFeedback,
+                    NonComplianceReason = report.NonComplianceReason,
+                    CorrectiveAction = report.CorrectiveAction,
+                    FollowUpNotes = report.FollowUpNotes,
                     SubmittedAt = report.SubmittedAt,
                     AcknowledgedAt = report.AcknowledgedAt,
                     DisputeReason = report.DisputeReason,
@@ -74,19 +79,31 @@ public class GetFinalVisitCaseHandler : IRequestHandler<GetFinalVisitCaseQuery, 
             }
         }
 
+        var agentName = string.IsNullOrEmpty(visitCase.ResponsibleSalesAgentId)
+            ? null
+            : await _db.Users.Where(u => u.Id == visitCase.ResponsibleSalesAgentId)
+                .Select(u => (u.FirstName + " " + u.LastName).Trim())
+                .FirstOrDefaultAsync(ct);
+
+        var location = (await Common.Units.UnitLocations.ForUnitsAsync(_db, new[] { reservation.UnitId }, ct)).GetValueOrDefault(reservation.UnitId);
+
         return new FinalVisitCaseDto
         {
             CaseId = visitCase.Id,
             Status = (int)visitCase.Status,
+            ResponsibleSalesAgentId = visitCase.ResponsibleSalesAgentId,
+            ResponsibleSalesAgentName = agentName,
             CurrentAppointment = currentAppointment is null ? null : new FinalVisitAppointmentDto
             {
                 AppointmentId = currentAppointment.Id,
                 AttemptNo = currentAppointment.AttemptNo,
                 StartsAt = currentAppointment.StartsAt,
                 EndsAt = currentAppointment.EndsAt,
+                CauseType = currentAppointment.CauseType,
+                CauseDescription = currentAppointment.CauseDescription,
                 Status = (int)currentAppointment.Status
             },
             CurrentReport = currentReportDto
-        };
+        }.WithLocation(location);
     }
 }

@@ -25,6 +25,10 @@ public class MyFinalVisitReportDto
     public int ResultCode { get; set; }
     public string? GeneralCondition { get; set; }
     public string? Observations { get; set; }
+    public string? ClientFeedback { get; set; }
+    public string? NonComplianceReason { get; set; }
+    public string? CorrectiveAction { get; set; }
+    public string? FollowUpNotes { get; set; }
     public DateTime? SubmittedAt { get; set; }
     public DateTime? AcknowledgedAt { get; set; }
     public string? DisputeReason { get; set; }

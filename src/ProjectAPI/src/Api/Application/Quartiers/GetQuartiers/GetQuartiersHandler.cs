@@ -30,12 +30,17 @@ namespace ProjectAPI.Api.Application.Quartiers.GetQuartiers
 
             // 3. Apply pagination
             var paginatedData = allQuartiers
+                // Stable order before paging: without it page contents are
+                // nondeterministic and rows repeat or vanish between pages.
+                .OrderBy(q => q.Name).ThenBy(q => q.Id)
                 .Skip((request.PageNumber - 1) * request.PageSize)
                 .Take(request.PageSize)
                 .Select(q => new QuartierListItem
                 {
                     Id = q.Id,
-                    Name = q.Name
+                    Name = q.Name,
+                    Description = q.Description,
+                    Images = q.Images
                 })
                 .ToList();
 

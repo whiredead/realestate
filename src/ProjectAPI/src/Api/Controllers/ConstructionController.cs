@@ -1,5 +1,6 @@
 using ProjectAPI.Api.Application.Construction.AddMilestone;
 using ProjectAPI.Api.Application.Construction.CompleteProject;
+using ProjectAPI.Api.Application.Construction.FinalizeProject;
 using ProjectAPI.Api.Application.Construction.GetProjectConstruction;
 using ProjectAPI.Api.Application.Construction.GetTitleStatus;
 using ProjectAPI.Api.Application.Construction.PublishConstructionUpdate;
@@ -100,6 +101,19 @@ public class ConstructionController : ControllerBase
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<IActionResult> CompleteProject(Guid projectId, [FromBody] CompleteProjectCommand body)
+    {
+        body.ProjectId = projectId;
+        return Ok(await _mediator.Send(body));
+    }
+
+    /// <summary>EN_LIVRAISON → FINALISE: closes the project, which becomes read-only.</summary>
+    [Authorize(Roles = RoleGroups.Admins)]
+    [HttpPost("projects/{projectId:guid}/finalize")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> FinalizeProject(Guid projectId, [FromBody] FinalizeProjectCommand body)
     {
         body.ProjectId = projectId;
         return Ok(await _mediator.Send(body));

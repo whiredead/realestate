@@ -65,6 +65,74 @@ public static class ProjectStatusCodes
 
     /// <summary>
     /// True when the project allows a final-visit request (§7.5 / §17.1).
+    ///
+    /// COMPLETED is the EN_LIVRAISON phase: construction is finished and the
+    /// approved files move on to visit, sale, notary and handover.
     /// </summary>
     public static bool AllowsFinalVisit(string? status) => Normalize(status) == Completed;
+
+    /// <summary>
+    /// Commercial phase a stored status belongs to.
+    ///
+    /// The phases are a VIEW over the persisted codes, not a second column:
+    /// nothing is migrated, and <see cref="Normalize"/> stays the only place
+    /// legacy spellings are interpreted.
+    /// </summary>
+    public static class Phase
+    {
+        /// <summary>Selling off-plan: new reservations are accepted.</summary>
+        public const string SurPlan = "SUR_PLAN";
+
+        /// <summary>Built and handing over: no new reservations, existing files proceed.</summary>
+        public const string EnLivraison = "EN_LIVRAISON";
+
+        /// <summary>Closed: consultation only.</summary>
+        public const string Finalise = "FINALISE";
+
+        /// <summary>
+        /// Administratively withdrawn. Deliberately NOT one of the three business
+        /// phases: it is reversible and blocks mutations without asserting where
+        /// the project sits in its commercial life.
+        /// </summary>
+        public const string Suspended = "SUSPENDED";
+    }
+
+    /// <summary>
+    /// Maps a stored status onto its business phase.
+    ///
+    ///   DRAFT / PLANNED / IN_PROGRESS -> SUR_PLAN
+    ///   COMPLETED                     -> EN_LIVRAISON
+    ///   ARCHIVED                      -> FINALISE
+    ///   SUSPENDED                     -> SUSPENDED
+    /// </summary>
+    public static string GetBusinessPhase(string? status) => Normalize(status) switch
+    {
+        Completed => Phase.EnLivraison,
+        Archived => Phase.Finalise,
+        Suspended => Phase.Suspended,
+        _ => Phase.SurPlan
+    };
+
+    /// <summary>
+    /// True when a NEW reservation may be created on this project — SUR_PLAN only.
+    ///
+    /// A project in EN_LIVRAISON keeps serving its existing approved files; it
+    /// simply stops taking new ones.
+    /// </summary>
+    public static bool AllowsNewReservation(string? status) =>
+        GetBusinessPhase(status) == Phase.SurPlan;
+
+    /// <summary>
+    /// True when the project accepts no business mutation at all: FINALISE
+    /// (closed) and SUSPENDED (withdrawn) are both consultation-only.
+    ///
+    /// Callers should treat this as a hard gate BEFORE any other rule, so a
+    /// closed project cannot be mutated through a path that only checks its own
+    /// narrower precondition.
+    /// </summary>
+    public static bool IsReadOnly(string? status)
+    {
+        var phase = GetBusinessPhase(status);
+        return phase is Phase.Finalise or Phase.Suspended;
+    }
 }

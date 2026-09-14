@@ -83,24 +83,22 @@ public class AfterSaleClaim
 /// </summary>
 public static class ClaimStateMachine
 {
+    // Spec order: SOUMISE → ASSIGNÉE → EN_COURS_D_EXAMEN → EN_RÉSOLUTION →
+    // RÉSOLUE → VALIDÉE/FERMÉE (Submitted → Assigned → UnderReview → InProgress →
+    // Resolved → Closed). The technical lead assigns straight from SUBMITTED;
+    // the assigned technician examines, then resolves. Side paths: more info
+    // from the buyer during examination, waiting for the customer during the
+    // resolution, rejection before any work, reopening a resolved claim.
     private static readonly IReadOnlyDictionary<ClaimStatus, ClaimStatus[]> Allowed =
         new Dictionary<ClaimStatus, ClaimStatus[]>
         {
-            [ClaimStatus.Submitted] = new[] { ClaimStatus.UnderReview, ClaimStatus.Cancelled },
-            [ClaimStatus.UnderReview] = new[]
-            {
-                ClaimStatus.MoreInfoRequired,
-                ClaimStatus.Assigned,
-                ClaimStatus.Rejected
-            },
+            [ClaimStatus.Submitted] = new[] { ClaimStatus.Assigned, ClaimStatus.Rejected, ClaimStatus.Cancelled },
+            [ClaimStatus.Assigned] = new[] { ClaimStatus.UnderReview, ClaimStatus.Cancelled },
+            [ClaimStatus.UnderReview] = new[] { ClaimStatus.InProgress, ClaimStatus.MoreInfoRequired, ClaimStatus.Rejected },
             [ClaimStatus.MoreInfoRequired] = new[] { ClaimStatus.UnderReview, ClaimStatus.Cancelled },
-            [ClaimStatus.Assigned] = new[] { ClaimStatus.InProgress },
             [ClaimStatus.InProgress] = new[] { ClaimStatus.WaitingCustomer, ClaimStatus.Resolved },
             [ClaimStatus.WaitingCustomer] = new[] { ClaimStatus.InProgress },
-            // Reopen: a resolved claim can go back to IN_PROGRESS (§20 "reason,
-            // keeps SLA, reopen_count++"), or the buyer confirms → CLOSED.
             [ClaimStatus.Resolved] = new[] { ClaimStatus.InProgress, ClaimStatus.Closed },
-            // Terminal states.
             [ClaimStatus.Rejected] = Array.Empty<ClaimStatus>(),
             [ClaimStatus.Cancelled] = Array.Empty<ClaimStatus>(),
             [ClaimStatus.Closed] = Array.Empty<ClaimStatus>()

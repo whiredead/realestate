@@ -1,7 +1,16 @@
 ﻿namespace ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointments;
 
-public class NotaryAppointmentResponse
+public class NotaryAppointmentResponse : Common.Units.IHasUnitLocation
 {
+    // Location of the unit (projet → immeuble → étage → unité).
+    public Guid? ProjectId { get; set; }
+    public string? ProjectName { get; set; }
+    public Guid? ImmeubleId { get; set; }
+    public string? ImmeubleName { get; set; }
+    public string? FloorName { get; set; }
+    public string? UnitNumber { get; set; }
+    public ProjectAPI.Api.Application.Common.Units.UnitContextDto? UnitContext { get; set; }
+
     public Guid Id { get; set; }
     public string? BuyerId { get; set; }
     public string? NotaireId { get; set; }

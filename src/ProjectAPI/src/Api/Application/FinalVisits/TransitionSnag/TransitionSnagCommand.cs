@@ -42,11 +42,13 @@ public class TransitionSnagHandler : IRequestHandler<TransitionSnagCommand, Tran
 {
     private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _projectScope;
+    private readonly ICurrentUser _currentUser;
 
-    public TransitionSnagHandler(ApplicationDbContext db, ProjectScopeService projectScope)
+    public TransitionSnagHandler(ApplicationDbContext db, ProjectScopeService projectScope, ICurrentUser currentUser)
     {
         _db = db;
         _projectScope = projectScope;
+        _currentUser = currentUser;
     }
 
     public async Task<TransitionSnagResponse> Handle(TransitionSnagCommand request, CancellationToken ct)
@@ -63,10 +65,10 @@ public class TransitionSnagHandler : IRequestHandler<TransitionSnagCommand, Tran
             where r.Id == snag.ReportId
             select c.ReservationId).FirstOrDefaultAsync(ct);
 
-        if (reservationId != Guid.Empty)
-        {
-            await _projectScope.EnsureReservationAccessAsync(reservationId, ct);
-        }
+        if (reservationId == Guid.Empty)
+            throw BusinessRuleException.ProjectScopeDenied(reservationId);
+
+        await _projectScope.EnsureReservationAccessAsync(reservationId, ct);
 
         if (!SnagStateMachine.CanTransition(snag.Status, request.TargetStatus))
         {
@@ -103,7 +105,7 @@ public class TransitionSnagHandler : IRequestHandler<TransitionSnagCommand, Tran
             Snag = snag,
             FromStatus = previous,
             ToStatus = request.TargetStatus,
-            ActorUserId = request.ActorUserId,
+            ActorUserId = _currentUser.UserId,
             OccurredAt = DateTime.UtcNow,
             Comment = request.Comment ?? request.ResolutionComment
         });

@@ -59,6 +59,29 @@ public class BusinessRuleException : Exception
         new(BusinessErrorCodes.DiscountLimitExceeded,
             $"Remise demandée ({requested:N2}) supérieure au plafond autorisé ({ceiling:N2}).");
 
+    // --- Sale (§5.7, §6) ------------------------------------------------------
+
+    /// <summary>
+    /// §6 — a reservation carries at most one active sale. The read-then-write
+    /// check in the handler is racy on its own; the filtered unique index
+    /// IX_Sales_ActivePerReservation catches the loser and ApiExceptionFilter
+    /// turns it into this same code, so the client sees one behaviour either way.
+    /// </summary>
+    public static BusinessRuleException SaleAlreadyExists() =>
+        new(BusinessErrorCodes.SaleAlreadyExists,
+            "Une vente active existe déjà pour cette réservation.",
+            StatusCodes.Status409Conflict);
+
+    /// <summary>
+    /// §6 — only Draft and PendingNotary accept edits. A Confirmed sale is the
+    /// record of a notarial act and a Cancelled one is terminal; neither is
+    /// rewritten, they are superseded.
+    /// </summary>
+    public static BusinessRuleException SaleNotEditable(string status) =>
+        new(BusinessErrorCodes.SaleNotEditable,
+            $"Cette vente n'est plus modifiable (statut : {status}).",
+            StatusCodes.Status409Conflict);
+
     /// <summary>§18.3 FR-NOT-002 — dossier not eligible for a notary appointment.</summary>
     public static BusinessRuleException NotaryNotEligible(IEnumerable<string> reasons) =>
         new(BusinessErrorCodes.NotaryNotEligible,

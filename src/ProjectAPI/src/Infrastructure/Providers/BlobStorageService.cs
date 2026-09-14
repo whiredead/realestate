@@ -36,13 +36,46 @@ public class BlobStorageService : IBlobStorageService
     {
         private readonly BlobContainerClient _client;
 
+        /// <summary>
+        /// One existence check per container per process. Container clients are
+        /// cached for the app's lifetime (see the dictionary above), so this is
+        /// a single extra call on the first upload, not one per file.
+        /// </summary>
+        private volatile bool _ensured;
+
         public BlobContainer(BlobContainerClient client)
         {
             _client = client;
         }
 
+        /// <summary>
+        /// Creates the container on first use, PRIVATE.
+        ///
+        /// Verified against the live account: "documents" did not exist at all,
+        /// so every reservation-document upload failed with ContainerNotFound —
+        /// nothing here had ever created it and it had to be made by hand. The
+        /// access level is the reason this is not left to whoever does that by
+        /// hand: "images" was created with public blob access (correct — the
+        /// public catalogue renders those), and a container of CIN scans and
+        /// signed contracts created the same way would be readable by anyone
+        /// holding a URL.
+        ///
+        /// PublicAccessType.None is only applied when the container is created.
+        /// An existing container keeps the access level it has, so this never
+        /// silently changes "images" underneath the public site.
+        /// </summary>
+        private async Task EnsurePrivateContainerAsync(CancellationToken cancellationToken)
+        {
+            if (_ensured) return;
+
+            await _client.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken);
+            _ensured = true;
+        }
+
         public async Task<string> UploadAsync(string blobName, Stream content, string contentType = "application/octet-stream", CancellationToken cancellationToken = default)
         {
+            await EnsurePrivateContainerAsync(cancellationToken);
+
             var blobClient = _client.GetBlobClient(blobName);
             var headers = new BlobHttpHeaders { ContentType = contentType };
             await blobClient.UploadAsync(content, new BlobUploadOptions { HttpHeaders = headers }, cancellationToken);

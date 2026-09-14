@@ -1,170 +1,127 @@
-using MediatR;
-using Microsoft.EntityFrameworkCore;
-using ProjectAPI.Api.Application.Common.Security;
-using ProjectAPI.Domain.Appointments.Interfaces;
-using ProjectAPI.Domain.Immeubles.Entities;
-using ProjectAPI.Domain.Immeubles.Interfaces;
-using ProjectAPI.Domain.Projects.Entities;
-using ProjectAPI.Domain.Projects.Interfaces;
-using ProjectAPI.Domain.Reservations.Interface;
-using ProjectAPI.Domain.Sales.Interfaces;
+﻿using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Domain.Construction.Entities;
+using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Projects.RemoveProject;
 
+/// <summary>
+/// Deletes a project that carries no business history, together with its whole
+/// configuration, in one transaction.
+///
+/// Refused (409) as soon as the project has anything a business record depends
+/// on: a reservation, a sale or a delivery on one of its units, a commercial
+/// appointment, or buyer feedback on one of its buildings — its end of life is
+/// then finalisation, which keeps the record. A finalised project is refused too
+/// (read-only).
+///
+/// It used to load every building, unit, reservation, sale and appointment of
+/// the whole database into memory, delete only buildings/units/appointments, and
+/// then fail on the first configuration row still pointing at the project
+/// (memberships, milestones, document rules, videos, type links…): every real
+/// project — they all have those — was undeletable, with a 409 RESOURCE_IN_USE.
+/// </summary>
 public class RemoveProjectHandler : IRequestHandler<RemoveProjectCommand, RemoveProjectResponse>
 {
-    private readonly IProjectRepository _projectRepository;
-    private readonly IImmeubleRepository _immeubleRepository;
-    private readonly IAppointmentRepository _appointmentRepository;
-    private readonly IReservationRepository _reservationRepository;
-    private readonly ISaleRepository _saleRepository;
-    private readonly IUnitRepository _unitRepository;
+    private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _projectScope;
 
-    public RemoveProjectHandler(
-        IProjectRepository projectRepository,
-        IImmeubleRepository immeubleRepository,
-        IAppointmentRepository appointmentRepository,
-        IReservationRepository reservationRepository,
-        ISaleRepository saleRepository,
-        IUnitRepository unitRepository,
-        ProjectScopeService projectScope)
+    public RemoveProjectHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
-        _projectRepository = projectRepository;
-        _immeubleRepository = immeubleRepository;
-        _appointmentRepository = appointmentRepository;
-        _reservationRepository = reservationRepository;
-        _saleRepository = saleRepository;
-        _unitRepository = unitRepository;
+        _db = db;
         _projectScope = projectScope;
     }
 
-    public async Task<RemoveProjectResponse> Handle(RemoveProjectCommand request, CancellationToken cancellationToken)
+    /// <summary>Configuration rows removed with the project, children first. {0} is the project id.</summary>
+    private static readonly (string Label, string Sql)[] Cascade =
     {
-        try
+        ("UnitStatusHistories", "DELETE h FROM UnitStatusHistories h JOIN Units u ON u.Id = h.UnitId JOIN Immeubles i ON i.Id = u.ProjectId WHERE i.ProjectId = {0}"),
+        ("UnitTitleHistories", "DELETE h FROM UnitTitleHistories h JOIN Units u ON u.Id = h.UnitId JOIN Immeubles i ON i.Id = u.ProjectId WHERE i.ProjectId = {0}"),
+        ("UnitTitleStates", "DELETE t FROM UnitTitleStates t JOIN Units u ON u.Id = t.UnitId JOIN Immeubles i ON i.Id = u.ProjectId WHERE i.ProjectId = {0}"),
+        ("UnitTracking", "DELETE t FROM UnitTracking t JOIN Units u ON u.Id = t.UnitId JOIN Immeubles i ON i.Id = u.ProjectId WHERE i.ProjectId = {0}"),
+        ("Units", "DELETE u FROM Units u JOIN Immeubles i ON i.Id = u.ProjectId WHERE i.ProjectId = {0}"),
+        ("Floors", "DELETE f FROM Floors f JOIN Immeubles i ON i.Id = f.ImmeubleId WHERE i.ProjectId = {0}"),
+        ("ImmeubleFeature", "DELETE x FROM ImmeubleFeature x JOIN Immeubles i ON i.Id = x.ImmeubleId WHERE i.ProjectId = {0}"),
+        ("ImmeublePlanInterieurs", "DELETE x FROM ImmeublePlanInterieurs x JOIN Immeubles i ON i.Id = x.ImmeubleId WHERE i.ProjectId = {0}"),
+        ("ImmeubleTracking", "DELETE x FROM ImmeubleTracking x JOIN Immeubles i ON i.Id = x.ImmeubleId WHERE i.ProjectId = {0}"),
+        ("ImmeubleTypeBien", "DELETE x FROM ImmeubleTypeBien x JOIN Immeubles i ON i.Id = x.ImmeubleId WHERE i.ProjectId = {0}"),
+        // Assignments.ProjectId is the FK to the building (legacy naming).
+        ("Assignments", "DELETE x FROM Assignments x JOIN Immeubles i ON i.Id = x.ProjectId WHERE i.ProjectId = {0}"),
+        ("Immeubles", "DELETE FROM Immeubles WHERE ProjectId = {0}"),
+        ("ConstructionUpdates", "DELETE FROM ConstructionUpdates WHERE ProjectId = {0}"),
+        ("ConstructionMilestones", "DELETE FROM ConstructionMilestones WHERE ProjectId = {0}"),
+        ("EspaceTempsReel", "DELETE FROM EspaceTempsReel WHERE ProjectId = {0}"),
+        ("InternalInvitationProjectAssignments", "DELETE FROM InternalInvitationProjectAssignments WHERE ProjectId = {0}"),
+        ("Leads", "DELETE FROM Leads WHERE ProjectId = {0}"),
+        ("LikedProjects", "DELETE FROM LikedProjects WHERE ProjectId = {0}"),
+        ("ProjectAgentAssignmentConfigs", "DELETE FROM ProjectAgentAssignmentConfigs WHERE ProjectId = {0}"),
+        ("ProjectAssignments", "DELETE FROM ProjectAssignments WHERE ProjectId = {0}"),
+        ("ProjectFeature", "DELETE FROM ProjectFeature WHERE ProjectId = {0}"),
+        ("ProjectTypeBiens", "DELETE FROM ProjectTypeBiens WHERE ProjectId = {0}"),
+        ("QuartierAmenities", "DELETE FROM QuartierAmenities WHERE ProjectId = {0}"),
+        ("ProjectDocumentRequirements", "DELETE FROM ProjectDocumentRequirements WHERE ProjectId = {0}"),
+        ("ProjectMemberships", "DELETE FROM ProjectMemberships WHERE ProjectId = {0}"),
+        ("Projects", "DELETE FROM Projects WHERE Id = {0}"),
+    };
+
+    public async Task<RemoveProjectResponse> Handle(RemoveProjectCommand request, CancellationToken ct)
+    {
+        var project = await _db.Projects.AsNoTracking()
+            .Where(p => p.Id == request.ProjectId)
+            .Select(p => new { p.Id, p.Name, p.StatusGlobal })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException($"Project {request.ProjectId} not found.");
+
+        // §6.4 — the highest-blast-radius mutation: never outside the caller's perimeter.
+        await _projectScope.EnsureProjectAccessAsync(request.ProjectId, ct);
+
+        if (ProjectStatusCodes.IsReadOnly(project.StatusGlobal))
         {
-            var deletedEntities = new List<string>();
-
-            // Step 1: Get the project
-            var project = await _projectRepository.GetByIDAsync(request.ProjectId);
-            if (project == null)
-            {
-                return new RemoveProjectResponse
-                {
-                    Success = false,
-                    Message = $"Project with ID '{request.ProjectId}' not found.",
-                    Details = new List<string> { "Please verify the project ID and try again." }
-                };
-            }
-
-            // §6.4 — the single highest-blast-radius mutation in the codebase:
-            // an unscoped hard-delete of a project and everything under it
-            // (immeubles, units, reservations, sales, appointments). Must
-            // never run outside the caller's own assigned project.
-            await _projectScope.EnsureProjectAccessAsync(request.ProjectId, cancellationToken);
-
-            var projectName = project.Name;
-
-            // Step 2: Get and delete all immeubles for this project
-            var allImmeubles = await _immeubleRepository.GetAllAsync();
-            var projectImmeubles = allImmeubles.Where(i => i.ProjectId == request.ProjectId).ToList();
-
-            if (projectImmeubles.Any())
-            {
-                deletedEntities.Add($"Found {projectImmeubles.Count} Immeuble(s) in project");
-            }
-
-            // Step 3: Get all units for these immeubles
-            var allUnits = await _unitRepository.GetAllAsync();
-            var unitsInProject = allUnits.Where(u => projectImmeubles.Select(i => i.Id).Contains(u.ProjectId)).ToList();
-
-            // Step 4: Delete items in specific order (child -> parent)
-
-            // 4a. Delete appointments
-            var allAppointments = await _appointmentRepository.GetAllAsync();
-            var appointmentsToDelete = allAppointments.Where(a => a.ProjectId == request.ProjectId).ToList();
-            foreach (var appt in appointmentsToDelete)
-            {
-                _appointmentRepository.Delete(appt);
-                deletedEntities.Add($"Appointment ID: {appt.Id}");
-            }
-            await _appointmentRepository.SaveAsync();
-
-            // 4b. Delete sales
-            var allSales = await _saleRepository.GetAllAsync();
-            var unitIds = unitsInProject.Select(u => u.Id).ToList();
-            var salesToDelete = allSales.Where(s => unitIds.Contains(s.UnitId)).ToList();
-            foreach (var sale in salesToDelete)
-            {
-                _saleRepository.Delete(sale);
-                deletedEntities.Add($"Sale ID: {sale.Id}");
-            }
-            await _saleRepository.SaveAsync();
-
-            // 4c. Delete reservations
-            var allReservations = await _reservationRepository.GetAllAsync();
-            var reservationsToDelete = allReservations.Where(r => unitIds.Contains(r.UnitId)).ToList();
-            foreach (var res in reservationsToDelete)
-            {
-                _reservationRepository.Delete(res);
-                deletedEntities.Add($"Reservation ID: {res.Id}");
-            }
-            await _reservationRepository.SaveAsync();
-
-            // 4d. Delete units
-            foreach (var unit in unitsInProject)
-            {
-                _unitRepository.Delete(unit);
-                deletedEntities.Add($"Unit ID: {unit.Id} (Number: {unit.UnitNumber})");
-            }
-            await _unitRepository.SaveAsync();
-
-            // 4e. Delete immeubles
-            foreach (var immeuble in projectImmeubles)
-            {
-                _immeubleRepository.Delete(immeuble);
-                deletedEntities.Add($"Immeuble ID: {immeuble.Id} (Name: {immeuble.Name})");
-            }
-            await _immeubleRepository.SaveAsync();
-
-            // Step 5: Delete the project itself
-            await _projectRepository.DeleteAsync(project.Id);
-            await _projectRepository.SaveAsync();
-            deletedEntities.Add($"Project ID: {project.Id} (Name: {projectName})");
-
-            return new RemoveProjectResponse
-            {
-                Success = true,
-                Message = $"Project '{projectName}' deleted successfully with all related entities.",
-                DeletedEntities = deletedEntities,
-                Details = new List<string>
-                {
-                    $"Total entities deleted: {deletedEntities.Count}",
-                    $"Deleted at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
-                }
-            };
+            throw new ProjectReadOnlyException(project.Id);
         }
-        catch (BusinessRuleException)
+
+        var id = request.ProjectId;
+        var unitIds = _db.Set<Domain.Immeubles.Entities.Unit>()
+            .Join(_db.Set<Domain.Immeubles.Entities.Immeuble>(), u => u.ProjectId, i => i.Id, (u, i) => new { u.Id, i.ProjectId })
+            .Where(x => x.ProjectId == id)
+            .Select(x => x.Id);
+
+        var hasHistory =
+            await _db.Set<Domain.Reservations.Entities.Reservation>().AnyAsync(r => unitIds.Contains(r.UnitId), ct)
+            || await _db.Set<Domain.Sales.Entities.Sale>().AnyAsync(s => unitIds.Contains(s.UnitId), ct)
+            || await _db.Set<Domain.Appointments.Entities.Appointment>().AnyAsync(a => a.ProjectId == id, ct)
+            || await _db.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM PropertyDeliveries d JOIN Units u ON u.Id = d.UnitId JOIN Immeubles i ON i.Id = u.ProjectId WHERE i.ProjectId = {id}").SingleAsync(ct) > 0
+            || await _db.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM Feedbacks f JOIN Immeubles i ON i.Id = f.ProjectId WHERE i.ProjectId = {id}").SingleAsync(ct) > 0
+            || await _db.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM Appointments a JOIN Immeubles i ON i.Id = a.ImmeubleId WHERE i.ProjectId = {id}").SingleAsync(ct) > 0;
+
+        if (hasHistory)
         {
-            // §6.4 — a scope denial is an authorization decision (403), not a
-            // soft "operation failed" outcome; let it reach the global
-            // exception filter like every other scope check in this codebase.
-            throw;
+            throw new BusinessRuleException(
+                BusinessErrorCodes.ResourceInUse,
+                "Ce projet porte déjà des réservations, ventes, rendez-vous ou avis : il ne peut pas être supprimé, seulement finalisé.",
+                StatusCodes.Status409Conflict);
         }
-        catch (Exception ex)
+
+        var deleted = new List<string>();
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        foreach (var (label, sql) in Cascade)
         {
-            return new RemoveProjectResponse
-            {
-                Success = false,
-                Message = $"Error deleting project ID '{request.ProjectId}': {ex.Message}",
-                Details = new List<string>
-                {
-                    $"Exception Type: {ex.GetType().Name}",
-                    $"Timestamp: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC",
-                    $"Full Error: {ex.ToString()}"
-                }
-            };
+            var rows = await _db.Database.ExecuteSqlRawAsync(sql.Replace("{0}", "@projectId"), new[] { new Microsoft.Data.SqlClient.SqlParameter("@projectId", id) }, ct);
+            if (rows > 0) deleted.Add($"{label}: {rows}");
         }
+        await tx.CommitAsync(ct);
+
+        return new RemoveProjectResponse
+        {
+            Success = true,
+            Message = $"Project '{project.Name}' deleted successfully with all related entities.",
+            DeletedEntities = deleted,
+            Details = new List<string>
+            {
+                $"Total rows deleted: {deleted.Sum(d => int.Parse(d[(d.LastIndexOf(' ') + 1)..]))}",
+                $"Deleted at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
+            }
+        };
     }
 }

@@ -10,15 +10,18 @@ namespace ProjectAPI.Api.Application.EspacesTempsReel.CreateEspaceTempsReel
         private readonly IEspaceTempsReelRepository _repository;
         private readonly IProjectRepository _projectRepository;
         private readonly ProjectScopeService _projectScope;
+        private readonly Common.Media.MediaUrlPolicy _media;
 
         public CreateEspaceTempsReelHandler(
             IEspaceTempsReelRepository repository,
             IProjectRepository projectRepository,
-            ProjectScopeService projectScope)
+            ProjectScopeService projectScope,
+            Common.Media.MediaUrlPolicy media)
         {
             _repository = repository;
             _projectRepository = projectRepository;
             _projectScope = projectScope;
+            _media = media;
         }
 
         public async Task<CreateEspaceTempsReelResponse> Handle(CreateEspaceTempsReelCommand request, CancellationToken cancellationToken)
@@ -33,6 +36,10 @@ namespace ProjectAPI.Api.Application.EspacesTempsReel.CreateEspaceTempsReel
             // §6.4 — a PROJECT_ADMIN with no membership on this project must
             // not publish a video link onto its public page.
             await _projectScope.EnsureProjectAccessAsync(request.ProjectId, cancellationToken);
+
+            // §7.2 — the link is embedded on the project's public page, so it is
+            // restricted to the configured video hosts (see MediaUrlPolicy).
+            _media.EnsureVideoUrl(request.VideoLink, "VideoLink");
 
             var entity = new EspaceTempsReel
             {

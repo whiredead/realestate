@@ -120,14 +120,7 @@ public class ProjectMutationAndDashboardScopeTests
         var admin = new FakeCurrentUser { UserId = "rp-admin-1", Roles = new[] { RoleCodes.ProjectAdmin } };
         var db = _fixture.CreateContext();
         var scope = new ProjectScopeService(db, admin);
-        var handler = new RemoveProjectHandler(
-            new Infrastructure.Repositories.ProjectRepository(db),
-            new ImmeubleRepository(db),
-            new AppointmentRepository(db),
-            new ReservationRepository(db),
-            new SaleRepository(db),
-            new UnitRepository(db),
-            scope);
+        var handler = new RemoveProjectHandler(db, scope);
 
         var act = async () => await handler.Handle(new RemoveProjectCommand { ProjectId = projectId }, CancellationToken.None);
         await act.Should().ThrowAsync<BusinessRuleException>(
@@ -148,14 +141,7 @@ public class ProjectMutationAndDashboardScopeTests
         var admin = new FakeCurrentUser { UserId = "rp-admin-2", Roles = new[] { RoleCodes.ProjectAdmin } };
         var db = _fixture.CreateContext();
         var scope = new ProjectScopeService(db, admin);
-        var handler = new RemoveProjectHandler(
-            new Infrastructure.Repositories.ProjectRepository(db),
-            new ImmeubleRepository(db),
-            new AppointmentRepository(db),
-            new ReservationRepository(db),
-            new SaleRepository(db),
-            new UnitRepository(db),
-            scope);
+        var handler = new RemoveProjectHandler(db, scope);
 
         var result = await handler.Handle(new RemoveProjectCommand { ProjectId = projectId }, CancellationToken.None);
         result.Success.Should().BeTrue();
@@ -178,7 +164,12 @@ public class ProjectMutationAndDashboardScopeTests
         var handler = new UpdateProjectHandler(
             new Infrastructure.Repositories.ProjectRepository(db),
             new QuartierRepository(db),
-            scope);
+            scope,
+            // §7.2 media validation. This test sends no media, so the policy is
+            // never consulted; it is opened up anyway so a future edit here
+            // fails on the perimeter rule under test, not on a host rule.
+            MediaPolicyStub.Permissive(),
+            db);
 
         var act = async () => await handler.Handle(
             new UpdateProjectCommand { Id = projectId, Name = "Renamed by intruder", Location = "Rabat" },

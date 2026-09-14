@@ -75,6 +75,9 @@ public class GetAllImmeublesHandler : IRequestHandler<GetAllImmeublesQuery, Pagi
 
         var totalItems = projects.Count();
         var paginatedData = projects
+            // Stable order before paging: without it page contents are
+            // nondeterministic and rows repeat or vanish between pages.
+            .OrderBy(p => p.Name).ThenBy(p => p.Id)
             .Skip((request.PageNumber - 1) * request.PageSize)
             .Take(request.PageSize)
             .Select(p =>

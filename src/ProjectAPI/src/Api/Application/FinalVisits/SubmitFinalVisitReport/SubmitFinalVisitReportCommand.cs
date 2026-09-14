@@ -22,6 +22,10 @@ public class SubmitFinalVisitReportCommand : IRequest<SubmitFinalVisitReportResp
 
     public string? GeneralCondition { get; set; }
     public string? Observations { get; set; }
+    public string? ClientFeedback { get; set; }
+    public string? NonComplianceReason { get; set; }
+    public string? CorrectiveAction { get; set; }
+    public string? FollowUpNotes { get; set; }
     public string? AuthorUserId { get; set; }
 
     public List<SnagInput> Snags { get; set; } = new();
@@ -50,11 +54,13 @@ public class SubmitFinalVisitReportHandler
 {
     private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _projectScope;
+    private readonly ICurrentUser _currentUser;
 
-    public SubmitFinalVisitReportHandler(ApplicationDbContext db, ProjectScopeService projectScope)
+    public SubmitFinalVisitReportHandler(ApplicationDbContext db, ProjectScopeService projectScope, ICurrentUser currentUser)
     {
         _db = db;
         _projectScope = projectScope;
+        _currentUser = currentUser;
     }
 
     public async Task<SubmitFinalVisitReportResponse> Handle(
@@ -100,6 +106,19 @@ public class SubmitFinalVisitReportHandler
                 $"Le résultat déclaré ({request.ResultCode}) ne correspond pas aux réserves saisies (attendu : {expected}).");
         }
 
+        // An unsatisfactory visit must say why and what will be done about it:
+        // without both, the dossier is blocked with nothing to act on.
+        if (request.ResultCode is VisitResult.NonCompliantMajorSnags or VisitResult.NonCompliantBlockingSnags)
+        {
+            var failures = new List<FluentValidation.Results.ValidationFailure>();
+            if (string.IsNullOrWhiteSpace(request.NonComplianceReason))
+                failures.Add(new("NonComplianceReason", "Le motif est obligatoire pour une visite non satisfaisante."));
+            if (string.IsNullOrWhiteSpace(request.CorrectiveAction))
+                failures.Add(new("CorrectiveAction", "L'action corrective est obligatoire pour une visite non satisfaisante."));
+            if (failures.Count > 0)
+                throw new Common.Exceptions.ValidationException(failures);
+        }
+
         // A new report supersedes the previous version rather than replacing it
         // in place (§17.3): the buyer may already have seen the earlier one.
         var previous = await _db.Set<FinalVisitReport>()
@@ -121,8 +140,12 @@ public class SubmitFinalVisitReportHandler
             ResultCode = request.ResultCode,
             GeneralCondition = request.GeneralCondition,
             Observations = request.Observations,
+            ClientFeedback = request.ClientFeedback,
+            NonComplianceReason = request.NonComplianceReason,
+            CorrectiveAction = request.CorrectiveAction,
+            FollowUpNotes = request.FollowUpNotes,
             SubmittedAt = DateTime.UtcNow,
-            AuthorUserId = request.AuthorUserId,
+            AuthorUserId = _currentUser.UserId,
             CreatedAt = DateTime.UtcNow
         };
 
@@ -161,7 +184,7 @@ public class SubmitFinalVisitReportHandler
                 Snag = snag,
                 FromStatus = null,
                 ToStatus = SnagStatus.Open,
-                ActorUserId = request.AuthorUserId,
+                ActorUserId = _currentUser.UserId,
                 OccurredAt = DateTime.UtcNow,
                 Comment = "Réserve créée lors de la visite finale."
             });

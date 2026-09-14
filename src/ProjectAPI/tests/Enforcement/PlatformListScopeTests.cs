@@ -192,6 +192,63 @@ public class PlatformListScopeTests
             "the public catalogue must remain unfiltered for anonymous visitors — only internal callers are scoped");
     }
 
+    /// <summary>
+    /// E2E QA finding (CRITICAL): GET /api/Projects is [AllowAnonymous] for the
+    /// public catalogue, and ProjectResponse carries the project's staffing —
+    /// every assigned agent's and notary's id, first name, last name, e-mail
+    /// address and phone number. A visitor who called the route that feeds the
+    /// public home page was handed the company's staff directory.
+    /// </summary>
+    [Fact]
+    public async Task GetAllProjects_AnonymousVisitor_SeesNoStaffPii()
+    {
+        RequireDatabase();
+        var projectId = await SeedProjectAsync("PII-Projects-anonymous");
+        await SeedMembershipAsync(projectId, "pii-agent-1", RoleCodes.SalesAgent);
+        await SeedMembershipAsync(projectId, "pii-notary-1", RoleCodes.Notary);
+
+        var anonymous = new FakeCurrentUser { UserId = null, IsAuthenticated = false, Roles = Array.Empty<string>() };
+        var db = _fixture.CreateContext();
+        var handler = new GetAllProjectsHandler(
+            new ProjectRepository(db),
+            new LikedProjectRepository(db),
+            anonymous,
+            new ProjectScopeService(db, anonymous));
+
+        var result = await handler.Handle(new GetAllProjectsQuery { PageSize = 1000 }, CancellationToken.None);
+        var project = result.Data.Single(p => p.Id == projectId);
+
+        project.AssignedAgents.Should().BeEmpty("an anonymous visitor must never receive staff identities");
+        project.AssignedNotaries.Should().BeEmpty("an anonymous visitor must never receive staff identities");
+        project.AgentId.Should().BeNull();
+        project.AgentPhoneNumber.Should().BeNull("a staff phone number is personal data, not catalogue data");
+
+        // The commercial payload the public pages actually consume is untouched.
+        project.Name.Should().Be("PII-Projects-anonymous");
+    }
+
+    [Fact]
+    public async Task GetAllProjects_InternalCaller_StillSeesStaff()
+    {
+        RequireDatabase();
+        var projectId = await SeedProjectAsync("PII-Projects-internal");
+        await SeedMembershipAsync(projectId, "pii-agent-2", RoleCodes.SalesAgent);
+
+        var globalAdmin = new FakeCurrentUser { UserId = "pii-global-admin-1", Roles = new[] { RoleCodes.GlobalAdmin } };
+        var db = _fixture.CreateContext();
+        var handler = new GetAllProjectsHandler(
+            new ProjectRepository(db),
+            new LikedProjectRepository(db),
+            globalAdmin,
+            new ProjectScopeService(db, globalAdmin));
+
+        var result = await handler.Handle(new GetAllProjectsQuery { PageSize = 1000 }, CancellationToken.None);
+        var project = result.Data.Single(p => p.Id == projectId);
+
+        project.AssignedAgents.Select(a => a.Id).Should().Contain("pii-agent-2",
+            "the admin console's project list depends on the staffing block — stripping it for everyone would break assignment");
+    }
+
     // ------------------------------------------------------------ GetAllImmeubles
 
     [Fact]

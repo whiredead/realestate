@@ -1,4 +1,5 @@
-﻿using Microsoft.EntityFrameworkCore;
+﻿using ProjectAPI.Api.Application.Common.Units;
+using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Entities;
@@ -48,7 +49,9 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
             {
                 effectiveAgentId = _currentUser.UserId;
             }
-            HashSet<Guid>? scopedUnitIds = null;
+            // Lists, not HashSets: EF Core parameterizes List.Contains but inlines a
+            // HashSet as a literal IN (...) — a freshly compiled plan per call.
+            List<Guid>? scopedUnitIds = null;
             if (scopedProjectIds is not null)
             {
                 var ids = await _db.Set<UnitEntity>()
@@ -56,25 +59,30 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                     .Where(x => scopedProjectIds.Contains(x.ProjectId))
                     .Select(x => x.Id)
                     .ToListAsync(cancellationToken);
-                scopedUnitIds = ids.ToHashSet();
+                scopedUnitIds = ids;
             }
 
             // Same Unit -> Immeuble join as the authorization perimeter above,
             // but driven by the caller's own filter choice rather than their
             // role — a project the caller can see, narrowed further.
-            HashSet<Guid>? requestedUnitIds = null;
-            if (request.ProjectId.HasValue)
+            List<Guid>? requestedUnitIds = null;
+            if (request.ProjectId.HasValue || request.ImmeubleId.HasValue)
             {
                 var ids = await _db.Set<UnitEntity>()
-                    .Join(_db.Set<Immeuble>(), u => u.ProjectId, im => im.Id, (u, im) => new { u.Id, im.ProjectId })
-                    .Where(x => x.ProjectId == request.ProjectId.Value)
+                    .Join(_db.Set<Immeuble>(), u => u.ProjectId, im => im.Id, (u, im) => new { u.Id, ImmeubleId = im.Id, im.ProjectId })
+                    .Where(x => !request.ProjectId.HasValue || x.ProjectId == request.ProjectId.Value)
+                    .Where(x => !request.ImmeubleId.HasValue || x.ImmeubleId == request.ImmeubleId.Value)
                     .Select(x => x.Id)
                     .ToListAsync(cancellationToken);
-                requestedUnitIds = ids.ToHashSet();
+                requestedUnitIds = ids;
             }
 
-            var reservations = await _reservationRepository.Find(
-                r =>
+            // Filtered, counted and paged in SQL. This used to load EVERY matching
+            // reservation into memory (repository Find) and page in C#, once per
+            // page request — the slowest call of the back office as data grew.
+            var reservations = _db.Set<Domain.Reservations.Entities.Reservation>()
+                .AsNoTracking()
+                .Where(r =>
                     (string.IsNullOrEmpty(request.BuyerId) || r.BuyerId == request.BuyerId) &&
                     (string.IsNullOrEmpty(request.Name) || r.Name.Contains(request.Name)) &&
                     (string.IsNullOrEmpty(request.LastName) || r.LastName.Contains(request.LastName)) &&
@@ -85,16 +93,19 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                     (string.IsNullOrEmpty(request.NotaireId) || r.NotaireId == request.NotaireId) &&
                     (!request.IsUnderConstruction.HasValue || r.IsUnderConstruction == request.IsUnderConstruction.Value) &&
                     (scopedUnitIds == null || scopedUnitIds.Contains(r.UnitId)) &&
-                    (requestedUnitIds == null || requestedUnitIds.Contains(r.UnitId)),
-                null
-            );
+                    (requestedUnitIds == null || requestedUnitIds.Contains(r.UnitId)) &&
+                    (!request.Status.HasValue || r.Status == request.Status.Value));
 
-            var totalItems = reservations.Count();
+            var totalItems = await reservations.CountAsync(cancellationToken);
 
-            var pageReservations = reservations
+            var pageReservations = await reservations
+                // Stable order before paging: without it page contents are
+                // nondeterministic and rows repeat or vanish between pages.
+                .OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id)
                 .Skip((request.PageNumber - 1) * request.PageSize)
                 .Take(request.PageSize)
-                .ToList();
+                .Include(r => r.Documents)
+                .ToListAsync(cancellationToken);
 
             // Reservation.UnitDetails is a label frozen at submit time, and it
             // is null on most historic rows — the list then fell back to
@@ -106,9 +117,9 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
             var unitInfo = await _db.Set<UnitEntity>()
                 .Where(u => pageUnitIds.Contains(u.Id))
                 .Join(_db.Set<Immeuble>(), u => u.ProjectId, im => im.Id,
-                    (u, im) => new { u.Id, u.UnitNumber, u.TotalSurface, ImmeubleName = im.Name, im.ProjectId })
+                    (u, im) => new { u.Id, u.UnitNumber, u.TotalSurface, FloorName = u.Floor.Name, ImmeubleId = im.Id, ImmeubleName = im.Name, im.ProjectId })
                 .Join(_db.Projects, x => x.ProjectId, p => p.Id,
-                    (x, p) => new { x.Id, x.UnitNumber, x.TotalSurface, x.ImmeubleName, ProjectId = p.Id, ProjectName = p.Name })
+                    (x, p) => new { x.Id, x.UnitNumber, x.TotalSurface, x.FloorName, x.ImmeubleId, x.ImmeubleName, ProjectId = p.Id, ProjectName = p.Name })
                 .ToDictionaryAsync(x => x.Id, x => x, cancellationToken);
 
             string? UnitLabel(Guid unitId) =>
@@ -142,6 +153,10 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                             : UnitLabel(reservation.UnitId),
                         ProjectId = info?.ProjectId,
                         ProjectName = info?.ProjectName,
+                        ImmeubleId = info?.ImmeubleId,
+                        ImmeubleName = info?.ImmeubleName,
+                        FloorName = info?.FloorName,
+                        UnitNumber = info?.UnitNumber,
                         AgentId = reservation.AgentId,
                         NotaireId = reservation.NotaireId,
                         TotalPropertyPrice = reservation.TotalPropertyPrice,
@@ -168,6 +183,9 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                     };
                 })
                 .ToList();
+
+            var contexts = await UnitLocations.ForUnitsAsync(_db, paginatedData.Select(r => r.UnitId), cancellationToken);
+            foreach (var row in paginatedData) row.UnitContext = contexts.GetValueOrDefault(row.UnitId);
 
             return new PaginatedResponse<GetReservationsResponse>(paginatedData, request.PageNumber, request.PageSize, totalItems);
         }

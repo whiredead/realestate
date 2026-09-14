@@ -49,6 +49,21 @@ public class CreateAfterSaleClaimHandler : IRequestHandler<CreateAfterSaleClaimC
             throw BusinessRuleException.PropertyNotDelivered(r.UnitId);
         }
 
+        // §5.9/§6 — the warranty exists because a sale was concluded, so the
+        // sale is the thing that has to be there. A DELIVERED unit with no
+        // confirmed sale behind it is a data fault (a hand-edited status, a
+        // half-finished import), and a claim opened against it has no
+        // contractual counterparty to answer for it.
+        var confirmedSale = await _db.Set<Sale>()
+            .Where(s => s.UnitId == r.UnitId && s.Status == SaleStatus.Confirmed)
+            .OrderByDescending(s => s.ConfirmedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (confirmedSale is null)
+        {
+            throw BusinessRuleException.PropertyNotDelivered(r.UnitId);
+        }
+
         // §5.9 — an active warranty is a prerequisite, not just a display fact.
         var warranty = await _db.Warranties
             .Where(w => w.UnitId == r.UnitId && w.IsActive && w.EndsAt > DateTime.UtcNow)
@@ -76,10 +91,13 @@ public class CreateAfterSaleClaimHandler : IRequestHandler<CreateAfterSaleClaimC
             // invitation acceptance) — check that directly instead of the
             // Purchase table, which is a display convenience, not the source
             // of truth for ownership.
-            var ownsUnit = await _db.Set<Reservation>().AnyAsync(res =>
-                res.BuyerId == r.BuyerId && res.UnitId == r.UnitId, ct);
+            // Ownership is the CONFIRMED sale's reservation, not any reservation the
+            // user ever had on the unit (a former, cancelled buyer passed that check).
+            var ownsUnit = confirmedSale.BuyerId == r.BuyerId
+                || await _db.Set<Reservation>().AnyAsync(res =>
+                    res.Id == confirmedSale.ReservationId && res.BuyerId == r.BuyerId, ct);
             if (!ownsUnit)
-                throw new ValidationException("This user does not own a unit linked to this project/unit.");
+                throw BusinessRuleException.BuyerScopeDenied();
 
             var buyerPurchases = await _purchaseRepo.Find(p =>
                 p.UserId == r.BuyerId
@@ -107,23 +125,10 @@ public class CreateAfterSaleClaimHandler : IRequestHandler<CreateAfterSaleClaimC
         };
 
         await _claimRepo.InsertAsync(claim);
-
-        foreach (var f in r.Files ?? [])
-        {
-            await _attachRepo.InsertAsync(new ClaimAttachment
-            {
-                Id = Guid.NewGuid(),
-                ClaimId = claim.Id,
-                Url = f.Url,
-                FileName = f.FileName,
-                ContentType = f.ContentType,
-                SizeBytes = f.SizeBytes
-            });
-        }
-
         await _claimRepo.SaveAsync();
-        await _attachRepo.SaveAsync();
 
+        // Attachments are uploaded as files against the created claim
+        // (POST /api/claims/{id}/attachments), never accepted as URLs here.
         return claim.Id;
     }
 }

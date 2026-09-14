@@ -52,6 +52,14 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
         // scoped project ids, used to filter every figure below.
         var scopedProjectIds = await _projectScope.GetScopedProjectIdsAsync(cancellationToken);
 
+        // A project filter narrows the perimeter; it never widens it.
+        if (request.ProjectId.HasValue)
+        {
+            scopedProjectIds = scopedProjectIds is null || scopedProjectIds.Contains(request.ProjectId.Value)
+                ? new List<Guid> { request.ProjectId.Value }
+                : new List<Guid>();
+        }
+
         // Agents/units/sales resolve to a project via unit -> immeuble ->
         // project (Unit.ProjectId is actually the FK to Immeuble — see
         // Unit.cs doc comment); membership resolves an agent to a project
@@ -62,7 +70,7 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
                 .Join(_context.Set<Immeuble>(), u => u.ProjectId, im => im.Id, (u, im) => new { u.Id, im.ProjectId })
                 .Where(x => scopedProjectIds.Contains(x.ProjectId))
                 .Select(x => x.Id)
-                .ToListAsync(cancellationToken)).ToHashSet();
+                .ToListAsync(cancellationToken));
 
         var scopedAgentIds = scopedProjectIds is null
             ? null
@@ -70,7 +78,7 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
                 .Where(m => scopedProjectIds.Contains(m.ProjectId) && m.IsActive)
                 .Select(m => m.UserId)
                 .Distinct()
-                .ToListAsync(cancellationToken)).ToHashSet();
+                .ToListAsync(cancellationToken));
 
         // 1) Count total agents (scoped to those with an active membership on
         //    one of the caller's own projects).
@@ -82,11 +90,70 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
             ? await _context.Projects.CountAsync(cancellationToken)
             : await _context.Projects.CountAsync(p => scopedProjectIds.Contains(p.Id), cancellationToken);
 
+        // 2a) Construction progress and current stock by state.
+        await PopulateStockAndProgressAsync(response, scopedProjectIds, cancellationToken);
+
         // 3) Sales for the selected period, scoped to units within the
         //    caller's own perimeter.
         var salesInPeriod = await SalesQuery(scopedUnitIds, periodStart, periodEnd).ToListAsync(cancellationToken);
         response.SalesThisMonth = salesInPeriod.Count;
         response.SalesVolumeThisMonth = salesInPeriod.Sum(s => s.TotalPrice);
+
+        // 3a) Reservation KPIs. The period metrics use CreatedAt, the same
+        // immutable event timestamp used for other reporting data. The rate
+        // is intentionally current stock occupancy, so a manager can see how
+        // much of their scoped inventory is presently tied to a live dossier.
+        var reservationsInPeriodQuery = _context.Set<Reservation>()
+            .Where(r => r.CreatedAt >= periodStart
+                && r.CreatedAt < periodEnd
+                && (r.Status == ReservationStatus.Pending
+                    || r.Status == ReservationStatus.ChangesRequested
+                    || r.Status == ReservationStatus.Approved));
+        if (scopedUnitIds is not null)
+        {
+            reservationsInPeriodQuery = reservationsInPeriodQuery.Where(r => scopedUnitIds.Contains(r.UnitId));
+        }
+
+        var reservationPeriodMetrics = await reservationsInPeriodQuery
+            .GroupBy(_ => 1)
+            .Select(g => new
+            {
+                Count = g.Count(),
+                Amount = g.Sum(r => r.ReservationAmount)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        response.ReservationsInPeriod = reservationPeriodMetrics?.Count ?? 0;
+        response.ReservationAmountInPeriod = reservationPeriodMetrics?.Amount ?? 0;
+        response.AverageReservationAmountInPeriod = response.ReservationsInPeriod == 0
+            ? 0
+            : Math.Round(response.ReservationAmountInPeriod / response.ReservationsInPeriod, 2);
+
+        var liveStatuses = new[]
+{
+    ReservationStatus.Pending,
+    ReservationStatus.ChangesRequested,
+    ReservationStatus.Approved
+};
+
+        var liveReservationsQuery = _context.Set<Reservation>()
+            .Where(r => liveStatuses.Contains(r.Status));
+
+        if (scopedUnitIds is not null)
+        {
+            liveReservationsQuery = liveReservationsQuery.Where(r => scopedUnitIds.Contains(r.UnitId));
+        }
+
+        var liveReservedUnitCount = await liveReservationsQuery
+            .Select(r => r.UnitId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+        var scopedUnitCount = scopedUnitIds is null
+            ? await _context.Set<UnitEntity>().CountAsync(cancellationToken)
+            : scopedUnitIds.Count;
+        response.ReservationRatePct = scopedUnitCount == 0
+            ? 0
+            : Math.Round(liveReservedUnitCount * 100.0 / scopedUnitCount, 1);
 
         // 3b) Comparison to the immediately preceding period of equal length.
         var periodLength = periodEnd - periodStart;
@@ -230,7 +297,44 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
         return response;
     }
 
-    private IQueryable<Sale> SalesQuery(HashSet<Guid>? scopedUnitIds, DateTime start, DateTime end)
+    private async Task PopulateStockAndProgressAsync(AdminDashboardResponse response, List<Guid>? scopedProjectIds, CancellationToken ct)
+    {
+        var projects = _context.Projects.AsNoTracking();
+        if (scopedProjectIds is not null) projects = projects.Where(p => scopedProjectIds.Contains(p.Id));
+        var projectRows = await projects.Select(p => new { p.Id, p.OverAllProgress }).ToListAsync(ct);
+        var ids = projectRows.Select(p => p.Id).ToList();
+
+        var milestones = await _context.Set<ProjectAPI.Domain.Construction.Entities.ConstructionMilestone>().AsNoTracking()
+            .Where(m => ids.Contains(m.ProjectId))
+            .Select(m => new { m.ProjectId, m.WeightPercent, m.Status })
+            .ToListAsync(ct);
+        var byProject = milestones.GroupBy(m => m.ProjectId).ToDictionary(g => g.Key, g => g.ToList());
+
+        var progress = projectRows.Select(p =>
+        {
+            if (!byProject.TryGetValue(p.Id, out var ms) || ms.Sum(m => m.WeightPercent) <= 0) return (double)p.OverAllProgress;
+            var total = ms.Sum(m => m.WeightPercent);
+            var done = ms.Where(m => m.Status == ProjectAPI.Domain.Construction.Entities.MilestoneStatus.Completed).Sum(m => m.WeightPercent);
+            return (double)(done * 100m / total);
+        }).ToList();
+        response.ConstructionProgressPct = progress.Count == 0 ? 0 : Math.Round(progress.Average(), 1);
+
+        var statuses = await _context.Set<UnitEntity>().AsNoTracking()
+            .Join(_context.Set<Immeuble>(), u => u.ProjectId, im => im.Id, (u, im) => new { u.Status, im.ProjectId })
+            .Where(x => ids.Contains(x.ProjectId))
+            .GroupBy(x => x.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToListAsync(ct);
+        int Count(params UnitCommercialStatus[] s) => statuses.Where(x => s.Contains(x.Status)).Sum(x => x.Count);
+
+        response.TotalUnits = statuses.Sum(x => x.Count);
+        response.AvailableUnits = Count(UnitCommercialStatus.Available);
+        response.ReservedUnits = Count(UnitCommercialStatus.HoldPendingApproval, UnitCommercialStatus.Reserved, UnitCommercialStatus.Contracted);
+        response.SoldUnits = Count(UnitCommercialStatus.Sold);
+        response.DeliveredUnits = Count(UnitCommercialStatus.Delivered);
+    }
+
+    private IQueryable<Sale> SalesQuery(List<Guid>? scopedUnitIds, DateTime start, DateTime end)
     {
         var query = _context.Set<Sale>().Where(s => s.SaleDate >= start && s.SaleDate < end);
         if (scopedUnitIds is not null)
@@ -299,8 +403,8 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
     /// </summary>
     private async Task PopulateProjectLevelAggregatesAsync(
         AdminDashboardResponse response,
-        HashSet<Guid>? scopedProjectIds,
-        HashSet<Guid>? scopedUnitIds,
+        List<Guid>? scopedProjectIds,
+        List<Guid>? scopedUnitIds,
         DateTime periodStart,
         DateTime periodEnd,
         CancellationToken ct)
@@ -316,7 +420,7 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
 
         if (projects.Count == 0) return;
 
-        var projectIdSet = projects.Select(p => p.Id).ToHashSet();
+        var projectIdSet = projects.Select(p => p.Id).ToList(); // List: parameterized by EF, not inlined
 
         // Every unit in scope, with its immeuble and project — one query,
         // reused for inventory, sell-through and near-sellout below.

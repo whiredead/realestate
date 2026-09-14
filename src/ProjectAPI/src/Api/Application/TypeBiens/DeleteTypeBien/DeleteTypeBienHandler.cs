@@ -1,3 +1,4 @@
+using ProjectAPI.Api.Application.Common.Exceptions;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
@@ -31,11 +32,7 @@ public class DeleteTypeBienHandler : IRequestHandler<DeleteTypeBienCommand, Dele
         var typeBien = await _typeBienRepository.GetByIDAsync(request.Id);
         if (typeBien == null)
         {
-            return new DeleteTypeBienResponse
-            {
-                IsSuccess = false,
-                Message = "TypeBien not found."
-            };
+            throw new NotFoundException($"TypeBien {request.Id} not found.");
         }
 
         // Check if TypeBien is associated with any Projects
@@ -52,11 +49,10 @@ public class DeleteTypeBienHandler : IRequestHandler<DeleteTypeBienCommand, Dele
             var projectList = string.Join(", ", projectNames);
             var additionalText = projectTypeBiens.Count() > 3 ? $" and {projectTypeBiens.Count() - 3} more" : "";
             
-            return new DeleteTypeBienResponse
-            {
-                IsSuccess = false,
-                Message = $"Cannot delete TypeBien. It is currently associated with {projectTypeBiens.Count()} Project(s): {projectList}{additionalText}. Please remove these associations first."
-            };
+            throw new BusinessRuleException(
+                BusinessErrorCodes.ResourceInUse,
+                $"Ce type de bien est associé à {projectTypeBiens.Count()} projet(s) : {projectList}{additionalText}. Retirez ces associations avant de le supprimer.",
+                StatusCodes.Status409Conflict);
         }
 
         // Check if TypeBien is referenced in any Appointments
@@ -64,11 +60,10 @@ public class DeleteTypeBienHandler : IRequestHandler<DeleteTypeBienCommand, Dele
         var appointmentsWithThisTypeBien = allAppointments.Where(a => a.TypeBienIds.Contains(request.Id)).ToList();
         if (appointmentsWithThisTypeBien.Any())
         {
-            return new DeleteTypeBienResponse
-            {
-                IsSuccess = false,
-                Message = $"Cannot delete TypeBien. It is referenced in {appointmentsWithThisTypeBien.Count()} appointment(s). Please update these appointments first."
-            };
+            throw new BusinessRuleException(
+                BusinessErrorCodes.ResourceInUse,
+                $"Ce type de bien est référencé par {appointmentsWithThisTypeBien.Count()} rendez-vous : modifiez-les avant de le supprimer.",
+                StatusCodes.Status409Conflict);
         }
 
         // Safe to delete

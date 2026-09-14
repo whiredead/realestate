@@ -1,4 +1,6 @@
-﻿using ProjectAPI.Api.Application.Common.Exceptions;
+﻿using ProjectAPI.Domain.Appointments.Entities;
+using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Appointments.Interfaces;
 using ProjectAPI.Domain.Users.Entities;
@@ -18,6 +20,7 @@ namespace ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointmentByI
         private readonly INotaryAppointmentRepository _repository;
         private readonly ProjectScopeService _projectScope;
         private readonly ICurrentUser _currentUser;
+        private readonly ProjectAPI.Infrastructure.Context.ApplicationDbContext _db;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="GetNotaryAppointmentByIdHandler"/> class.
@@ -25,8 +28,9 @@ namespace ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointmentByI
         /// <param name="repository">The repository for notary appointments.</param>
         /// <param name="projectScope">Enforces the §6.4 project/buyer perimeter.</param>
         /// <param name="currentUser">Enforces the per-notary ownership boundary.</param>
-        public GetNotaryAppointmentByIdHandler(INotaryAppointmentRepository repository, ProjectScopeService projectScope, ICurrentUser currentUser)
+        public GetNotaryAppointmentByIdHandler(INotaryAppointmentRepository repository, ProjectScopeService projectScope, ICurrentUser currentUser, ProjectAPI.Infrastructure.Context.ApplicationDbContext db)
         {
+            _db = db;
             _repository = repository;
             _projectScope = projectScope;
             _currentUser = currentUser;
@@ -82,8 +86,11 @@ namespace ProjectAPI.Api.Application.Notary.Appointments.GetNotaryAppointmentByI
                 CreatedAt = appointment.CreatedAt,
                 PreviousAppointmentId = appointment.PreviousAppointmentId,
                 PreviousNotaireId = appointment.PreviousNotaireId,
-                ReassignmentReason = appointment.ReassignmentReason
-            };
+                ReassignmentReason = appointment.ReassignmentReason,
+                Outcome = appointment.Outcome?.ToCode(),
+                OutcomeNote = appointment.OutcomeNote
+            }.WithLocation((await Common.Units.UnitLocations.ForReservationsAsync(_db, new[] { appointment.ReservationId }, cancellationToken))
+                .GetValueOrDefault(appointment.ReservationId));
         }
     }
 }

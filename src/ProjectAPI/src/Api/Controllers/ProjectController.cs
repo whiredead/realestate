@@ -31,11 +31,16 @@ namespace ProjectAPI.Api.Controllers;
 public class ProjectsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ICurrentUser _currentUser;
 
-    public ProjectsController(IMediator mediator)
+    public ProjectsController(IMediator mediator, ICurrentUser currentUser)
     {
         _mediator = mediator;
+        _currentUser = currentUser;
     }
+
+    /// <summary>A caller holding no internal role (buyer, prospect) may only act on their own favourites.</summary>
+    private bool IsInternalCaller => _currentUser.Roles.Any(r => ProjectAPI.Domain.Users.Entities.RoleCodes.Internal.Contains(r, StringComparer.Ordinal));
 
     [HttpPost]
     [Authorize(Roles = RoleGroups.Admins)] // §6.3 Catalogue: "A périmètre" — création réservée aux admins.
@@ -88,6 +93,8 @@ public class ProjectsController : ControllerBase
     [HttpPost("Like")]
     public async Task<IActionResult> AddLikedProject([FromBody] AddLikedProjectCommand command)
     {
+        // The user comes from the token for a buyer/prospect, never from the body.
+        if (!IsInternalCaller) command.UserId = _currentUser.UserId!;
         var response = await _mediator.Send(command);
         return Ok(response);
     }
@@ -98,13 +105,28 @@ public class ProjectsController : ControllerBase
     [HttpDelete("DisLikeProject")]
     public async Task<IActionResult> DisLikeProject([FromBody] RemoveLikedProjectCommand command)
     {
+        if (!IsInternalCaller) command.UserId = _currentUser.UserId!;
         var res = await _mediator.Send(command);
         if (!res.Success) return BadRequest(res.Message);
         return NoContent();
     }
+    /// <summary>The signed-in user's own favourites.</summary>
+    [HttpGet("LikedProjects/mine")]
+    public async Task<IActionResult> GetMyLikedProjects([FromQuery] GetLikedProjectsQuery query)
+    {
+        query.UserId = _currentUser.UserId;
+        return Ok(await _mediator.Send(query));
+    }
+
+    /// <summary>
+    /// Favourites by user. Any signed-in account could list every user's
+    /// favourites (names included) by passing any UserId — or none. A caller
+    /// without an internal role is now pinned to their own.
+    /// </summary>
     [HttpGet("LikedProjects")]
     public async Task<IActionResult> GetLikedProjects([FromQuery] GetLikedProjectsQuery query )
     {
+        if (!IsInternalCaller) query.UserId = _currentUser.UserId;
         var response = await _mediator.Send(query);
         return Ok(response);
     }
@@ -162,6 +184,79 @@ public class ProjectsController : ControllerBase
     public async Task<IActionResult> GetQuartierAmenities([FromQuery] GetQuartierAmenitiesQuery query)
     {
         return Ok(await _mediator.Send(query));
+    }
+
+    /// <summary>
+    /// §12.1 — documents this project requires on a reservation before it may
+    /// be submitted. An empty list means nothing is required, which is every
+    /// project until an administrator configures one.
+    /// </summary>
+    [HttpGet("{projectId:guid}/document-requirements")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)] // The agent filling the dossier needs to see what it demands.
+    [ProducesResponseType(typeof(List<Application.Projects.DocumentRequirements.ProjectDocumentRequirementResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetDocumentRequirements(Guid projectId)
+    {
+        return Ok(await _mediator.Send(
+            new Application.Projects.DocumentRequirements.GetProjectDocumentRequirementsQuery { ProjectId = projectId }));
+    }
+
+    /// <summary>
+    /// Adds or updates one document requirement (§12.1). Re-sending an existing
+    /// DocumentType updates that row instead of failing on the unique index.
+    /// </summary>
+    [HttpPut("{projectId:guid}/document-requirements")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(typeof(Application.Projects.DocumentRequirements.ProjectDocumentRequirementResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpsertDocumentRequirement(
+        Guid projectId,
+        [FromBody] Application.Projects.DocumentRequirements.UpsertProjectDocumentRequirementCommand command)
+    {
+        command.ProjectId = projectId;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>Removes a document requirement (§12.1 configuration, not business data).</summary>
+    [HttpDelete("document-requirements/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteDocumentRequirement(Guid id)
+    {
+        await _mediator.Send(
+            new Application.Projects.DocumentRequirements.DeleteProjectDocumentRequirementCommand { Id = id });
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Adds a neighbourhood amenity to a project's "Quartier" tab (§7.2).
+    /// Re-adding an existing name returns that row rather than duplicating it.
+    /// </summary>
+    [HttpPost("{projectId:guid}/quartier-amenities")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(typeof(QuartierAmenityResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> AddQuartierAmenity(
+        Guid projectId,
+        [FromBody] Application.Projects.QuartierAmenities.AddQuartierAmenityCommand command)
+    {
+        command.ProjectId = projectId;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>Removes one amenity chip (§7.2 presentation data).</summary>
+    [HttpDelete("quartier-amenities/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RemoveQuartierAmenity(Guid id)
+    {
+        await _mediator.Send(new Application.Projects.QuartierAmenities.RemoveQuartierAmenityCommand { Id = id });
+        return NoContent();
     }
 
     [HttpGet("features")]
@@ -232,6 +327,98 @@ public class ProjectsController : ControllerBase
 
         return Ok(response);
     }
+
+    /// <summary>
+    /// Corrects a quartier (§7.2 referential). Deletion is a separate action,
+    /// refused while projects still reference the quartier.
+    /// </summary>
+    [HttpPut("quartiers/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(typeof(Application.Quartiers.UpdateQuartier.QuartierResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateQuartier(
+        Guid id,
+        [FromBody] Application.Quartiers.UpdateQuartier.UpdateQuartierCommand command)
+    {
+        command.Id = id;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>The quartier's features (title, description, optional image), in display order.</summary>
+    [HttpGet("quartiers/{quartierId:guid}/features")]
+    [AllowAnonymous] // §6.3 Catalogue public, like the quartier itself.
+    public async Task<IActionResult> GetQuartierFeatures(Guid quartierId) =>
+        Ok(await _mediator.Send(new Application.Quartiers.Features.GetQuartierFeaturesQuery { QuartierId = quartierId }));
+
+    /// <summary>Adds a feature to a quartier.</summary>
+    [HttpPost("quartiers/{quartierId:guid}/features")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    public async Task<IActionResult> CreateQuartierFeature(Guid quartierId, [FromBody] Application.Quartiers.Features.CreateQuartierFeatureCommand command)
+    {
+        command.QuartierId = quartierId;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>Edits a quartier feature (an empty image removes it).</summary>
+    [HttpPut("quartier-features/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    public async Task<IActionResult> UpdateQuartierFeature(Guid id, [FromBody] Application.Quartiers.Features.UpdateQuartierFeatureCommand command)
+    {
+        command.Id = id;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>Removes a quartier feature.</summary>
+    [HttpDelete("quartier-features/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    public async Task<IActionResult> DeleteQuartierFeature(Guid id)
+    {
+        await _mediator.Send(new Application.Quartiers.Features.DeleteQuartierFeatureCommand { Id = id });
+        return NoContent();
+    }
+
+    /// <summary>Deletes an unreferenced quartier (409 while a project is attached to it).</summary>
+    [HttpDelete("quartiers/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteQuartier(Guid id)
+    {
+        await _mediator.Send(new Application.Quartiers.DeleteQuartier.DeleteQuartierCommand { Id = id });
+        return NoContent();
+    }
+
+    /// <summary>
+    /// Corrects a published site video (§7.2). Creation existed with no way to
+    /// fix a mistyped link afterwards.
+    /// </summary>
+    [HttpPut("videos/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(typeof(Application.EspacesTempsReel.ManageEspaceTempsReel.EspaceTempsReelResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> UpdateEspaceTempsReel(
+        Guid id,
+        [FromBody] Application.EspacesTempsReel.ManageEspaceTempsReel.UpdateEspaceTempsReelCommand command)
+    {
+        command.Id = id;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>Removes a site video from the project's public page (§7.2).</summary>
+    [HttpDelete("videos/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DeleteEspaceTempsReel(Guid id)
+    {
+        await _mediator.Send(new Application.EspacesTempsReel.ManageEspaceTempsReel.DeleteEspaceTempsReelCommand { Id = id });
+        return NoContent();
+    }
+
     [HttpPost("{projectId}/videos")]
     [Authorize(Roles = RoleGroups.Admins)]
     [ProducesResponseType(StatusCodes.Status201Created)]

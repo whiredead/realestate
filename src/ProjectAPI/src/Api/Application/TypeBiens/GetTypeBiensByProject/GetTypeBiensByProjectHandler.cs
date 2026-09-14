@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Domain.Immeubles.Interfaces;
@@ -49,6 +49,9 @@ namespace ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByProject
                         Price = tb.Price,
                         NbrChambre = tb.NbrChambre,
                         NbrSalleDeBain = tb.NbrSalleDeBain,
+                        NbrDouche = tb.NbrDouche,
+                        NbrParking = tb.NbrParking,
+                        Module3DLink = tb.Module3DLink,
                         MinSurface = tb.MinSurface,
                         MaxSurface = tb.MaxSurface,
                         SurfaceRange = tb.MaxSurface != null ? $"de {tb.MinSurface} à {tb.MaxSurface}" : $"à partir de {tb.MinSurface}",
@@ -70,6 +73,9 @@ namespace ProjectAPI.Api.Application.TypeBiens.GetTypeBiensByProject
                     Price = x.Price,
                     NbrChambre = x.NbrChambre,
                     NbrSalleDeBain = x.NbrSalleDeBain,
+                    NbrDouche = x.NbrDouche,
+                    NbrParking = x.NbrParking,
+                    Module3DLink = x.Module3DLink,
                     MinSurface = x.MinSurface,
                     MaxSurface = x.MaxSurface,
                     SurfaceRange = x.MaxSurface != null ? $"de {x.MinSurface} à {x.MaxSurface}" : $"à partir de {x.MinSurface}",

@@ -22,17 +22,20 @@ public class ResubmitReservationHandler : IRequestHandler<ResubmitReservationCom
     private readonly IUnitStatusService _unitStatus;
     private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _projectScope;
+    private readonly Common.Reservations.ReservationDocumentChecklist _documents;
 
     public ResubmitReservationHandler(
         IReservationRepository reservationRepo,
         IUnitStatusService unitStatus,
         ApplicationDbContext db,
-        ProjectScopeService projectScope)
+        ProjectScopeService projectScope,
+        Common.Reservations.ReservationDocumentChecklist documents)
     {
         _reservationRepo = reservationRepo;
         _unitStatus = unitStatus;
         _db = db;
         _projectScope = projectScope;
+        _documents = documents;
     }
 
     public async Task<bool> Handle(ResubmitReservationCommand request, CancellationToken ct)
@@ -45,6 +48,12 @@ public class ResubmitReservationHandler : IRequestHandler<ResubmitReservationCom
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");
 
         ReservationStateMachine.EnsureCanTransition(reservation.Status, ReservationStatus.Pending);
+
+        // §12.1 — this is THE submission checkpoint, for a first submit and for
+        // a resubmit after corrections alike. A project that declares no
+        // requirements passes straight through, which is every project until an
+        // administrator configures one.
+        await _documents.EnsureSubmittableAsync(reservation.Id, reservation.UnitId, ct);
 
         // Submitting a draft is the moment the unit gets blocked, so re-check
         // that nobody else claimed it while the draft sat unsubmitted.

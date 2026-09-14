@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Entities;
@@ -43,6 +43,12 @@ public class UpdateClaimStatusHandler : IRequestHandler<UpdateClaimStatusCommand
         _db = db;
     }
 
+    /// <summary>The only statuses a (non-supervisor) technician may move their own claim to.</summary>
+    private static readonly ClaimStatus[] TechnicianTargets =
+    {
+        ClaimStatus.UnderReview, ClaimStatus.MoreInfoRequired, ClaimStatus.InProgress, ClaimStatus.WaitingCustomer, ClaimStatus.Resolved
+    };
+
     public async Task<bool> Handle(UpdateClaimStatusCommand r, CancellationToken ct)
     {
         var claim = await _claimRepo.GetByIDAsync(r.ClaimId)
@@ -65,10 +71,27 @@ public class UpdateClaimStatusHandler : IRequestHandler<UpdateClaimStatusCommand
         // §6.1 — TECHNICIAN is "exclusively post-delivery warranty claims", and
         // only the claims assigned to them: they must not act on someone else's
         // claim just because they hold the role.
-        if (_currentUser.IsInRole(RoleCodes.Technician)
-            && !string.Equals(claim.AssignedAgentId, _currentUser.UserId, StringComparison.Ordinal))
+        var isSupervisor = _currentUser.IsGlobalAdmin
+            || _currentUser.IsInRole(RoleCodes.ProjectAdmin)
+            || _currentUser.IsInRole(RoleCodes.TechLead);
+
+        if (!isSupervisor)
         {
-            throw BusinessRuleException.ProjectScopeDenied(claimProjectId);
+            if (!string.Equals(claim.AssignedAgentId, _currentUser.UserId, StringComparison.Ordinal))
+            {
+                throw BusinessRuleException.ProjectScopeDenied(claimProjectId);
+            }
+
+            // The technician does the work; qualifying, assigning, rejecting and
+            // validating closure belong to the technical lead (or an admin).
+            if (!TechnicianTargets.Contains(r.NewStatus))
+            {
+                throw new BusinessRuleException(
+                    BusinessErrorCodes.Unauthorized,
+                    $"Un technicien ne peut pas passer une réclamation au statut {r.NewStatus} : " +
+                    "cette décision revient au responsable technique.",
+                    StatusCodes.Status403Forbidden);
+            }
         }
 
         var from = claim.Status;
@@ -121,18 +144,8 @@ public class UpdateClaimStatusHandler : IRequestHandler<UpdateClaimStatusCommand
             claim.ResolutionSummary = r.ResolutionSummary;
             claim.ResolvedAt = DateTime.UtcNow;
 
-            foreach (var p in r.Proofs ?? [])
-            {
-                await _attachRepo.InsertAsync(new ClaimAttachment
-                {
-                    Id = Guid.NewGuid(),
-                    ClaimId = claim.Id,
-                    Url = p.Url,
-                    FileName = p.FileName,
-                    ContentType = p.ContentType,
-                    SizeBytes = p.SizeBytes
-                });
-            }
+            // Proof of the repair is uploaded as a file against the claim
+            // (POST /api/claims/{id}/attachments), never injected as a URL here.
         }
 
         if (reopening)
@@ -153,7 +166,10 @@ public class UpdateClaimStatusHandler : IRequestHandler<UpdateClaimStatusCommand
             ClaimId = claim.Id,
             FromStatus = from,
             ToStatus = claim.Status,
-            ChangedByUserId = r.ChangedByUserId,
+            // From the token, never the body. This is the audit trail for who
+            // moved a claim through its lifecycle; a caller-supplied id would
+            // let anyone sign a transition with someone else's name.
+            ChangedByUserId = _currentUser.UserId ?? r.ChangedByUserId,
             Note = r.Note
         });
 

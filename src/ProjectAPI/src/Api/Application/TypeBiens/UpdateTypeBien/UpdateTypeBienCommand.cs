@@ -1,4 +1,4 @@
-namespace ProjectAPI.Api.Application.TypeBiens.UpdateTypeBien;
+﻿namespace ProjectAPI.Api.Application.TypeBiens.UpdateTypeBien;
 
 /// <summary>
 /// Command to update a TypeBien entity.
@@ -39,6 +39,19 @@ public class UpdateTypeBienCommand : IRequest<UpdateTypeBienResponse>
     /// Gets or sets the number of bathrooms.
     /// </summary>
     public int? NbrSalleDeBain { get; set; }
+
+    /// <summary>
+    /// Gets or sets the number of shower rooms, counted apart from bathrooms.
+    /// </summary>
+    public int? NbrDouche { get; set; }
+
+    /// <summary>Gets or sets the parking spaces included with this layout.</summary>
+    public int? NbrParking { get; set; }
+
+    /// <summary>
+    /// Gets or sets the 3D tour of this layout. Validated by MediaUrlPolicy.
+    /// </summary>
+    public string? Module3DLink { get; set; }
 
     /// <summary>
     /// Gets or sets the minimum surface area.

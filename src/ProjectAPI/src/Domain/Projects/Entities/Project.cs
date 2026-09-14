@@ -70,6 +70,17 @@ public class Project
     public long NumberLikes { get; set; } = 0;
 
     /// <summary>
+    /// Warranty length in months granted on every unit of this project (§8).
+    ///
+    /// This is the ONLY authoritative source: a sale copies it at creation and
+    /// the handover reads the frozen copy from the sale, so changing it here
+    /// never shortens or extends a warranty already granted. 12 months is the
+    /// legacy behaviour <c>StartHandoverHandler</c> hard-coded, kept as the
+    /// default so existing projects are unaffected.
+    /// </summary>
+    public int WarrantyMonths { get; set; } = 12;
+
+    /// <summary>
     /// Gets or sets the list of image URLs associated with the project.
     /// </summary>
     public List<string> Images { get; set; } = new List<string>();

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.FinalVisits.Entities;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.FinalVisits.AcknowledgeReport;
@@ -36,11 +37,13 @@ public class AcknowledgeReportHandler : IRequestHandler<AcknowledgeReportCommand
 {
     private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _projectScope;
+    private readonly ICurrentUser _currentUser;
 
-    public AcknowledgeReportHandler(ApplicationDbContext db, ProjectScopeService projectScope)
+    public AcknowledgeReportHandler(ApplicationDbContext db, ProjectScopeService projectScope, ICurrentUser currentUser)
     {
         _db = db;
         _projectScope = projectScope;
+        _currentUser = currentUser;
     }
 
     public async Task<AcknowledgeReportResponse> Handle(AcknowledgeReportCommand request, CancellationToken ct)
@@ -49,19 +52,22 @@ public class AcknowledgeReportHandler : IRequestHandler<AcknowledgeReportCommand
             .FirstOrDefaultAsync(r => r.Id == request.ReportId, ct)
             ?? throw new NotFoundException($"Final visit report {request.ReportId} not found.");
 
-        // §6.4 — only the buyer who owns this file (or a scoped agent/admin
-        // recording it on a walk-in's behalf) may acknowledge/dispute.
+        // §17.3 — acknowledgement is the buyer's own decision. It must not
+        // be recorded by an agent/admin on their behalf, nor attributed to a
+        // caller-supplied id.
         var reservationId = await (
             from a in _db.Set<FinalVisitAppointment>()
             join c in _db.Set<FinalVisitCase>() on a.CaseId equals c.Id
             where a.Id == report.AppointmentId
             select c.ReservationId).FirstOrDefaultAsync(ct);
 
-        if (reservationId != Guid.Empty)
-        {
-            await _projectScope.EnsureReservationAccessAsync(reservationId, ct);
-            await _projectScope.EnsureBuyerOwnsReservationAsync(reservationId, ct);
-        }
+        if (reservationId == Guid.Empty)
+            throw BusinessRuleException.BuyerScopeDenied();
+
+        if (!_currentUser.IsInRole(RoleCodes.Buyer))
+            throw BusinessRuleException.BuyerScopeDenied();
+
+        await _projectScope.EnsureBuyerOwnsReservationAsync(reservationId, ct);
 
         if (report.Status != ReportStatus.AwaitingBuyerAcknowledgement)
         {
@@ -82,7 +88,7 @@ public class AcknowledgeReportHandler : IRequestHandler<AcknowledgeReportCommand
         {
             report.Status = ReportStatus.Acknowledged;
             report.AcknowledgedAt = DateTime.UtcNow;
-            report.AcknowledgedBy = request.BuyerUserId;
+            report.AcknowledgedBy = _currentUser.UserId;
         }
         else
         {

@@ -1,3 +1,4 @@
+using ProjectAPI.Api.Application.Common.Units;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Models;
 using ProjectAPI.Api.Application.Common.Security;
@@ -49,6 +50,9 @@ public class GetMyClaimsHandler : IRequestHandler<GetMyClaimsQuery, PaginatedRes
                 AttachmentUrls = c.Attachments.Select(a => a.Url).ToList()
             })
             .ToListAsync(ct);
+
+        var locations = await Common.Units.UnitLocations.ForUnitsAsync(_db, data.Select(c => c.UnitId), ct);
+        foreach (var claim in data) claim.WithLocation(locations.GetValueOrDefault(claim.UnitId));
 
         return new PaginatedResponse<MyClaimSummary>(data, request.PageNumber, request.PageSize, total);
     }

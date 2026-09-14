@@ -103,6 +103,12 @@ var blobStorageSettings = new ProjectAPI.Infrastructure.Settings.BlobStorageSett
 builder.Services.AddSingleton(blobStorageSettings);
 builder.Services.AddSingleton(new Azure.Storage.Blobs.BlobServiceClient(blobStorageSettings.ConnectionString));
 
+// §7.2 — host allow-lists for client-supplied media links. The storage account
+// above is always accepted without appearing here, so rotating it never needs
+// a matching edit in appsettings (see MediaUrlPolicy).
+builder.Services.Configure<ProjectAPI.Api.Application.Common.Media.MediaSettings>(
+    builder.Configuration.GetSection(ProjectAPI.Api.Application.Common.Media.MediaSettings.SectionName));
+
 // Outbound mail. The password used to be compiled into EmailService, which put
 // a live mailbox password in source control; it now comes from configuration
 // (user-secrets locally, Smtp__* environment variables in a deployment).

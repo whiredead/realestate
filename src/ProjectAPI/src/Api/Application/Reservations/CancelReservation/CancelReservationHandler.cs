@@ -1,3 +1,4 @@
+using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Common.Units;
@@ -47,6 +48,23 @@ public class CancelReservationHandler : IRequestHandler<CancelReservationCommand
         await using var transaction = await _db.Database.BeginTransactionAsync(cancellationToken);
 
         reservation.Status = ReservationStatus.Cancelled;
+
+        // A draft / pending sale on a cancelled file used to stay ACTIVE: it kept
+        // the unit "sold in progress" (IX_Sales_ActivePerUnit) and blocked the next
+        // buyer's sale. A confirmed sale cannot exist here (it would have converted
+        // the reservation).
+        var openSales = await _db.Set<ProjectAPI.Domain.Sales.Entities.Sale>()
+            .Where(s => s.ReservationId == reservation.Id
+                     && (s.Status == ProjectAPI.Domain.Sales.Entities.SaleStatus.Draft
+                         || s.Status == ProjectAPI.Domain.Sales.Entities.SaleStatus.PendingNotary))
+            .ToListAsync(cancellationToken);
+        foreach (var sale in openSales)
+        {
+            sale.Status = ProjectAPI.Domain.Sales.Entities.SaleStatus.Cancelled;
+            sale.Notes = string.IsNullOrWhiteSpace(sale.Notes)
+                ? "[Annulée avec la réservation]"
+                : $"{sale.Notes}\n[Annulée avec la réservation]";
+        }
 
         await _unitStatus.TransitionAsync(
             reservation.UnitId,

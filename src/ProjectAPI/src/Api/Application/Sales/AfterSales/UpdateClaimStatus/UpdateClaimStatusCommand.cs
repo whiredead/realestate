@@ -1,5 +1,4 @@
-using ProjectAPI.Api.Application.Sales.AfterSales.CreateAfterSaleClaim;
-using ProjectAPI.Domain.Sales.Entities;
+﻿using ProjectAPI.Domain.Sales.Entities;
 
 namespace ProjectAPI.Api.Application.Sales.AfterSales.UpdateClaimStatus;
 
@@ -13,10 +12,22 @@ public class UpdateClaimStatusCommand : IRequest<bool>
 {
     public Guid ClaimId { get; set; }
     public ClaimStatus NewStatus { get; set; }
-    public string ChangedByUserId { get; set; }
+    /// <summary>
+    /// Accepted for wire compatibility and deliberately IGNORED: the history
+    /// entry's actor is read from the token (<c>ICurrentUser.UserId</c>), never
+    /// from the request body. Do not re-wire this into the handler.
+    /// </summary>
+    public string ChangedByUserId { get; set; } = string.Empty;
+
     public string? Note { get; set; }                 // e.g. reason or progress note
     public string? ResolutionSummary { get; set; }    // required if Resolved
-    public List<FileDto> Proofs { get; set; } = new(); // attachments when resolving
+
+    // Proofs are NOT accepted here.
+    //
+    // This carried a List<FileDto> of client-supplied URLs, stored verbatim as
+    // the resolution's evidence — the same hole the create command had. A
+    // technician attaches proof of the repair as a FILE, via
+    // POST /api/claims/{claimId}/attachments, before or after resolving.
 
     /// <summary>Required when qualifying to ASSIGNED (§20 — project admin sets priority + technician).</summary>
     public string? AssignedAgentId { get; set; }

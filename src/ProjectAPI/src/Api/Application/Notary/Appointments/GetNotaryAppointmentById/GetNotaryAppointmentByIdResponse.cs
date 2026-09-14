@@ -3,7 +3,7 @@
     /// <summary>
     /// Response for the notary appointment retrieval.
     /// </summary>
-    public class GetNotaryAppointmentByIdResponse
+    public class GetNotaryAppointmentByIdResponse : ProjectAPI.Api.Application.Common.Units.IHasUnitLocation
     {
         public Guid Id { get; set; }
         public string? BuyerId { get; set; }
@@ -25,5 +25,17 @@
         public Guid? PreviousAppointmentId { get; set; }
         public string? PreviousNotaireId { get; set; }
         public string? ReassignmentReason { get; set; }
+
+        /// <summary>§5.7 result and its note — the detail used to omit both.</summary>
+        public string? Outcome { get; set; }
+        public string? OutcomeNote { get; set; }
+
+        public Guid? ProjectId { get; set; }
+        public string? ProjectName { get; set; }
+        public Guid? ImmeubleId { get; set; }
+        public string? ImmeubleName { get; set; }
+        public string? FloorName { get; set; }
+        public string? UnitNumber { get; set; }
+        public ProjectAPI.Api.Application.Common.Units.UnitContextDto? UnitContext { get; set; }
     }
 }

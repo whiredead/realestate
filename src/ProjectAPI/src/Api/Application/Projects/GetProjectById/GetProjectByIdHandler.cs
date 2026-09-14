@@ -38,7 +38,7 @@ public class GetProjectByIdHandler : IRequestHandler<GetProjectByIdQuery, Projec
             .Select(im => new { im.Id, im.Name, im.Location, im.Status, im.MinPrice, im.MaxPrice, im.ImagePrincipale })
             .ToListAsync(ct);
 
-        var immeubleIds = immeubles.Select(im => im.Id).ToHashSet();
+        var immeubleIds = immeubles.Select(im => im.Id).ToList();
 
         var units = await _db.Set<UnitEntity>()
             .Where(u => immeubleIds.Contains(u.ProjectId))
@@ -52,7 +52,7 @@ public class GetProjectByIdHandler : IRequestHandler<GetProjectByIdQuery, Projec
             .ToListAsync(ct);
         var floorCountByImmeuble = floorCounts.ToDictionary(f => f.ImmeubleId, f => f.Count);
 
-        var unitIds = units.Select(u => u.Id).ToHashSet();
+        var unitIds = units.Select(u => u.Id).ToList();
         var recentCutoff = DateTime.UtcNow.AddDays(-90);
         var recentSales = await _db.Set<Sale>()
             .Where(s => unitIds.Contains(s.UnitId) && s.SaleDate >= recentCutoff)

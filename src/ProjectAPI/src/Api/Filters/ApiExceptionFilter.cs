@@ -44,7 +44,9 @@ public class ApiExceptionFilter : IExceptionFilter
             { typeof(InvalidReservationTransitionException), HandleInvalidTransitionException },
             { typeof(InvalidUnitTransitionException), HandleInvalidUnitTransitionException },
             { typeof(InvalidClaimTransitionException), HandleInvalidClaimTransitionException },
+            { typeof(InvalidSaleTransitionException), HandleInvalidSaleTransitionException },
             { typeof(DbUpdateConcurrencyException), HandleConcurrencyException },
+            { typeof(ProjectAPI.Domain.Construction.Entities.ProjectReadOnlyException), HandleProjectReadOnlyException },
             { typeof(Exception), HandleGlobalException }
         };
     }
@@ -100,25 +102,117 @@ public class ApiExceptionFilter : IExceptionFilter
         return false;
     }
 
+    /// <summary>
+    /// Filtered unique indexes that exist purely as concurrency backstops, and
+    /// the typed 409 each one must produce. The SQL message is the only thing
+    /// SqlException carries about which constraint fired, so the index NAME is
+    /// part of the API contract: renaming one in a migration without updating
+    /// this table turns a 409 back into a 500.
+    /// </summary>
+    private static readonly (string IndexName, string Code, string Detail)[] UniqueIndexConflicts =
+    {
+        (
+            "IX_Reservations_ActivePerUnit",
+            BusinessErrorCodes.UnitNotAvailable,
+            "Le bien n'est plus disponible : une réservation active existe déjà."
+        ),
+        (
+            "IX_Sales_ActivePerReservation",
+            BusinessErrorCodes.SaleAlreadyExists,
+            "Une vente active existe déjà pour cette réservation."
+        ),
+        (
+            "IX_Sales_ActivePerUnit",
+            BusinessErrorCodes.UnitNotAvailable,
+            "Le bien n'est plus disponible : une vente active existe déjà."
+        )
+    };
+
+    /// <summary>SQL Server error number for a FOREIGN KEY / REFERENCE constraint violation.</summary>
+    private const int ForeignKeyViolationNumber = 547;
+
+    private static bool IsForeignKeyViolation(Exception? exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql && sql.Number == ForeignKeyViolationNumber) return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// SQL errors that say "the database could not be reached right now", not
+    /// "the request is wrong": command timeout (-2), dropped/unusable connection
+    /// (-1, 2, 53, 10053, 10054, 10060), Azure SQL throttling and failover
+    /// (40197, 40501, 40613, 49918, 49919, 49920, 10928, 10929, 4060, 4221).
+    /// </summary>
+    private static readonly HashSet<int> TransientSqlNumbers = new()
+    {
+        -2, -1, 2, 53, 4060, 4221, 10053, 10054, 10060, 10928, 10929, 40197, 40501, 40613, 49918, 49919, 49920
+    };
+
+    private static bool IsTransientSqlFailure(Exception? exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql && TransientSqlNumbers.Contains(sql.Number)) return true;
+        }
+        return false;
+    }
+
     private void HandleException(ExceptionContext context)
     {
+        // A timeout or a dropped connection to the database is not a bug in the
+        // request: answer 503 with a retryable code instead of a bare 500, so
+        // the client can tell the user to try again.
+        if (IsTransientSqlFailure(context.Exception))
+        {
+            var unavailable = new ProblemDetails
+            {
+                Title = "Service momentanément indisponible.",
+                Detail = "La base de données ne répond pas pour le moment. Réessayez dans quelques instants.",
+                Type = "https://docs.gpia.example/problems/service-unavailable"
+            };
+            Enrich(unavailable, context, BusinessErrorCodes.ServiceUnavailable, StatusCodes.Status503ServiceUnavailable);
+            context.Result = new ObjectResult(unavailable) { StatusCode = StatusCodes.Status503ServiceUnavailable };
+            context.HttpContext.Response.Headers["Retry-After"] = "5";
+            _logger.LogWarning(context.Exception, "[Transient] SERVICE_UNAVAILABLE on {Path}", context.HttpContext.Request.Path);
+            context.ExceptionHandled = true;
+            return;
+        }
+
+        // Deleting (or re-pointing) a row other data still references used to
+        // surface as a bare 500. It is a conflict the user can act on.
+        if (IsForeignKeyViolation(context.Exception))
+        {
+            var inUse = new ProblemDetails
+            {
+                Title = "Règle métier non satisfaite.",
+                Detail = "Cet élément est encore utilisé par d'autres données et ne peut pas être supprimé ou modifié ainsi.",
+                Type = "https://docs.gpia.example/problems/resource-in-use"
+            };
+            Enrich(inUse, context, BusinessErrorCodes.ResourceInUse, StatusCodes.Status409Conflict);
+            context.Result = new ObjectResult(inUse) { StatusCode = StatusCodes.Status409Conflict };
+            _logger.LogInformation("[Conflict] RESOURCE_IN_USE on {Path}", context.HttpContext.Request.Path);
+            context.ExceptionHandled = true;
+            return;
+        }
+
         // Translate database-level uniqueness failures before generic handling.
         if (TryGetUniqueViolation(context.Exception, out var message))
         {
-            var isActiveReservation = message?.Contains("IX_Reservations_ActivePerUnit", StringComparison.OrdinalIgnoreCase) == true;
+            var match = UniqueIndexConflicts.FirstOrDefault(
+                c => message?.Contains(c.IndexName, StringComparison.OrdinalIgnoreCase) == true);
+
+            var code = match.Code ?? BusinessErrorCodes.ResourceVersionConflict;
+            var detail = match.Detail ?? "Cette opération viole une contrainte d'unicité.";
 
             var conflict = new ProblemDetails
             {
                 Title = "Règle métier non satisfaite.",
-                Detail = isActiveReservation
-                    ? "Le bien n'est plus disponible : une réservation active existe déjà."
-                    : "Cette opération viole une contrainte d'unicité.",
-                Type = "https://docs.gpia.example/problems/unit-not-available"
+                Detail = detail,
+                Type = $"https://docs.gpia.example/problems/{code.ToLowerInvariant().Replace('_', '-')}"
             };
-
-            var code = isActiveReservation
-                ? BusinessErrorCodes.UnitNotAvailable
-                : BusinessErrorCodes.ResourceVersionConflict;
 
             Enrich(conflict, context, code, StatusCodes.Status409Conflict);
 
@@ -242,6 +336,21 @@ public class ApiExceptionFilter : IExceptionFilter
         context.ExceptionHandled = true;
     }
 
+    /// <summary>Maps a write on a finalised project to 409 PROJECT_READ_ONLY.</summary>
+    private void HandleProjectReadOnlyException(ExceptionContext context)
+    {
+        var details = new ProblemDetails
+        {
+            Title = "Projet en lecture seule.",
+            Detail = context.Exception.Message,
+            Type = "https://docs.gpia.example/problems/project-read-only"
+        };
+        Enrich(details, context, BusinessErrorCodes.ProjectReadOnly, StatusCodes.Status409Conflict);
+        context.Result = new ObjectResult(details) { StatusCode = StatusCodes.Status409Conflict };
+        _logger.LogInformation("[Conflict] PROJECT_READ_ONLY on {Path}", context.HttpContext.Request.Path);
+        context.ExceptionHandled = true;
+    }
+
     /// <summary>
     /// Maps a refused SAV claim transition to 409 INVALID_STATUS_TRANSITION (§20, §47.5).
     /// </summary>
@@ -262,6 +371,31 @@ public class ApiExceptionFilter : IExceptionFilter
 
         _logger.LogInformation(
             "[ClaimTransition] refused {From} -> {To} on {Path}",
+            exception.From, exception.To, context.HttpContext.Request.Path);
+
+        context.ExceptionHandled = true;
+    }
+
+    /// <summary>
+    /// Maps a refused sale transition to 409 INVALID_STATUS_TRANSITION (§5.7, §6).
+    /// </summary>
+    private void HandleInvalidSaleTransitionException(ExceptionContext context)
+    {
+        var exception = (InvalidSaleTransitionException)context.Exception;
+
+        var details = new ProblemDetails
+        {
+            Title = "Transition de statut non autorisée.",
+            Detail = exception.Message,
+            Type = "https://docs.gpia.example/problems/invalid-status-transition"
+        };
+
+        Enrich(details, context, BusinessErrorCodes.InvalidStatusTransition, StatusCodes.Status409Conflict);
+
+        context.Result = new ObjectResult(details) { StatusCode = StatusCodes.Status409Conflict };
+
+        _logger.LogInformation(
+            "[SaleTransition] refused {From} -> {To} on {Path}",
             exception.From, exception.To, context.HttpContext.Request.Path);
 
         context.ExceptionHandled = true;
