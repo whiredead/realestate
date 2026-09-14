@@ -207,3 +207,25 @@ sequenceDiagram
   `Internal-Auth.md`, `UserController.md` (AuthenticationAPI)
 - Workflows: [ReservationLifecycle.md](ReservationLifecycle.md)
 - Frontend *(pending)*: `realestateFront/docs/frontend/Auth.md`
+
+## Correction (2026-09-14)
+
+Step 5 is out of date: `ActivateAccountPage` now **signs the buyer in** right
+after a successful acceptance (`login(result.email, password)`, non-fatal on
+failure) and the app routes them to the buyer portal; the success message is only
+visible when that automatic sign-in fails.
+
+## Validated
+
+Legend: ✅ validated end to end (Playwright UI test against the running stack, state re-read from the API/DB) · ⚠️ fixed during validation (fix logged in `docs/fixes/`) then validated · ❌ not validated (reason given).
+Suite: `realestateFront/tests/` — run on 2026-09-14 against Azure SQL `GPIA_Project` (S2).
+
+| Step | Result | Evidence (test) |
+|---|---|---|
+| 1 — approving a walk-in reservation issues a 64-hex-char single-use token | ✅ | `workflow_account_activation` (token read from `AccountInvitations`; no e-mail is sent — gap unchanged) |
+| 2-3 — the invitee opens `/activate?token=…` without a session and sets a password | ✅ | `workflow_account_activation` |
+| 4 — cross-service provisioning: AuthenticationAPI account with BUYER | ✅ | `workflow_account_activation` (login with the new password returns BUYER) |
+| 3.8 — reservations created before the account are back-linked | ✅ | `workflow_account_activation` (`GET Reservations/mine` and "Mes biens") |
+| Token reuse refused (409 `INVITATION_ALREADY_ACCEPTED`) | ✅ | `workflow_account_activation` |
+| 5 — after activation | ⚠️ doc corrected (automatic sign-in); "Mes biens" now shows project / building / floor | `workflow_account_activation` |
+| Expired / revoked tokens | ❌ | not exercised (needs a token aged 7 days or a second approval on the same contact) |

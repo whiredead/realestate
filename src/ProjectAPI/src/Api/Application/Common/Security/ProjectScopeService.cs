@@ -44,12 +44,12 @@ public class ProjectScopeService
     /// Projects the caller may act on, or <c>null</c> meaning "all projects"
     /// (GLOBAL_ADMIN only, §6.3). Callers must treat null as unrestricted.
     /// </summary>
-    public async Task<HashSet<Guid>?> GetScopedProjectIdsAsync(CancellationToken ct)
+    public async Task<List<Guid>?> GetScopedProjectIdsAsync(CancellationToken ct)
     {
         if (_user.IsGlobalAdmin) return null;
 
         var userId = _user.UserId;
-        if (string.IsNullOrEmpty(userId)) return new HashSet<Guid>();
+        if (string.IsNullOrEmpty(userId)) return new List<Guid>();
 
         // "Now" is always server UTC — ValidFrom/ValidUntil are stored and
         // compared in UTC consistently; see ProjectMembership's doc comments.
@@ -64,7 +64,10 @@ public class ProjectScopeService
             .Distinct()
             .ToListAsync(ct);
 
-        return ids.ToHashSet();
+        // A List, not a HashSet: EF Core parameterizes List.Contains (one cached
+        // plan), but expands HashSet.Contains into a literal IN (...) list — a new
+        // compiled plan for every caller and every change of perimeter.
+        return ids;
     }
 
     /// <summary>True when the caller may act on the given project.</summary>

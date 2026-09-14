@@ -150,3 +150,38 @@ orphans, depends on each relationship's configured `DeleteBehavior`. Only the
   [Reservations.md](../backend/Reservations.md) ·
   [Appointments.md](../backend/Appointments.md)
 - Backend *(pending)*: `Sales.md`, `Payments.md`, `FinalVisits.md`
+
+## Superseded (2026-09-14)
+
+The behaviour traced above no longer exists. Both handlers were rewritten
+(`docs/fixes/Projects.md`):
+
+- **Refusal first.** A project (or building) with reservations, sales,
+  deliveries, commercial appointments or buyer feedback is refused with **409
+  `RESOURCE_IN_USE`** — business history is never deleted (the building handler
+  used to delete sales and reservations). A finalised project is **409
+  `PROJECT_READ_ONLY`**.
+- **One transaction.** The configuration graph (units and their histories /
+  title states / tracking, floors, building features / plans / tracking / type
+  links / assignments, buildings, construction milestones and updates, videos,
+  invitation assignments, leads, likes, assignment config, project assignments,
+  features, type links, amenities, document rules, memberships, project) is
+  deleted with set-based SQL inside one transaction: no partial state.
+- **No table scans.** Existence checks are SQL queries instead of loading every
+  building, unit, reservation, sale and appointment into memory.
+- **Errors** go through `ApiExceptionFilter` (no stack trace to the client).
+- Before the rewrite, *every* real project failed with 409 on its configuration
+  rows (memberships, milestones, document rules…).
+
+## Validated
+
+Legend: ✅ validated end to end (Playwright UI test against the running stack, state re-read from the API/DB) · ⚠️ fixed during validation (fix logged in `docs/fixes/`) then validated · ❌ not validated (reason given).
+Suite: `realestateFront/tests/` — run on 2026-09-14 against Azure SQL `GPIA_Project` (S2).
+
+| Step | Result | Evidence (test) |
+|---|---|---|
+| Delete a project without history from the UI: project, buildings and units gone | ⚠️ fixed (was always 409) | `workflow_project_deletion_cascade` |
+| A project with a reservation is refused (UI alert + API 409) and kept whole | ⚠️ fixed | `workflow_project_deletion_cascade` |
+| A building with a reservation is refused; an empty building is deleted | ⚠️ fixed (was deleting sales and reservations) | `workflow_project_deletion_cascade` |
+| Perimeter: out-of-scope project admin refused | ✅ | backend enforcement tests `RemoveProject_ProjectAdmin_WithNoMembership_IsDenied_AndProjectSurvives`, `DeleteImmeuble_*` (205/205 passing) |
+| Finalised project refused | ✅ | `finalise_makes_project_read_only` (guard) |

@@ -46,6 +46,8 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
         _media.Ensure3DLink(request.Module3DLink, "Module3DLink");
         _media.EnsureImageUrl(request.QuartierImages, "QuartierImages");
 
+        await ProjectTypeBienLinks.EnsureQuartierExistsAsync(_db, request.QuartierId, cancellationToken);
+
         // Step 1: Resolve or create Quartier
         Guid? quartierId = null;
         if (request.QuartierId.HasValue)
@@ -116,6 +118,11 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
             });
         }
         await _db.SaveChangesAsync(cancellationToken);
+
+        if (request.TypeBienIds is { Count: > 0 })
+        {
+            await ProjectTypeBienLinks.SyncAsync(_db, project.Id, request.TypeBienIds, cancellationToken);
+        }
 
         // §6.4 — a PROJECT_ADMIN's perimeter is their memberships. Without one on
         // the project they just created, every later action on it (edit,

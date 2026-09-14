@@ -13,17 +13,20 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
     private readonly IQuartierRepository _quartierRepository;
     private readonly ProjectScopeService _projectScope;
     private readonly MediaUrlPolicy _media;
+    private readonly Infrastructure.Context.ApplicationDbContext _db;
 
     public UpdateProjectHandler(
         IProjectRepository projectRepository,
         IQuartierRepository quartierRepository,
         ProjectScopeService projectScope,
-        MediaUrlPolicy media)
+        MediaUrlPolicy media,
+        Infrastructure.Context.ApplicationDbContext db)
     {
         _projectRepository = projectRepository;
         _quartierRepository = quartierRepository;
         _projectScope = projectScope;
         _media = media;
+        _db = db;
     }
 
     public async Task<ProjectResponse> Handle(UpdateProjectCommand request, CancellationToken cancellationToken)
@@ -44,6 +47,7 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
             _media.Ensure3DLink(request.Module3DLink, "Module3DLink");
         }
         _media.EnsureImageUrl(request.QuartierImages, "QuartierImages");
+        await ProjectTypeBienLinks.EnsureQuartierExistsAsync(_db, request.QuartierId, cancellationToken);
 
         // Update Quartier if needed
         if (request.QuartierId.HasValue)
@@ -120,6 +124,11 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
         // again, racing two operations on the same DbContext → 500 "a second
         // operation was started on this context". Await the single save.
         await _projectRepository.Update(project);
+
+        if (request.TypeBienIds is not null)
+        {
+            await ProjectTypeBienLinks.SyncAsync(_db, project.Id, request.TypeBienIds, cancellationToken);
+        }
 
         return new ProjectResponse
         {

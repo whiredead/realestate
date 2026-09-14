@@ -105,6 +105,15 @@ public class NotaryAppointmentsController : ControllerBase
         return Ok(response);
     }
 
+    /// <summary>The signed-in buyer's own notary appointments (optionally for one reservation).</summary>
+    [HttpGet("mine")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetMyNotaryAppointments([FromQuery] GetNotaryAppointmentsQuery query)
+    {
+        query.MineOnly = true;
+        return Ok(await _mediator.Send(query));
+    }
+
     [HttpGet("NotaireAvailability")]
     // §6.4 — a notary's calendar has no reservation to scope by, so gate it by
     // role instead: internal roles that book/manage notary appointments, plus

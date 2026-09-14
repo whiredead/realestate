@@ -30,4 +30,7 @@ public class Quartier
     /// Navigation property for all projects within this quartier.
     /// </summary>
     public ICollection<Project> Projects { get; set; } = new List<Project>();
+
+    /// <summary>The quartier's features (title, description, optional image).</summary>
+    public ICollection<QuartierFeature> Features { get; set; } = new List<QuartierFeature>();
 }

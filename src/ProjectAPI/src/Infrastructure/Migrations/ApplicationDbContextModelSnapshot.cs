@@ -2742,6 +2742,41 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.ToTable("QuartierAmenities", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.QuartierFeature", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("Image")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<Guid>("QuartierId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("SequenceNo")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("QuartierId", "SequenceNo");
+
+                    b.ToTable("QuartierFeatures", (string)null);
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Purchases.Entities.Purchase", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4238,6 +4273,15 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("TypeBien");
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.QuartierFeature", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Projects.Entities.Quartier", null)
+                        .WithMany("Features")
+                        .HasForeignKey("QuartierId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Purchases.Entities.Purchase", b =>
                 {
                     b.HasOne("ProjectAPI.Domain.Reservations.Entities.Reservation", "Reservation")
@@ -4575,6 +4619,8 @@ namespace ProjectAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.Quartier", b =>
                 {
+                    b.Navigation("Features");
+
                     b.Navigation("Projects");
                 });
 

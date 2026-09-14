@@ -397,10 +397,8 @@ public class UpdateNotaryAppointmentHandler : IRequestHandler<UpdateNotaryAppoin
                 // atomically" never included creating the Sale record itself:
                 // /admin/sales, sales KPIs and the unit journey's "Vente"
                 // stage all read this table, and nothing in the codebase ever
-                // wrote to it (N15). ScheduleDeliveryHandler also requires an
-                // existing Sale — though the newer HandoversController path
-                // (ScheduleHandoverHandler) doesn't, so handovers were never
-                // actually blocked by this gap, only sales reporting was.
+                // wrote to it (N15). Handovers (the only delivery flow) are
+                // scheduled from the converted reservation.
                 //
                 // §6 — the notarial act CONFIRMS a sale; it does not invent one.
                 // Where the agent opened a draft (POST /api/sales), that draft

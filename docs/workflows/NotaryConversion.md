@@ -205,3 +205,22 @@ Documented in full in [NotaryAppointments.md](../backend/NotaryAppointments.md).
   `Sales.md`, `Payments.md`
 - Workflows: [ReservationLifecycle.md](ReservationLifecycle.md)
 - Frontend *(pending)*: `realestateFront/docs/frontend/Notary.md`
+
+## Validated
+
+Legend: ✅ validated end to end (Playwright UI test against the running stack, state re-read from the API/DB) · ⚠️ fixed during validation (fix logged in `docs/fixes/`) then validated · ❌ not validated (reason given).
+Suite: `realestateFront/tests/` — run on 2026-09-14 against Azure SQL `GPIA_Project` (S2).
+
+| Step | Result | Evidence (test) |
+|---|---|---|
+| Preconditions: final visit validated, title available | ✅ | `visit_satisfactory_makes_file_eligible_for_notary`, `sale_button_hidden_unless_final_visit_validated` |
+| 1 — request (agent, admin, buyer), cascade Projet → … → Dossier | ⚠️ fixed (cascade from reservations, buyer request form) | `appointment_cascade_filters_project_building_floor_unit_reservation`, `buyer_appointment_request_created_with_status_requested`, `buyer_can_create_notary_appointment_request` |
+| 2 — confirm by agent / admin / notary | ⚠️ fixed (agent allowed to confirm/cancel only) | `appointment_confirmable_by_agent_admin_or_notary` |
+| 3 — outcome; note required for failed / cancelled / postponed; buyer cannot complete | ⚠️ fixed | `note_required_for_failed_cancelled_or_postponed_result`, `buyer_cannot_set_purchase_completed`, `api_rejects_role_violation` |
+| 4 — PURCHASE_COMPLETED: reservation CONVERTED, unit SOLD, existing draft sale confirmed or a sale created | ⚠️ fixed (draft confirmed in place, PendingNotary sync) | `existing_draft_sale_becomes_confirmed_on_purchase_completed`, `sale_auto_created_as_confirmed_when_none_exists`, `reservation_becomes_converted_on_purchase_completed`, `unit_becomes_sold_on_purchase_completed` |
+| Atomicity (fault injected on the sale insert) | ✅ | `auto_sale_creation_is_transactional`, `api_atomic_on_purchase_completed` |
+| Skipping confirmation refused | ✅ | `api_enforces_state_machine_transitions` |
+| Appointment detail shows project / building / floor / unit | ⚠️ fixed | `notary_appointment_detail_shows_project_building_floor_unit` |
+| Buyer reads only their own appointments | ⚠️ fixed (`GET NotaryAppointments/mine`) | `buyer_pages_call_only_mine_endpoints` |
+| Weakness 1 (Sale keyed on UnitId, no ReservationId) | ⚠️ fixed | `Sale.ReservationId` + `only_one_active_sale_per_reservation`, `only_one_active_sale_per_unit` |
+| Reassignment of an already-confirmed appointment | ❌ | not exercised by the UI suite (no screen offers reassignment) |

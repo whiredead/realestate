@@ -42,7 +42,7 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
 
         var (projects, totalItems) = await _projectRepository.GetProjects(
             request.UserId, request.Name, request.Location, request.Address!, request.Status,
-            scope, request.PageNumber, request.PageSize);
+            scope, request.PageNumber, request.PageSize, request.Id);
 
         if (!isInternal)
         {
@@ -95,7 +95,8 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
                     Description = tb.Description,
                     Image = tb.Image,
                     NbrChambre = tb.NbrChambre,
-                    ImagesInterieur = tb.ImagesInterieur!.Split(',').ToList(),
+                    // Null for most types: splitting it unguarded crashed the whole project list (500).
+                    ImagesInterieur = string.IsNullOrWhiteSpace(tb.ImagesInterieur) ? new List<string>() : tb.ImagesInterieur.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
                     MinSurface = tb.MinSurface,
                     MaxSurface = tb.MaxSurface,
                     SurfaceRange = tb.MaxSurface!= null ? $"de { tb.MinSurface} à {tb.MaxSurface}": $"à partir de {tb.MinSurface}",

@@ -44,7 +44,9 @@ public class GetNotaryAppointmentsHandler : IRequestHandler<GetNotaryAppointment
                   (string.IsNullOrEmpty(request.Status) || na.Status == request.Status)
         )).ToList();
 
-        appointments = await ApplyScopeAsync(appointments, cancellationToken);
+        appointments = request.MineOnly
+            ? appointments.Where(a => !string.IsNullOrEmpty(_user.UserId) && a.BuyerId == _user.UserId).ToList()
+            : await ApplyScopeAsync(appointments, cancellationToken);
 
         var totalItems = appointments.Count();
 

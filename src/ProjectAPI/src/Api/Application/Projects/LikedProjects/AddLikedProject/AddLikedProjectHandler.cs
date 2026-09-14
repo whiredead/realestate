@@ -30,13 +30,29 @@ namespace ProjectAPI.Api.Application.Projects.LikedProjects.AddLikedProject
 
         public async Task<LikedProjectResponse> Handle(AddLikedProjectCommand request, CancellationToken cancellationToken)
         {
+            // Idempotent: liking an already-liked project returns the existing
+            // favourite. It used to insert a second row, count the like twice and
+            // duplicate every lead and agent increment — which the un-favourite
+            // could never fully walk back.
+            var already = (await _repository.Find(lp => lp.UserId == request.UserId && lp.ProjectId == request.ProjectId)).FirstOrDefault();
+            if (already is not null)
+            {
+                return new LikedProjectResponse
+                {
+                    Id = already.Id,
+                    UserId = already.UserId,
+                    ProjectId = already.ProjectId,
+                    LikedAt = already.LikedAt
+                };
+            }
+
             // Add liked project
             var likedProject = new LikedProject
             {
                 Id = Guid.NewGuid(),
                 UserId = request.UserId,
                 ProjectId = request.ProjectId,
-                LikedAt = DateTime.Now
+                LikedAt = DateTime.UtcNow
             };
 
             // IMPORTANT: InsertAsync/Update save internally on a shared DbContext.
@@ -45,7 +61,8 @@ namespace ProjectAPI.Api.Application.Projects.LikedProjects.AddLikedProject
             // context instance before a previous operation completed".
 
             // --- reads ---
-            var project = await _projectRepository.GetByIDAsync(request.ProjectId);
+            var project = await _projectRepository.GetByIDAsync(request.ProjectId)
+                ?? throw new Common.Exceptions.NotFoundException($"Project {request.ProjectId} not found.");
             var immeubles = (await _immeubleRepository.Find(i => i.ProjectId == request.ProjectId)).ToList();
 
             var agentIds = immeubles
@@ -68,11 +85,8 @@ namespace ProjectAPI.Api.Application.Projects.LikedProjects.AddLikedProject
             // --- writes ---
             await _repository.InsertAsync(likedProject);
 
-            if (project != null)
-            {
-                project.NumberLikes++;
-                await _projectRepository.Update(project);
-            }
+            project.NumberLikes++;
+            await _projectRepository.Update(project);
 
             foreach (var immeuble in immeubles)
             {
@@ -82,7 +96,7 @@ namespace ProjectAPI.Api.Application.Projects.LikedProjects.AddLikedProject
                     ProjectId = request.ProjectId,
                     UserId = request.UserId,
                     AgentId = immeuble.AgentId,
-                    CreatedAt = DateTime.Now
+                    CreatedAt = DateTime.UtcNow
                 };
 
                 await _leadRepository.InsertAsync(lead);

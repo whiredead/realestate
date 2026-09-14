@@ -38,7 +38,9 @@ namespace ProjectAPI.Api.Application.Quartiers.GetQuartiers
                 .Select(q => new QuartierListItem
                 {
                     Id = q.Id,
-                    Name = q.Name
+                    Name = q.Name,
+                    Description = q.Description,
+                    Images = q.Images
                 })
                 .ToList();
 

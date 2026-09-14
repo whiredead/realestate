@@ -208,3 +208,23 @@ Each is documented in full in [Reservations.md](../backend/Reservations.md).
 - Workflows: [NotaryConversion.md](NotaryConversion.md) ·
   [AccountActivation.md](AccountActivation.md)
 - Frontend: `realestateFront/docs/frontend/Reservations.md` *(pending)*
+
+## Validated
+
+Legend: ✅ validated end to end (Playwright UI test against the running stack, state re-read from the API/DB) · ⚠️ fixed during validation (fix logged in `docs/fixes/`) then validated · ❌ not validated (reason given).
+Suite: `realestateFront/tests/` — run on 2026-09-14 against Azure SQL `GPIA_Project` (S2).
+
+| Step | Result | Evidence (test) |
+|---|---|---|
+| Agent creates a reservation, SUR_PLAN projects only | ✅ | `reservation_creation_allowed_only_for_sur_plan_project`, `sur_plan_allows_reservation_creation`, `en_livraison_blocks_new_reservation` |
+| Cascade Projet → Immeuble → Étage → Type → Unité, only available units | ⚠️ fixed (cascade, available units, filters) | `reservation_cascade_filters_project_building_floor_type_unit`, `reservation_unit_list_shows_only_available_units` |
+| Documents at creation / in detail / persisted / no 403 | ⚠️ fixed (upload policy, 404s, required types) | `documents_can_be_uploaded_during_creation`, `uploaded_documents_visible_in_detail_view`, `documents_can_be_added_and_deleted_in_detail_view`, `document_upload_does_not_return_403`, `documents_persist_server_side_after_reload` |
+| Draft without documents; submission / approval blocked without required documents; per-project rules | ⚠️ fixed (approval checklist check) | `draft_reservation_accepts_missing_documents`, `submission_blocked_without_required_documents`, `approval_blocked_without_required_documents`, `required_documents_are_configurable_per_project` |
+| 1 — submit (unit → HOLD) · 3 — admin approves (unit → RESERVED) | ✅ | `agent_can_create_and_manage_reservation`, `project_admin_can_approve_reservation` |
+| Self-approval refused | ✅ | `forbidden_actions_hidden_or_disabled_by_role_and_status` (agent) |
+| Editable before approval, read-only after | ✅ | `reservation_editable_before_approved`, `reservation_read_only_after_approved` |
+| Project / building / floor / unit shown | ⚠️ fixed (unit context) | `reservation_detail_shows_project_building_floor_unit`, `buyer_file_shows_project_building_floor_unit` |
+| Perimeter and state machine at the API | ✅ | `api_rejects_out_of_scope_project_access`, `api_enforces_state_machine_transitions`, `api_rejects_status_violation` |
+| List performance (all reservations loaded per page) | ⚠️ fixed (SQL paging) | full regression, `docs/fixes/Performance.md` |
+| 2a/2b — request changes, correction in the UI, resubmit | ✅ | `reservation_editable_before_approved` |
+| 4 — expiry by `ReservationExpiryJob` | ❌ | time-based background job (30 s start delay, 5 min interval, expiry dates in days); not driven by the UI suite |

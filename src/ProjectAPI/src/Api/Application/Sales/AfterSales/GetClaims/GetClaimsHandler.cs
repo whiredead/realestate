@@ -71,7 +71,7 @@ public class GetClaimsHandler : IRequestHandler<GetClaimsQuery, PaginatedRespons
                 .Where(x => scopedProjectIds.Contains(x.ProjectId))
                 .Select(x => x.Id)
                 .ToListAsync(ct);
-            var scopedUnitIdSet = scopedUnitIds.ToHashSet();
+            var scopedUnitIdSet = scopedUnitIds; // List: parameterized by EF (a HashSet is inlined as literals)
 
             q = q.Where(c => scopedUnitIdSet.Contains(c.UnitId));
         }

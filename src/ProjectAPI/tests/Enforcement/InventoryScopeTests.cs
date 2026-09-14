@@ -253,13 +253,7 @@ public class InventoryScopeTests
         var admin = new FakeCurrentUser { UserId = "inv-admin-4", Roles = new[] { RoleCodes.ProjectAdmin } };
         var db = _fixture.CreateContext();
         var scope = new ProjectScopeService(db, admin);
-        var handler = new DeleteImmeublesHandler(
-            new ImmeubleRepository(db),
-            new UnitRepository(db),
-            new Infrastructure.Repositories.AppointmentRepository(db),
-            new Infrastructure.Repositories.ReservationRepository(db),
-            new Infrastructure.Repositories.SaleRepository(db),
-            scope);
+        var handler = new DeleteImmeublesHandler(db, scope);
 
         var act = async () => await handler.Handle(new DeleteImmeublesCommand(immeubleId), CancellationToken.None);
         await act.Should().ThrowAsync<BusinessRuleException>(
@@ -283,13 +277,7 @@ public class InventoryScopeTests
         var admin = new FakeCurrentUser { UserId = "inv-admin-5", Roles = new[] { RoleCodes.ProjectAdmin } };
         var db = _fixture.CreateContext();
         var scope = new ProjectScopeService(db, admin);
-        var handler = new DeleteImmeublesHandler(
-            new ImmeubleRepository(db),
-            new UnitRepository(db),
-            new Infrastructure.Repositories.AppointmentRepository(db),
-            new Infrastructure.Repositories.ReservationRepository(db),
-            new Infrastructure.Repositories.SaleRepository(db),
-            scope);
+        var handler = new DeleteImmeublesHandler(db, scope);
 
         var result = await handler.Handle(new DeleteImmeublesCommand(immeubleId), CancellationToken.None);
         result.Success.Should().BeTrue();
@@ -456,13 +444,7 @@ public class InventoryScopeTests
         var updateResult = await updateHandler.Handle(new UpdateUnitCommand { Id = unitId, LatestPrice = 500_000m }, CancellationToken.None);
         updateResult.IsSuccess.Should().BeTrue();
 
-        var deleteHandler = new DeleteImmeublesHandler(
-            new ImmeubleRepository(db),
-            new UnitRepository(db),
-            new Infrastructure.Repositories.AppointmentRepository(db),
-            new Infrastructure.Repositories.ReservationRepository(db),
-            new Infrastructure.Repositories.SaleRepository(db),
-            scope);
+        var deleteHandler = new DeleteImmeublesHandler(db, scope);
         var deleteResult = await deleteHandler.Handle(new DeleteImmeublesCommand(immeubleId), CancellationToken.None);
         deleteResult.Success.Should().BeTrue("a GLOBAL_ADMIN has no perimeter restriction");
     }

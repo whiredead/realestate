@@ -18,3 +18,12 @@
 - **Files:** `Filters/ApiExceptionFilter.cs`, `Application/Common/Exceptions/BusinessErrorCodes.cs`
 - **Wrong:** only unique-index violations (2601/2627) were translated; deleting a row still referenced (SQL 547) produced a generic 500.
 - **Changed:** SQL 547 anywhere in the exception chain → 409 `RESOURCE_IN_USE` ("Cet élément est encore utilisé par d'autres données…"). Frontend `BusinessErrorCode` union gained `RESOURCE_IN_USE`.
+
+## Transient database failures surfaced as a bare 500
+- **Files:** `Api/Filters/ApiExceptionFilter.cs`, `Application/Common/Exceptions/BusinessErrorCodes.cs` (`SERVICE_UNAVAILABLE`)
+- **Wrong:** a command timeout or a dropped connection to Azure SQL (Basic tier throttling, failover) returned `500 INTERNAL_ERROR`, indistinguishable from a bug.
+- **Changed:** SqlException numbers -2, -1, 2, 53, 4060, 4221, 10053, 10054, 10060, 10928, 10929, 40197, 40501, 40613, 49918-49920 → **503 `SERVICE_UNAVAILABLE`** with `Retry-After: 5` and a "réessayez" message.
+
+## Write on a finalised project
+- **Files:** `Api/Filters/ApiExceptionFilter.cs`
+- **Changed:** `ProjectReadOnlyException` → **409 `PROJECT_READ_ONLY`** (see Projects.md).

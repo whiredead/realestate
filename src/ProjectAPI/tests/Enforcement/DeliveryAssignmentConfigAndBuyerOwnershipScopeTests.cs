@@ -7,7 +7,6 @@ using ProjectAPI.Api.Application.ProjectAgentAssignmentConfig.GetProjectAgentAss
 using ProjectAPI.Api.Application.ProjectAgentAssignmentConfig.SetProjectAgentAssignmentConfig;
 using ProjectAPI.Api.Application.Purchases.GetUserPurchases;
 using ProjectAPI.Api.Application.Sales.GetSalesByUser;
-using ProjectAPI.Api.Application.Sales.ScheduleDelivery;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Purchases.Entities;
@@ -18,9 +17,9 @@ using ProjectAPI.Infrastructure.Repositories;
 namespace ProjectAPI.Tests.Enforcement;
 
 /// <summary>
-/// §6.4 — three unrelated but similarly-shaped gaps from the final Batch 1
-/// completeness sweep: delivery scheduling/status had no project scope at
-/// all; the agent-assignment-config (lead-routing rule) read/write had no
+/// §6.4 — similarly-shaped gaps from the final Batch 1 completeness sweep
+/// (the legacy delivery scheduling flow they also covered has been removed —
+/// Handovers is the only delivery flow): the agent-assignment-config (lead-routing rule) read/write had no
 /// project scope; and GetSalesByUser/GetUserPurchases had no buyer-ownership
 /// check, letting any authenticated caller read another buyer's financial
 /// history by UserId alone.
@@ -161,64 +160,6 @@ public class DeliveryAssignmentConfigAndBuyerOwnershipScopeTests
             AssignedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
-    }
-
-    // ------------------------------------------------------------ ScheduleDelivery
-
-    [Fact]
-    public async Task ScheduleDelivery_ProjectAdmin_WithNoMembership_IsDenied()
-    {
-        RequireDatabase();
-        var projectId = await SeedProjectAsync("Delivery-target");
-        var (unitId, saleId) = await SeedUnitAndSaleAsync(projectId, "delivery-target");
-
-        var admin = new FakeCurrentUser { UserId = "dv-admin-1", Roles = new[] { RoleCodes.ProjectAdmin } };
-        var db = _fixture.CreateContext();
-        var scope = new ProjectScopeService(db, admin);
-        var handler = new ScheduleDeliveryHandler(new PropertyDeliveryRepository(db), new SaleRepository(db), scope);
-
-        var command = new ScheduleDeliveryCommand { SaleId = saleId, UnitId = unitId, DeliveryDate = DateTime.UtcNow.AddDays(10) };
-
-        var act = async () => await handler.Handle(command, CancellationToken.None);
-        await act.Should().ThrowAsync<BusinessRuleException>(
-            "a PROJECT_ADMIN with no membership on this unit's project must not schedule a delivery for it");
-    }
-
-    [Fact]
-    public async Task UpdateDeliveryStatus_ProjectAdmin_WithNoMembership_IsDenied()
-    {
-        RequireDatabase();
-        var projectId = await SeedProjectAsync("DeliveryStatus-target");
-        var (unitId, saleId) = await SeedUnitAndSaleAsync(projectId, "delivery-status-target");
-
-        Guid deliveryId;
-        await using (var db = _fixture.CreateContext())
-        {
-            var delivery = new PropertyDelivery
-            {
-                Id = Guid.NewGuid(),
-                SaleId = saleId,
-                UnitId = unitId,
-                DeliveryDate = DateTime.UtcNow.AddDays(10),
-                Status = "Scheduled",
-                Report = "seed"
-            };
-            db.Set<PropertyDelivery>().Add(delivery);
-            await db.SaveChangesAsync();
-            deliveryId = delivery.Id;
-        }
-
-        var admin = new FakeCurrentUser { UserId = "dv-admin-2", Roles = new[] { RoleCodes.ProjectAdmin } };
-        var db2 = _fixture.CreateContext();
-        var scope = new ProjectScopeService(db2, admin);
-        var handler = new UpdateDeliveryStatusHandler(new PropertyDeliveryRepository(db2), scope);
-
-        var act = async () => await handler.Handle(
-            new UpdateDeliveryStatusCommand { DeliveryId = deliveryId, Status = "Delivered", Report = "hostile update" },
-            CancellationToken.None);
-
-        await act.Should().ThrowAsync<BusinessRuleException>(
-            "a PROJECT_ADMIN with no membership on this delivery's project must not update its status");
     }
 
     // ------------------------------------------------------------ ProjectAgentAssignmentConfig

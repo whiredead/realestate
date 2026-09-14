@@ -10,6 +10,9 @@ public class GetAllProjectsQuery : IRequest<PaginatedResponse<ProjectResponse>>
     /// </summary>
     public string? Name { get; set; }
 
+    /// <summary>One project by id (the detail page). No other by-id read returns this full shape.</summary>
+    public Guid? Id { get; set; }
+
     /// <summary>
     /// The location of the project to filter by.
     /// </summary>

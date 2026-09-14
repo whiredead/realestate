@@ -1,134 +1,101 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
-using ProjectAPI.Domain.Appointments.Interfaces;
-using ProjectAPI.Domain.Immeubles.Interfaces;
-using ProjectAPI.Domain.Reservations.Interface;
-using ProjectAPI.Domain.Sales.Interfaces;
+using ProjectAPI.Domain.Construction.Entities;
+using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Immeubles.DeleteImmeuble;
 
 /// <summary>
-/// Handler for the <see cref="DeleteImmeublesCommand"/>.
+/// Deletes a building that carries no business history, with its floors, units
+/// and configuration, in one transaction.
+///
+/// It used to delete the building's SALES and RESERVATIONS first — erasing
+/// commercial records — one repository save at a time (no transaction), after
+/// loading every unit, sale and reservation of the database into memory; it then
+/// failed on the first configuration row still referencing a unit or the
+/// building. Now a reservation, sale, delivery, commercial appointment or buyer
+/// feedback on the building refuses the deletion (409); a building of a
+/// finalised project is read-only.
 /// </summary>
 public class DeleteImmeublesHandler : IRequestHandler<DeleteImmeublesCommand, DeleteImmeubleResponse>
+{
+    private readonly ApplicationDbContext _db;
+    private readonly ProjectScopeService _projectScope;
+
+    public DeleteImmeublesHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
-        private readonly IImmeubleRepository _immeubleRepository;
-        private readonly IUnitRepository _unitRepository;
-        private readonly IAppointmentRepository _appointmentRepository;
-        private readonly IReservationRepository _reservationRepository;
-        private readonly ISaleRepository _saleRepository;
-        private readonly ProjectScopeService _projectScope;
+        _db = db;
+        _projectScope = projectScope;
+    }
 
-        public DeleteImmeublesHandler(
-            IImmeubleRepository immeubleRepository,
-            IUnitRepository unitRepository,
-            IAppointmentRepository appointmentRepository,
-            IReservationRepository reservationRepository,
-            ISaleRepository saleRepository,
-            ProjectScopeService projectScope)
-        {
-            _immeubleRepository = immeubleRepository;
-            _unitRepository = unitRepository;
-            _appointmentRepository = appointmentRepository;
-            _reservationRepository = reservationRepository;
-            _saleRepository = saleRepository;
-            _projectScope = projectScope;
-        }
-
-/// <summary>
-    /// Handles the request to delete an immeuble with cascade deletion of all related entities.
-    /// </summary>
-    /// <param name="request">The request containing the immeuble ID to delete.</param>
-    /// <param name="cancellationToken">The cancellation token.</param>
-    /// <returns>A response indicating success or failure with details of deleted entities.</returns>
-    public async Task<DeleteImmeubleResponse> Handle(DeleteImmeublesCommand request, CancellationToken cancellationToken)
+    /// <summary>Rows removed with the building, children first. @id is the building id.</summary>
+    private static readonly (string Label, string Sql)[] Cascade =
     {
-        try
+        ("UnitStatusHistories", "DELETE h FROM UnitStatusHistories h JOIN Units u ON u.Id = h.UnitId WHERE u.ProjectId = @id"),
+        ("UnitTitleHistories", "DELETE h FROM UnitTitleHistories h JOIN Units u ON u.Id = h.UnitId WHERE u.ProjectId = @id"),
+        ("UnitTitleStates", "DELETE t FROM UnitTitleStates t JOIN Units u ON u.Id = t.UnitId WHERE u.ProjectId = @id"),
+        ("UnitTracking", "DELETE t FROM UnitTracking t JOIN Units u ON u.Id = t.UnitId WHERE u.ProjectId = @id"),
+        // Unit.ProjectId is the FK to the building.
+        ("Units", "DELETE FROM Units WHERE ProjectId = @id"),
+        ("Floors", "DELETE FROM Floors WHERE ImmeubleId = @id"),
+        ("ImmeubleFeature", "DELETE FROM ImmeubleFeature WHERE ImmeubleId = @id"),
+        ("ImmeublePlanInterieurs", "DELETE FROM ImmeublePlanInterieurs WHERE ImmeubleId = @id"),
+        ("ImmeubleTracking", "DELETE FROM ImmeubleTracking WHERE ImmeubleId = @id"),
+        ("ImmeubleTypeBien", "DELETE FROM ImmeubleTypeBien WHERE ImmeubleId = @id"),
+        ("Assignments", "DELETE FROM Assignments WHERE ProjectId = @id"),
+        ("Immeubles", "DELETE FROM Immeubles WHERE Id = @id"),
+    };
+
+    public async Task<DeleteImmeubleResponse> Handle(DeleteImmeublesCommand request, CancellationToken ct)
+    {
+        var immeuble = await _db.Set<Domain.Immeubles.Entities.Immeuble>().AsNoTracking()
+            .Where(i => i.Id == request.Id)
+            .Select(i => new { i.Id, i.Name, i.ProjectId })
+            .FirstOrDefaultAsync(ct)
+            ?? throw new NotFoundException($"Immeuble {request.Id} not found.");
+
+        await _projectScope.EnsureProjectAccessAsync(immeuble.ProjectId, ct);
+
+        var projectStatus = await _db.Projects.AsNoTracking().Where(p => p.Id == immeuble.ProjectId).Select(p => p.StatusGlobal).FirstOrDefaultAsync(ct);
+        if (ProjectStatusCodes.IsReadOnly(projectStatus))
         {
-            var deletedEntities = new List<string>();
-
-            // Get the immeuble
-            var immeuble = await _immeubleRepository.GetByIdWithDependenciesAsync(request.Id);
-
-            if (immeuble == null)
-            {
-                // 404, not a 400 "operation failed".
-                throw new NotFoundException($"Immeuble {request.Id} not found.");
-            }
-
-            // §6.4 — this is the highest-blast-radius mutation in the codebase
-            // (cascades through Sales → Reservations → Units → Immeuble); it
-            // must never run outside the caller's own assigned project.
-            await _projectScope.EnsureProjectAccessAsync(immeuble.ProjectId, cancellationToken);
-
-            var immeubleName = immeuble.Name;
-
-            // Cascade delete in specific order (child -> parent)
-
-            // 1. Get all units in this immeuble
-            var allUnits = await _unitRepository.GetAllAsync();
-            var unitsInImmeuble = allUnits.Where(u => u.ProjectId == request.Id).ToList();
-            var unitIds = unitsInImmeuble.Select(u => u.Id).ToList();
-
-            // 3. Delete sales for units in this immeuble
-            var allSales = await _saleRepository.GetAllAsync();
-            var salesToDelete = allSales.Where(s => unitIds.Contains(s.UnitId)).ToList();
-            foreach (var sale in salesToDelete)
-            {
-                _saleRepository.Delete(sale);
-                deletedEntities.Add($"Sale ID: {sale.Id}");
-            }
-            await _saleRepository.SaveAsync();
-
-            // 4. Delete reservations for units in this immeuble
-            var allReservations = await _reservationRepository.GetAllAsync();
-            var reservationsToDelete = allReservations.Where(r => unitIds.Contains(r.UnitId)).ToList();
-            foreach (var res in reservationsToDelete)
-            {
-                _reservationRepository.Delete(res);
-                deletedEntities.Add($"Reservation ID: {res.Id}");
-            }
-            await _reservationRepository.SaveAsync();
-
-            // 5. Delete units
-            foreach (var unit in unitsInImmeuble)
-            {
-                _unitRepository.Delete(unit);
-                deletedEntities.Add($"Unit ID: {unit.Id} (Number: {unit.UnitNumber})");
-            }
-            await _unitRepository.SaveAsync();
-
-            // 6. Delete the immeuble itself
-            await _immeubleRepository.DeleteAsync(immeuble.Id);
-            await _immeubleRepository.SaveAsync();
-            deletedEntities.Add($"Immeuble ID: {immeuble.Id} (Name: {immeubleName})");
-
-            return new DeleteImmeubleResponse
-            {
-                Success = true,
-                Message = $"Immeuble named '{immeubleName}' (ID: {request.Id}) deleted successfully with all related entities.",
-                Details = new List<string>
-                {
-                    $"Total entities deleted: {deletedEntities.Count}",
-                    $"Deleted at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC"
-                }
-            };
+            throw new ProjectReadOnlyException(immeuble.ProjectId);
         }
-        catch (BusinessRuleException)
+
+        var id = request.Id;
+        var unitIds = _db.Set<Domain.Immeubles.Entities.Unit>().Where(u => u.ProjectId == id).Select(u => u.Id);
+        var hasHistory =
+            await _db.Set<Domain.Reservations.Entities.Reservation>().AnyAsync(r => unitIds.Contains(r.UnitId), ct)
+            || await _db.Set<Domain.Sales.Entities.Sale>().AnyAsync(s => unitIds.Contains(s.UnitId), ct)
+            || await _db.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM PropertyDeliveries d JOIN Units u ON u.Id = d.UnitId WHERE u.ProjectId = {id}").SingleAsync(ct) > 0
+            || await _db.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM Feedbacks WHERE ProjectId = {id}").SingleAsync(ct) > 0
+            || await _db.Database.SqlQuery<int>($"SELECT COUNT(*) AS [Value] FROM Appointments WHERE ImmeubleId = {id}").SingleAsync(ct) > 0;
+
+        if (hasHistory)
         {
-            // §6.4 — a scope denial is an authorization decision (403 via
-            // ApiExceptionFilter/BusinessErrorCodes.PROJECT_SCOPE_DENIED), not
-            // a soft "operation failed" outcome. Swallowing it into
-            // Success = false here made ImmeubleController map it to a plain
-            // 400 with no stable error code, so the frontend's
-            // ApiError.isScopeDenied could never recognise it. Let it
-            // propagate to the global exception filter like every other
-            // authorization check in this codebase.
-            throw;
+            throw new BusinessRuleException(
+                BusinessErrorCodes.ResourceInUse,
+                "Ce bâtiment porte déjà des réservations, ventes, rendez-vous ou avis : il ne peut pas être supprimé.",
+                StatusCodes.Status409Conflict);
         }
-        // Anything else (e.g. a foreign-key violation on delete) propagates to
-        // ApiExceptionFilter: 409 RESOURCE_IN_USE for a referenced row, 500 with a
-        // requestId otherwise. It used to be returned as a 400 carrying the raw
-        // exception text and stack trace.
+
+        var details = new List<string>();
+        await using var tx = await _db.Database.BeginTransactionAsync(ct);
+        foreach (var (label, sql) in Cascade)
+        {
+            var rows = await _db.Database.ExecuteSqlRawAsync(sql, new[] { new SqlParameter("@id", id) }, ct);
+            if (rows > 0) details.Add($"{label}: {rows}");
+        }
+        await tx.CommitAsync(ct);
+
+        details.Add($"Deleted at: {DateTime.UtcNow:yyyy-MM-dd HH:mm:ss} UTC");
+        return new DeleteImmeubleResponse
+        {
+            Success = true,
+            Message = $"Immeuble named '{immeuble.Name}' (ID: {request.Id}) deleted successfully with all related entities.",
+            Details = details
+        };
     }
 }

@@ -31,11 +31,16 @@ namespace ProjectAPI.Api.Controllers;
 public class ProjectsController : ControllerBase
 {
     private readonly IMediator _mediator;
+    private readonly ICurrentUser _currentUser;
 
-    public ProjectsController(IMediator mediator)
+    public ProjectsController(IMediator mediator, ICurrentUser currentUser)
     {
         _mediator = mediator;
+        _currentUser = currentUser;
     }
+
+    /// <summary>A caller holding no internal role (buyer, prospect) may only act on their own favourites.</summary>
+    private bool IsInternalCaller => _currentUser.Roles.Any(r => ProjectAPI.Domain.Users.Entities.RoleCodes.Internal.Contains(r, StringComparer.Ordinal));
 
     [HttpPost]
     [Authorize(Roles = RoleGroups.Admins)] // §6.3 Catalogue: "A périmètre" — création réservée aux admins.
@@ -88,6 +93,8 @@ public class ProjectsController : ControllerBase
     [HttpPost("Like")]
     public async Task<IActionResult> AddLikedProject([FromBody] AddLikedProjectCommand command)
     {
+        // The user comes from the token for a buyer/prospect, never from the body.
+        if (!IsInternalCaller) command.UserId = _currentUser.UserId!;
         var response = await _mediator.Send(command);
         return Ok(response);
     }
@@ -98,13 +105,28 @@ public class ProjectsController : ControllerBase
     [HttpDelete("DisLikeProject")]
     public async Task<IActionResult> DisLikeProject([FromBody] RemoveLikedProjectCommand command)
     {
+        if (!IsInternalCaller) command.UserId = _currentUser.UserId!;
         var res = await _mediator.Send(command);
         if (!res.Success) return BadRequest(res.Message);
         return NoContent();
     }
+    /// <summary>The signed-in user's own favourites.</summary>
+    [HttpGet("LikedProjects/mine")]
+    public async Task<IActionResult> GetMyLikedProjects([FromQuery] GetLikedProjectsQuery query)
+    {
+        query.UserId = _currentUser.UserId;
+        return Ok(await _mediator.Send(query));
+    }
+
+    /// <summary>
+    /// Favourites by user. Any signed-in account could list every user's
+    /// favourites (names included) by passing any UserId — or none. A caller
+    /// without an internal role is now pinned to their own.
+    /// </summary>
     [HttpGet("LikedProjects")]
     public async Task<IActionResult> GetLikedProjects([FromQuery] GetLikedProjectsQuery query )
     {
+        if (!IsInternalCaller) query.UserId = _currentUser.UserId;
         var response = await _mediator.Send(query);
         return Ok(response);
     }
@@ -321,6 +343,39 @@ public class ProjectsController : ControllerBase
     {
         command.Id = id;
         return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>The quartier's features (title, description, optional image), in display order.</summary>
+    [HttpGet("quartiers/{quartierId:guid}/features")]
+    [AllowAnonymous] // §6.3 Catalogue public, like the quartier itself.
+    public async Task<IActionResult> GetQuartierFeatures(Guid quartierId) =>
+        Ok(await _mediator.Send(new Application.Quartiers.Features.GetQuartierFeaturesQuery { QuartierId = quartierId }));
+
+    /// <summary>Adds a feature to a quartier.</summary>
+    [HttpPost("quartiers/{quartierId:guid}/features")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    public async Task<IActionResult> CreateQuartierFeature(Guid quartierId, [FromBody] Application.Quartiers.Features.CreateQuartierFeatureCommand command)
+    {
+        command.QuartierId = quartierId;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>Edits a quartier feature (an empty image removes it).</summary>
+    [HttpPut("quartier-features/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    public async Task<IActionResult> UpdateQuartierFeature(Guid id, [FromBody] Application.Quartiers.Features.UpdateQuartierFeatureCommand command)
+    {
+        command.Id = id;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>Removes a quartier feature.</summary>
+    [HttpDelete("quartier-features/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    public async Task<IActionResult> DeleteQuartierFeature(Guid id)
+    {
+        await _mediator.Send(new Application.Quartiers.Features.DeleteQuartierFeatureCommand { Id = id });
+        return NoContent();
     }
 
     /// <summary>Deletes an unreferenced quartier (409 while a project is attached to it).</summary>

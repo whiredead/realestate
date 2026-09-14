@@ -18,4 +18,7 @@ public class AdminDashboardQuery : IRequest<AdminDashboardResponse>
     /// </summary>
     public DateTime? StartDate { get; set; }
     public DateTime? EndDate { get; set; }
+
+    /// <summary>Narrows every figure to one project (always within the caller's own perimeter).</summary>
+    public Guid? ProjectId { get; set; }
 }

@@ -21,6 +21,23 @@ namespace ProjectAPI.Api.Application.TypeBiens.CreateTypeBien
 
         public async Task<CreateTypeBienResponse> Handle(CreateTypeBienCommand request, CancellationToken cancellationToken)
         {
+            // Same rule as the update validator: a range whose minimum exceeds
+            // its maximum is not a range. Creation used to accept it.
+            if (request.MinSurface.HasValue && request.MaxSurface.HasValue && request.MinSurface > request.MaxSurface)
+            {
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure("MaxSurface", "La surface maximale doit être supérieure ou égale à la surface minimale.")
+                });
+            }
+            if (request.MinSurface is < 0 || request.MaxSurface is < 0)
+            {
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure("MinSurface", "Les surfaces ne peuvent pas être négatives.")
+                });
+            }
+
             // §7.2 — reference data feeds the public catalogue like everything else.
             _media.EnsureImageUrl(request.Image, "Image");
             _media.EnsureImageUrls(TypeBienMedia.SplitImages(request.ImagesInterieur), "ImagesInterieur");

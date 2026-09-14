@@ -100,6 +100,12 @@ public static class BusinessErrorCodes
     /// <summary>An unexpected server-side failure.</summary>
     public const string InternalError = "INTERNAL_ERROR";
 
+    /// <summary>The database was momentarily unreachable (timeout, dropped connection, throttling). Safe to retry.</summary>
+    public const string ServiceUnavailable = "SERVICE_UNAVAILABLE";
+
+    /// <summary>The project is FINALISE (or SUSPENDED): consultation only, no business mutation (HTTP 409).</summary>
+    public const string ProjectReadOnly = "PROJECT_READ_ONLY";
+
     // --- Internal invitations (Phase 2) --------------------------------------
 
     /// <summary>No invitation matches the supplied token.</summary>

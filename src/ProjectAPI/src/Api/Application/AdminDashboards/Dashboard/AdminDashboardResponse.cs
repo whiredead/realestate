@@ -12,6 +12,22 @@ public class AdminDashboardResponse
     public int TotalProjects { get; set; }
 
     /// <summary>
+    /// Construction progress in %, weighted by milestone weights (completed
+    /// milestones / total weight), averaged over the projects in scope. A
+    /// project with no milestone counts with its stored OverAllProgress.
+    /// </summary>
+    public double ConstructionProgressPct { get; set; }
+
+    /// <summary>Current stock in scope, by commercial state.</summary>
+    public int TotalUnits { get; set; }
+    public int AvailableUnits { get; set; }
+    /// <summary>Held pending approval, reserved or contracted.</summary>
+    public int ReservedUnits { get; set; }
+    /// <summary>Sold, not yet handed over.</summary>
+    public int SoldUnits { get; set; }
+    public int DeliveredUnits { get; set; }
+
+    /// <summary>
     /// The total number of sales for the specified timeframe
     /// (month, quarter, year, or explicit range).
     /// </summary>

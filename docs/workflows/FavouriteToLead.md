@@ -139,3 +139,29 @@ All four are documented in [Projects.md](../backend/Projects.md).
 - Backend *(pending)*: `Leads.md`, `AdminDashboard.md`
 - Frontend *(pending)*: `realestateFront/docs/frontend/Buyer.md`,
   `.../Dashboard.md`
+
+## Corrections (2026-09-14)
+
+- **Weakness 1 fixed:** `GET LikedProjects/mine` added; for a caller without an
+  internal role, `GET LikedProjects`, `POST Like` and `DELETE DisLikeProject` are
+  pinned to the token's user (`docs/fixes/Security.md`).
+- **Weakness 2 fixed:** favouriting is idempotent — a second like returns the
+  existing row with no counter or lead side effect; an unknown project is 404
+  (`docs/fixes/Favourites.md`).
+- **Weakness 5 fixed:** `LikedAt` / `Lead.CreatedAt` use UTC.
+- The public "Favori" button was covered by the facts band and could not be
+  clicked; its failures were silent (`realestateFront/docs/fixes/PublicSite.md`).
+- Weaknesses 3 (no transaction) and 4 (agent without an indicator row) remain.
+
+## Validated
+
+Legend: ✅ validated end to end (Playwright UI test against the running stack, state re-read from the API/DB) · ⚠️ fixed during validation (fix logged in `docs/fixes/`) then validated · ❌ not validated (reason given).
+Suite: `realestateFront/tests/` — run on 2026-09-14 against Azure SQL `GPIA_Project` (S2).
+
+| Step | Result | Evidence (test) |
+|---|---|---|
+| 1 — favourite from the public project page: like row, `NumberLikes` +1, one lead per building | ⚠️ fixed (button covered, silent failure) | `workflow_favourite_to_lead` |
+| Idempotent second like | ⚠️ fixed | `workflow_favourite_to_lead` |
+| 2 — read own favourites ("Favoris" page), another buyer cannot read or create them | ⚠️ fixed | `workflow_favourite_to_lead`, `buyer_pages_call_only_mine_endpoints` |
+| 3 — un-favourite walks back like, counter and leads | ✅ | `workflow_favourite_to_lead` |
+| 4 — consumption (agent performance `LeadsGenerated`) | ❌ | building fixtures carry no `AgentId`, so no indicator is incremented in the suite |

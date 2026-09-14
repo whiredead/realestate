@@ -26,7 +26,7 @@ public class ProjectRepository : BaseRepository<Project>, IProjectRepository
     /// staffing created/changed after Phase 1 would be invisible to a query
     /// still walking that navigation.
     /// </summary>
-    public async Task<(List<ProjectDTO> Items, int TotalCount)> GetProjects(string? UserId, string? Name, string? Location, string Adress, string? Status, IReadOnlyCollection<Guid>? scopeProjectIds, int PageNumber, int PageSize)
+    public async Task<(List<ProjectDTO> Items, int TotalCount)> GetProjects(string? UserId, string? Name, string? Location, string Adress, string? Status, IReadOnlyCollection<Guid>? scopeProjectIds, int PageNumber, int PageSize, Guid? Id = null)
     {
         var likedProjectIds = new List<Guid>();
 
@@ -42,10 +42,11 @@ public class ProjectRepository : BaseRepository<Project>, IProjectRepository
             : (await _context.Set<ProjectMembership>()
                 .Where(m => m.IsActive && m.RoleCode == RoleCodes.SalesAgent && m.UserId == UserId)
                 .Select(m => m.ProjectId)
-                .ToListAsync()).ToHashSet();
+                .ToListAsync());
 
         var filtered = _context.Projects
             .Where(p =>
+                (!Id.HasValue || p.Id == Id.Value) &&
                 (scopeProjectIds == null || scopeProjectIds.Contains(p.Id)) &&
                 (agentProjectIds == null || agentProjectIds.Contains(p.Id)) &&
                 (string.IsNullOrEmpty(Name) || p.Name.Contains(Name)) &&

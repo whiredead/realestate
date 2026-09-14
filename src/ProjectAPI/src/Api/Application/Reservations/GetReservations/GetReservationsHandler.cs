@@ -49,7 +49,9 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
             {
                 effectiveAgentId = _currentUser.UserId;
             }
-            HashSet<Guid>? scopedUnitIds = null;
+            // Lists, not HashSets: EF Core parameterizes List.Contains but inlines a
+            // HashSet as a literal IN (...) — a freshly compiled plan per call.
+            List<Guid>? scopedUnitIds = null;
             if (scopedProjectIds is not null)
             {
                 var ids = await _db.Set<UnitEntity>()
@@ -57,13 +59,13 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                     .Where(x => scopedProjectIds.Contains(x.ProjectId))
                     .Select(x => x.Id)
                     .ToListAsync(cancellationToken);
-                scopedUnitIds = ids.ToHashSet();
+                scopedUnitIds = ids;
             }
 
             // Same Unit -> Immeuble join as the authorization perimeter above,
             // but driven by the caller's own filter choice rather than their
             // role — a project the caller can see, narrowed further.
-            HashSet<Guid>? requestedUnitIds = null;
+            List<Guid>? requestedUnitIds = null;
             if (request.ProjectId.HasValue || request.ImmeubleId.HasValue)
             {
                 var ids = await _db.Set<UnitEntity>()
@@ -72,11 +74,15 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                     .Where(x => !request.ImmeubleId.HasValue || x.ImmeubleId == request.ImmeubleId.Value)
                     .Select(x => x.Id)
                     .ToListAsync(cancellationToken);
-                requestedUnitIds = ids.ToHashSet();
+                requestedUnitIds = ids;
             }
 
-            var reservations = await _reservationRepository.Find(
-                r =>
+            // Filtered, counted and paged in SQL. This used to load EVERY matching
+            // reservation into memory (repository Find) and page in C#, once per
+            // page request — the slowest call of the back office as data grew.
+            var reservations = _db.Set<Domain.Reservations.Entities.Reservation>()
+                .AsNoTracking()
+                .Where(r =>
                     (string.IsNullOrEmpty(request.BuyerId) || r.BuyerId == request.BuyerId) &&
                     (string.IsNullOrEmpty(request.Name) || r.Name.Contains(request.Name)) &&
                     (string.IsNullOrEmpty(request.LastName) || r.LastName.Contains(request.LastName)) &&
@@ -88,19 +94,18 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                     (!request.IsUnderConstruction.HasValue || r.IsUnderConstruction == request.IsUnderConstruction.Value) &&
                     (scopedUnitIds == null || scopedUnitIds.Contains(r.UnitId)) &&
                     (requestedUnitIds == null || requestedUnitIds.Contains(r.UnitId)) &&
-                    (!request.Status.HasValue || r.Status == request.Status.Value),
-                null
-            );
+                    (!request.Status.HasValue || r.Status == request.Status.Value));
 
-            var totalItems = reservations.Count();
+            var totalItems = await reservations.CountAsync(cancellationToken);
 
-            var pageReservations = reservations
+            var pageReservations = await reservations
                 // Stable order before paging: without it page contents are
                 // nondeterministic and rows repeat or vanish between pages.
                 .OrderByDescending(r => r.CreatedAt).ThenBy(r => r.Id)
                 .Skip((request.PageNumber - 1) * request.PageSize)
                 .Take(request.PageSize)
-                .ToList();
+                .Include(r => r.Documents)
+                .ToListAsync(cancellationToken);
 
             // Reservation.UnitDetails is a label frozen at submit time, and it
             // is null on most historic rows — the list then fell back to

@@ -22,6 +22,9 @@ public class UpdateProjectCommand : IRequest<ProjectResponse>
 
     // Optional: update existing Quartier or create new
     public Guid? QuartierId { get; set; }
+
+    /// <summary>Property types offered by the project. Null leaves the links unchanged (update); the list replaces them.</summary>
+    public List<int>? TypeBienIds { get; set; }
     public string? QuartierName { get; set; }
     public string? QuartierDescription { get; set; }
     public string? QuartierImages { get; set; }

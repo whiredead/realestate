@@ -4,6 +4,7 @@ using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Reservations.UploadReservationDocument;
 using ProjectAPI.Domain.Common.Interfaces;
 using ProjectAPI.Domain.Reservations.Entities;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Reservations.DownloadReservationDocument;
@@ -39,15 +40,28 @@ public class DownloadReservationDocumentHandler
     private readonly ApplicationDbContext _db;
     private readonly IBlobStorageService _blobStorage;
     private readonly ProjectScopeService _projectScope;
+    private readonly ICurrentUser _currentUser;
+
+    /// <summary>
+    /// Internal roles that work a reservation file. Technicians and the
+    /// technical lead are staffed on the same projects for after-sales work but
+    /// have no business reading a buyer's identity papers or signed contract.
+    /// </summary>
+    private static readonly string[] FileReaderRoles =
+    {
+        RoleCodes.GlobalAdmin, RoleCodes.ProjectAdmin, RoleCodes.SalesAgent, RoleCodes.Notary
+    };
 
     public DownloadReservationDocumentHandler(
         ApplicationDbContext db,
         IBlobStorageService blobStorage,
-        ProjectScopeService projectScope)
+        ProjectScopeService projectScope,
+        ICurrentUser currentUser)
     {
         _db = db;
         _blobStorage = blobStorage;
         _projectScope = projectScope;
+        _currentUser = currentUser;
     }
 
     public async Task<ReservationDocumentContent> Handle(
@@ -60,6 +74,13 @@ public class DownloadReservationDocumentHandler
         // Both shapes of caller: an internal role is checked by project
         // perimeter, a buyer by ownership of the file. Either alone would let
         // the other through.
+        var isInternal = _currentUser.Roles.Any(r => RoleCodes.Internal.Contains(r, StringComparer.Ordinal));
+        if (isInternal && !_currentUser.Roles.Any(r => FileReaderRoles.Contains(r, StringComparer.Ordinal)))
+        {
+            // Technician / tech lead: in the project perimeter, but not a reader of reservation files.
+            throw BusinessRuleException.BuyerScopeDenied();
+        }
+
         await _projectScope.EnsureReservationAccessAsync(document.ReservationId, ct);
         await _projectScope.EnsureBuyerOwnsReservationAsync(document.ReservationId, ct);
 

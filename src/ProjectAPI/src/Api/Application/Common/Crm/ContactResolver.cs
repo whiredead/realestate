@@ -130,12 +130,29 @@ public class ContactResolver : IContactResolver
     /// unique index at save time (409). Local (Added-but-unsaved) entries
     /// must count too, since they occupy numbers this same call is about to
     /// hand out again.
+    ///
+    /// The next number is the highest existing one + 1, not the row count + 1:
+    /// as soon as one contact was deleted (or rows were imported out of
+    /// sequence), count + 1 named a number that already existed and every new
+    /// contact failed on the unique index (409) — reservations could no longer
+    /// be created on that database.
     /// </summary>
     private async Task<string> NextContactNumberAsync(CancellationToken ct)
     {
-        var persistedCount = await _db.CrmContacts.CountAsync(ct);
-        var pendingCount = _db.ChangeTracker.Entries<CrmContact>()
-            .Count(e => e.State == EntityState.Added);
-        return $"CT-{persistedCount + pendingCount + 1:D6}";
+        // Zero-padded (D6), so the string maximum is the numeric maximum.
+        var persistedMax = await _db.CrmContacts
+            .Where(c => c.ContactNumber.StartsWith("CT-"))
+            .MaxAsync(c => (string?)c.ContactNumber, ct);
+        var pendingNumbers = _db.ChangeTracker.Entries<CrmContact>()
+            .Where(e => e.State == EntityState.Added)
+            .Select(e => e.Entity.ContactNumber);
+        var highest = pendingNumbers.Append(persistedMax)
+            .Select(ParseContactNumber)
+            .DefaultIfEmpty(0)
+            .Max();
+        return $"CT-{highest + 1:D6}";
     }
+
+    private static int ParseContactNumber(string? number) =>
+        number is not null && number.StartsWith("CT-") && int.TryParse(number.AsSpan(3), out var n) ? n : 0;
 }

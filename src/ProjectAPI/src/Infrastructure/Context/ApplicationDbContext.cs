@@ -42,6 +42,7 @@ public class ApplicationDbContext : IdentityDbContext<User>
     public DbSet<TypeBien> TypeBiens { get; set; }
     public DbSet<ProjectTypeBien> ProjectTypeBiens { get; set; }
     public DbSet<QuartierAmenity> QuartierAmenities { get; set; }
+    public DbSet<QuartierFeature> QuartierFeatures { get; set; }
 
     /// <summary>§12.1 — per-project document rules. Empty means nothing is required.</summary>
     public DbSet<ProjectDocumentRequirement> ProjectDocumentRequirements { get; set; }
@@ -176,6 +177,7 @@ public class ApplicationDbContext : IdentityDbContext<User>
         builder.ApplyConfiguration(new TypeBienConfiguration());
         builder.ApplyConfiguration(new ProjectTypeBienConfiguration());
         builder.ApplyConfiguration(new QuartierConfiguration());
+        builder.ApplyConfiguration(new QuartierFeatureConfiguration());
         builder.ApplyConfiguration(new PurchaseConfiguration());
         builder.ApplyConfiguration(new ProjectAssignmentConfiguration());
         builder.ApplyConfiguration(new ProjectMembershipConfiguration());
@@ -209,5 +211,18 @@ public class ApplicationDbContext : IdentityDbContext<User>
     /// <param name="options">The DbContext options.</param>
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
     {
+    }
+
+    /// <summary>Every save first refuses writes on a finalised project (see <see cref="ProjectReadOnlyGuard"/>).</summary>
+    public override async Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+    {
+        await ProjectReadOnlyGuard.EnsureAsync(this, cancellationToken);
+        return await base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        ProjectReadOnlyGuard.EnsureAsync(this, CancellationToken.None).GetAwaiter().GetResult();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 }
