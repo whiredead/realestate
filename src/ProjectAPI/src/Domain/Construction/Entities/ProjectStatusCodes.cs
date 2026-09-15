@@ -1,138 +1,90 @@
 namespace ProjectAPI.Domain.Construction.Entities;
 
 /// <summary>
-/// Project lifecycle codes (spec §7.5).
+/// Project lifecycle (spec §7.5): exactly three statuses.
 ///
-/// <c>Project.StatusGlobal</c> is a free-text column carrying legacy values
-/// ("CommingSoon", "UnderConstruction", "Available"…). Rather than migrate the
-/// column and break existing data and the frontend, this class defines the
-/// canonical codes and maps the legacy spellings onto them.
+/// <list type="bullet">
+///   <item><c>SUR_PLAN</c> — sold off-plan, under construction: reservations are open.</item>
+///   <item><c>EN_LIVRAISON</c> — construction at 100 %, units are being delivered: no new
+///   reservation, approved files continue (final visit, sale, notary, handover).</item>
+///   <item><c>FINALISE</c> — closed: read-only.</item>
+/// </list>
 ///
-/// The critical rule: a final-visit request is only allowed when the project is
-/// COMPLETED (§7.5, §17.1 FR-FVI-001).
+/// <c>Project.StatusGlobal</c> stores one of these three codes (migration
+/// <c>ProjectStatusThreeValues</c> converted existing rows). Older spellings
+/// ("CommingSoon", "UnderConstruction", "PLANNED", "COMPLETED", "ARCHIVED"…) are
+/// still accepted on input and mapped by <see cref="Normalize"/>.
+///
+/// The status only moves forward, through commands: "Passer en livraison"
+/// (100 % of the weighted milestones) then "Finaliser le projet".
 /// </summary>
 public static class ProjectStatusCodes
 {
-    public const string Draft = "DRAFT";
-    public const string Planned = "PLANNED";
-    public const string InProgress = "IN_PROGRESS";
-    public const string Suspended = "SUSPENDED";
-    public const string Completed = "COMPLETED";
-    public const string Archived = "ARCHIVED";
+    public const string SurPlan = "SUR_PLAN";
+    public const string EnLivraison = "EN_LIVRAISON";
+    public const string Finalise = "FINALISE";
 
-    /// <summary>
-    /// Normalises a stored value to a canonical code. Legacy spellings — including
-    /// the misspelled "CommingSoon" default — are mapped rather than rejected.
-    ///
-    /// A mapping must never manufacture a state that unlocks a gate. COMPLETED is
-    /// the gate for final-visit requests (<see cref="AllowsFinalVisit"/>), so the
-    /// legacy commercial values must not reach it:
-    ///   - "Available" means units are on sale. It asserts nothing about
-    ///     construction, so it maps to IN_PROGRESS, not COMPLETED.
-    ///   - "Sold" means sold out — also a commercial fact, and not ARCHIVED.
-    /// Both are LOSSY on purpose: a genuinely finished project becomes COMPLETED
-    /// only by passing <c>CompleteProjectCommand</c> (§15.3), which checks 100%
-    /// weighted progress, an explicit confirmation and a real end date.
-    /// The frontend carries the matching correction (src/api/http/enums.ts).
-    /// </summary>
+    /// <summary>The three stored values, in lifecycle order.</summary>
+    public static readonly string[] All = { SurPlan, EnLivraison, Finalise };
+
+    /// <summary>Maps any accepted spelling to one of the three codes. Unknown values are SUR_PLAN.</summary>
     public static string Normalize(string? status)
     {
-        if (string.IsNullOrWhiteSpace(status)) return Draft;
+        if (string.IsNullOrWhiteSpace(status)) return SurPlan;
 
-        return status.Trim().ToUpperInvariant() switch
+        return status.Trim().ToUpperInvariant().Replace(' ', '_') switch
         {
-            "DRAFT" => Draft,
+            "SUR_PLAN" or "SURPLAN" or "DRAFT" or "PLANNED" or "COMINGSOON" or "COMMINGSOON" or "COMING_SOON"
+                or "IN_PROGRESS" or "INPROGRESS" or "UNDERCONSTRUCTION" or "UNDER_CONSTRUCTION"
+                or "AVAILABLE" or "SOLD" or "SUSPENDED" => SurPlan,
 
-            // "Coming soon" (and its misspelling) means planned but not started.
-            "PLANNED" or "COMINGSOON" or "COMMINGSOON" or "COMING_SOON" => Planned,
+            "EN_LIVRAISON" or "ENLIVRAISON" or "COMPLETED" or "DELIVERED" => EnLivraison,
 
-            // Legacy commercial states collapse here: neither says the build is done.
-            "IN_PROGRESS" or "INPROGRESS" or "UNDERCONSTRUCTION" or "UNDER_CONSTRUCTION"
-                or "AVAILABLE" or "SOLD" => InProgress,
+            "FINALISE" or "FINALISÉ" or "FINALISED" or "FINALIZED" or "ARCHIVED" => Finalise,
 
-            "SUSPENDED" => Suspended,
-
-            // Only the canonical code — and DELIVERED, which does assert that the
-            // build finished and was handed over — count as COMPLETED.
-            "COMPLETED" or "DELIVERED" => Completed,
-
-            "ARCHIVED" => Archived,
-
-            // Unknown values fail closed: DRAFT unlocks nothing.
-            _ => Draft
+            _ => SurPlan
         };
     }
 
-    /// <summary>
-    /// True when the project allows a final-visit request (§7.5 / §17.1).
-    ///
-    /// COMPLETED is the EN_LIVRAISON phase: construction is finished and the
-    /// approved files move on to visit, sale, notary and handover.
-    /// </summary>
-    public static bool AllowsFinalVisit(string? status) => Normalize(status) == Completed;
-
-    /// <summary>
-    /// Commercial phase a stored status belongs to.
-    ///
-    /// The phases are a VIEW over the persisted codes, not a second column:
-    /// nothing is migrated, and <see cref="Normalize"/> stays the only place
-    /// legacy spellings are interpreted.
-    /// </summary>
+    /// <summary>Kept for callers that speak of the "business phase": it is the status itself.</summary>
     public static class Phase
     {
-        /// <summary>Selling off-plan: new reservations are accepted.</summary>
-        public const string SurPlan = "SUR_PLAN";
-
-        /// <summary>Built and handing over: no new reservations, existing files proceed.</summary>
-        public const string EnLivraison = "EN_LIVRAISON";
-
-        /// <summary>Closed: consultation only.</summary>
-        public const string Finalise = "FINALISE";
-
-        /// <summary>
-        /// Administratively withdrawn. Deliberately NOT one of the three business
-        /// phases: it is reversible and blocks mutations without asserting where
-        /// the project sits in its commercial life.
-        /// </summary>
-        public const string Suspended = "SUSPENDED";
+        public const string SurPlan = ProjectStatusCodes.SurPlan;
+        public const string EnLivraison = ProjectStatusCodes.EnLivraison;
+        public const string Finalise = ProjectStatusCodes.Finalise;
     }
 
-    /// <summary>
-    /// Maps a stored status onto its business phase.
-    ///
-    ///   DRAFT / PLANNED / IN_PROGRESS -> SUR_PLAN
-    ///   COMPLETED                     -> EN_LIVRAISON
-    ///   ARCHIVED                      -> FINALISE
-    ///   SUSPENDED                     -> SUSPENDED
-    /// </summary>
-    public static string GetBusinessPhase(string? status) => Normalize(status) switch
-    {
-        Completed => Phase.EnLivraison,
-        Archived => Phase.Finalise,
-        Suspended => Phase.Suspended,
-        _ => Phase.SurPlan
-    };
+    /// <summary>The business phase is the status (the three values are the phases).</summary>
+    public static string GetBusinessPhase(string? status) => Normalize(status);
+
+    /// <summary>New reservations only while the project is sold off-plan.</summary>
+    public static bool AllowsNewReservation(string? status) => Normalize(status) == SurPlan;
+
+    /// <summary>A final visit is only requested once the project is in delivery (§17.1 FR-FVI-001).</summary>
+    public static bool AllowsFinalVisit(string? status) => Normalize(status) == EnLivraison;
+
+    /// <summary>A finalised project accepts no business mutation.</summary>
+    public static bool IsReadOnly(string? status) => Normalize(status) == Finalise;
 
     /// <summary>
-    /// True when a NEW reservation may be created on this project — SUR_PLAN only.
-    ///
-    /// A project in EN_LIVRAISON keeps serving its existing approved files; it
-    /// simply stops taking new ones.
+    /// Building (Immeuble) statuses keep their own vocabulary, which used to be
+    /// normalised by the project function: DRAFT, PLANNED, IN_PROGRESS,
+    /// SUSPENDED, COMPLETED, ARCHIVED.
     /// </summary>
-    public static bool AllowsNewReservation(string? status) =>
-        GetBusinessPhase(status) == Phase.SurPlan;
-
-    /// <summary>
-    /// True when the project accepts no business mutation at all: FINALISE
-    /// (closed) and SUSPENDED (withdrawn) are both consultation-only.
-    ///
-    /// Callers should treat this as a hard gate BEFORE any other rule, so a
-    /// closed project cannot be mutated through a path that only checks its own
-    /// narrower precondition.
-    /// </summary>
-    public static bool IsReadOnly(string? status)
+    public static string NormalizeBuildingStatus(string? status)
     {
-        var phase = GetBusinessPhase(status);
-        return phase is Phase.Finalise or Phase.Suspended;
+        if (string.IsNullOrWhiteSpace(status)) return "DRAFT";
+
+        return status.Trim().ToUpperInvariant() switch
+        {
+            "DRAFT" => "DRAFT",
+            "PLANNED" or "COMINGSOON" or "COMMINGSOON" or "COMING_SOON" => "PLANNED",
+            "IN_PROGRESS" or "INPROGRESS" or "UNDERCONSTRUCTION" or "UNDER_CONSTRUCTION"
+                or "AVAILABLE" or "SOLD" => "IN_PROGRESS",
+            "SUSPENDED" => "SUSPENDED",
+            "COMPLETED" or "DELIVERED" => "COMPLETED",
+            "ARCHIVED" => "ARCHIVED",
+            _ => "DRAFT"
+        };
     }
 }

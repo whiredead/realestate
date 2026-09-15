@@ -44,6 +44,8 @@ public class ProjectRepository : BaseRepository<Project>, IProjectRepository
                 .Select(m => m.ProjectId)
                 .ToListAsync());
 
+        // The filter accepts any known spelling and compares on the stored code.
+        var normalizedStatus = string.IsNullOrEmpty(Status) ? null : ProjectAPI.Domain.Construction.Entities.ProjectStatusCodes.Normalize(Status);
         var filtered = _context.Projects
             .Where(p =>
                 (!Id.HasValue || p.Id == Id.Value) &&
@@ -52,7 +54,7 @@ public class ProjectRepository : BaseRepository<Project>, IProjectRepository
                 (string.IsNullOrEmpty(Name) || p.Name.Contains(Name)) &&
                 (string.IsNullOrEmpty(Location) || p.Location.Contains(Location)) &&
                 (string.IsNullOrEmpty(Adress) || p.Address.Contains(Adress)) &&
-                (string.IsNullOrEmpty(Status) || p.StatusGlobal == Status)
+                (normalizedStatus == null || p.StatusGlobal == normalizedStatus)
             );
 
         // Counted on the same filter as the page (scope included) — the handler

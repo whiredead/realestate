@@ -138,11 +138,8 @@ public static class PublicCatalogueProjection
         }
         else
         {
-            // A project still being drafted is not on the market. Everything
-            // else — selling off-plan, in delivery, finalised — is legitimate
-            // catalogue content, since a finished development still needs a
-            // public page.
-            projectsQuery = projectsQuery.Where(p => p.StatusGlobal != ProjectStatusCodes.Draft);
+            // Every status — sur plan, en livraison, finalisé — is catalogue
+            // content: a finished development still needs a public page.
         }
 
         var projects = await projectsQuery.ToListAsync(ct);

@@ -61,7 +61,7 @@ public class AppointmentsAndClaimsScopeTests
             Address = "1 rue de test",
             Description = "seed",
             Module3DLink = string.Empty,
-            StatusGlobal = "DRAFT"
+            StatusGlobal = "SUR_PLAN"
         };
         db.Projects.Add(project);
         await db.SaveChangesAsync();
@@ -162,7 +162,7 @@ public class AppointmentsAndClaimsScopeTests
             Address = "1 rue de test",
             Description = "seed",
             Module3DLink = string.Empty,
-            StatusGlobal = "DRAFT"
+            StatusGlobal = "SUR_PLAN"
         };
 
         var immeuble = new Domain.Immeubles.Entities.Immeuble

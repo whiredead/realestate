@@ -34,13 +34,6 @@ public class GetPublicProjectHandler : IRequestHandler<GetPublicProjectQuery, Pu
             .FirstOrDefaultAsync(p => p.Id == request.ProjectId, ct)
             ?? throw new NotFoundException($"Project {request.ProjectId} not found.");
 
-        // A DRAFT project is not on the market. 404 rather than 403: to an
-        // anonymous visitor an unpublished project simply does not exist, and
-        // saying "forbidden" would confirm that it does.
-        if (ProjectStatusCodes.Normalize(project.StatusGlobal) == ProjectStatusCodes.Draft)
-        {
-            throw new NotFoundException($"Project {request.ProjectId} not found.");
-        }
 
         var phase = ProjectStatusCodes.GetBusinessPhase(project.StatusGlobal);
 
@@ -151,10 +144,6 @@ public class GetPublicPlanHandler : IRequestHandler<GetPublicPlanQuery, PublicPl
             .FirstOrDefaultAsync(p => p.Id == request.ProjectId, ct)
             ?? throw new NotFoundException($"Project {request.ProjectId} not found.");
 
-        if (ProjectStatusCodes.Normalize(project.StatusGlobal) == ProjectStatusCodes.Draft)
-        {
-            throw new NotFoundException($"Project {request.ProjectId} not found.");
-        }
 
         var plans = await PublicCatalogueProjection.BuildPlansAsync(_db, project.Id, ct);
 

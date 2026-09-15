@@ -64,7 +64,7 @@ public class InventoryScopeTests
             Address = "1 rue de test",
             Description = "seed",
             Module3DLink = string.Empty,
-            StatusGlobal = "DRAFT"
+            StatusGlobal = "SUR_PLAN"
         };
         db.Projects.Add(project);
         await db.SaveChangesAsync();

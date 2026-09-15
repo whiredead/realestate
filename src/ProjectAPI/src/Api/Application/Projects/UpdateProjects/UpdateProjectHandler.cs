@@ -88,7 +88,7 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
             var target = ProjectStatusCodes.Normalize(request.StatusGlobal);
             var current = ProjectStatusCodes.Normalize(project.StatusGlobal);
 
-            if (target == ProjectStatusCodes.Completed && current != ProjectStatusCodes.Completed)
+            if (target == ProjectStatusCodes.EnLivraison && current != ProjectStatusCodes.EnLivraison)
             {
                 throw new BusinessRuleException(
                     BusinessErrorCodes.InvalidStatusTransition,
@@ -100,8 +100,8 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
             // Same for FINALISE (ARCHIVED), reached only through FinalizeProjectCommand,
             // and neither gate may be undone by an edit: a generic PUT moving a
             // project out of EN_LIVRAISON/FINALISE would reopen reservations.
-            var isGated = current is ProjectStatusCodes.Completed or ProjectStatusCodes.Archived;
-            if (target != current && (target == ProjectStatusCodes.Archived || isGated))
+            var isGated = current is ProjectStatusCodes.EnLivraison or ProjectStatusCodes.Finalise;
+            if (target != current && (target == ProjectStatusCodes.Finalise || isGated))
             {
                 throw new BusinessRuleException(
                     BusinessErrorCodes.InvalidStatusTransition,

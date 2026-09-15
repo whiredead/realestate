@@ -38,7 +38,7 @@ public class ReservationSubmissionRulesTests
 
     /// <summary>Seeds project → immeuble → floor → unit → reservation and returns the ids.</summary>
     private async Task<(Guid ProjectId, Guid UnitId, Guid ReservationId)> SeedAsync(
-        string label, string projectStatus = ProjectStatusCodes.InProgress)
+        string label, string projectStatus = ProjectStatusCodes.SurPlan)
     {
         await using var db = _fixture.CreateContext();
 
@@ -257,17 +257,17 @@ public class ReservationSubmissionRulesTests
     // ------------------------------------------------------ §5.2 phase gate
 
     [Theory]
-    [InlineData(ProjectStatusCodes.Draft, true)]
-    [InlineData(ProjectStatusCodes.Planned, true)]
-    [InlineData(ProjectStatusCodes.InProgress, true)]
-    [InlineData(ProjectStatusCodes.Completed, false)]
-    [InlineData(ProjectStatusCodes.Archived, false)]
-    [InlineData(ProjectStatusCodes.Suspended, false)]
+    [InlineData(ProjectStatusCodes.SurPlan, true)]
+    [InlineData(ProjectStatusCodes.EnLivraison, false)]
+    [InlineData(ProjectStatusCodes.Finalise, false)]
+    [InlineData("IN_PROGRESS", true)]
+    [InlineData("COMPLETED", false)]
+    [InlineData("ARCHIVED", false)]
     public void New_reservations_are_allowed_only_while_the_project_sells_off_plan(string status, bool allowed)
     {
         // A reservation opens a commercial file on a project still selling
         // off-plan (SUR_PLAN). At EN_LIVRAISON the remaining stock is sold
-        // rather than reserved; FINALISE and SUSPENDED accept nothing.
+        // rather than reserved; FINALISE accepts nothing.
         ProjectStatusCodes.AllowsNewReservation(status).Should().Be(allowed);
     }
 }

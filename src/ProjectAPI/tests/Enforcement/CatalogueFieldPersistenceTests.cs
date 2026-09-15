@@ -41,7 +41,7 @@ public class CatalogueFieldPersistenceTests
         Address = "1 rue de test",
         Description = "test",
         Module3DLink = string.Empty,
-        StatusGlobal = "DRAFT"
+        StatusGlobal = "SUR_PLAN"
     };
 
     // ----------------------------------------------------------- §8 warranty

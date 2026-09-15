@@ -88,7 +88,7 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
             // §3 / FR-CMS-001 — a project is created in DRAFT. Normalised so the
             // column only ever holds canonical codes, never the legacy (and
             // misspelled) "CommingSoon" spellings.
-            StatusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal ?? ProjectStatusCodes.Draft),
+            StatusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal ?? ProjectStatusCodes.SurPlan),
             // §8 — omitted takes the entity default (12 months).
             WarrantyMonths = request.WarrantyMonths ?? 12
         };

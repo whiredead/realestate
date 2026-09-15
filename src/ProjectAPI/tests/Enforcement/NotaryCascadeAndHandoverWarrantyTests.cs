@@ -58,7 +58,7 @@ public class NotaryCascadeAndHandoverWarrantyTests
             Address = "1 rue de test",
             Description = "seed",
             Module3DLink = string.Empty,
-            StatusGlobal = ProjectStatusCodes.Completed,
+            StatusGlobal = ProjectStatusCodes.EnLivraison,
             WarrantyMonths = warrantyMonths
         };
         var immeuble = new Immeuble

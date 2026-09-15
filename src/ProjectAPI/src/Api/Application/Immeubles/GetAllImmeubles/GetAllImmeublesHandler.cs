@@ -108,7 +108,7 @@ public class GetAllImmeublesHandler : IRequestHandler<GetAllImmeublesQuery, Pagi
                     // Normalize, not a fixed enum: Immeuble.Status is free
                     // text and now carries canonical §3 codes as well as
                     // legacy spellings (same shape as Project.StatusGlobal).
-                    Status = ProjectStatusCodes.Normalize(p.Status),
+                    Status = ProjectStatusCodes.NormalizeBuildingStatus(p.Status),
                     // Matches GetImmeubleByIdHandler's null-safety for the
                     // same field.
                     Images = p.Images != null ? [.. p.Images.Split(',')] : [],

@@ -62,7 +62,7 @@ public class ProjectAdminScopeTests
         Address = "1 rue de test",
         Description = "seed",
         Module3DLink = string.Empty,
-        StatusGlobal = "DRAFT"
+        StatusGlobal = "SUR_PLAN"
     };
 
     private async Task<Guid> SeedProjectAsync(string name)

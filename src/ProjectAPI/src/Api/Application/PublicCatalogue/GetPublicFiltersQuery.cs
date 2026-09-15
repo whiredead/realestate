@@ -51,7 +51,6 @@ public class GetPublicFiltersHandler : IRequestHandler<GetPublicFiltersQuery, Pu
         // option that always returns zero results.
         var projects = await _db.Set<Project>()
             .AsNoTracking()
-            .Where(p => p.StatusGlobal != ProjectStatusCodes.Draft)
             .OrderBy(p => p.Name)
             .Select(p => new PublicFilterOption
             {

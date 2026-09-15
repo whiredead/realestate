@@ -81,7 +81,7 @@ public class CompleteProjectHandler : IRequestHandler<CompleteProjectCommand, Co
                 "La finalisation du projet exige une confirmation explicite.");
         }
 
-        if (ProjectStatusCodes.Normalize(project.StatusGlobal) is ProjectStatusCodes.Completed or ProjectStatusCodes.Archived)
+        if (ProjectStatusCodes.Normalize(project.StatusGlobal) is ProjectStatusCodes.EnLivraison or ProjectStatusCodes.Finalise)
         {
             throw new BusinessRuleException(
                 BusinessErrorCodes.InvalidStatusTransition,
@@ -137,7 +137,7 @@ public class CompleteProjectHandler : IRequestHandler<CompleteProjectCommand, Co
         // high-impact transition.
         var actorUserId = _currentUser.UserId;
 
-        project.StatusGlobal = ProjectStatusCodes.Completed;
+        project.StatusGlobal = ProjectStatusCodes.EnLivraison;
         project.OverAllProgress = 100m;
 
         // §15.3 requires an audit entry for this transition. The audit_logs
@@ -171,7 +171,7 @@ public class CompleteProjectHandler : IRequestHandler<CompleteProjectCommand, Co
         return new CompleteProjectResponse
         {
             ProjectId = project.Id,
-            Status = ProjectStatusCodes.Completed,
+            Status = ProjectStatusCodes.EnLivraison,
             ComputedProgressPercent = progress,
             Message = "Projet marqué comme terminé. Les visites finales peuvent désormais être demandées."
         };

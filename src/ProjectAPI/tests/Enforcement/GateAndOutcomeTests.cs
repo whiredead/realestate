@@ -22,7 +22,7 @@ public class ProjectStatusGateTests
     [InlineData("SOLD")]
     public void Legacy_commercial_values_do_not_unlock_the_final_visit_gate(string legacy)
     {
-        ProjectStatusCodes.Normalize(legacy).Should().Be(ProjectStatusCodes.InProgress,
+        ProjectStatusCodes.Normalize(legacy).Should().Be(ProjectStatusCodes.SurPlan,
             "a commercial fact says nothing about whether the build finished");
 
         ProjectStatusCodes.AllowsFinalVisit(legacy).Should().BeFalse(
@@ -36,6 +36,8 @@ public class ProjectStatusGateTests
     [InlineData("DRAFT")]
     [InlineData("SUSPENDED")]
     [InlineData("ARCHIVED")]
+    [InlineData("SUR_PLAN")]
+    [InlineData("FINALISE")]
     [InlineData("")]
     [InlineData(null)]
     [InlineData("something unknown")]
@@ -45,6 +47,7 @@ public class ProjectStatusGateTests
     [Fact]
     public void Only_a_genuinely_completed_project_unlocks_it()
     {
+        ProjectStatusCodes.AllowsFinalVisit("EN_LIVRAISON").Should().BeTrue();
         ProjectStatusCodes.AllowsFinalVisit("COMPLETED").Should().BeTrue();
 
         // DELIVERED asserts the build finished and was handed over, unlike the
@@ -53,20 +56,24 @@ public class ProjectStatusGateTests
     }
 
     [Fact]
-    public void Unknown_values_fail_closed_to_DRAFT() =>
-        ProjectStatusCodes.Normalize("¯\\_(ツ)_/¯").Should().Be(ProjectStatusCodes.Draft);
+    public void Unknown_values_map_to_SUR_PLAN() =>
+        ProjectStatusCodes.Normalize("¯\\_(ツ)_/¯").Should().Be(ProjectStatusCodes.SurPlan);
 
     [Fact]
     public void Canonical_codes_round_trip()
     {
-        foreach (var code in new[]
-                 {
-                     ProjectStatusCodes.Draft, ProjectStatusCodes.Planned, ProjectStatusCodes.InProgress,
-                     ProjectStatusCodes.Suspended, ProjectStatusCodes.Completed, ProjectStatusCodes.Archived
-                 })
+        ProjectStatusCodes.All.Should().Equal("SUR_PLAN", "EN_LIVRAISON", "FINALISE");
+        foreach (var code in ProjectStatusCodes.All)
         {
             ProjectStatusCodes.Normalize(code).Should().Be(code);
         }
+
+        // Former internal codes map onto the three statuses.
+        ProjectStatusCodes.Normalize("DRAFT").Should().Be(ProjectStatusCodes.SurPlan);
+        ProjectStatusCodes.Normalize("PLANNED").Should().Be(ProjectStatusCodes.SurPlan);
+        ProjectStatusCodes.Normalize("IN_PROGRESS").Should().Be(ProjectStatusCodes.SurPlan);
+        ProjectStatusCodes.Normalize("COMPLETED").Should().Be(ProjectStatusCodes.EnLivraison);
+        ProjectStatusCodes.Normalize("ARCHIVED").Should().Be(ProjectStatusCodes.Finalise);
     }
 }
 

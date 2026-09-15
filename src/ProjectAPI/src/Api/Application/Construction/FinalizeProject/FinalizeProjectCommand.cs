@@ -107,7 +107,7 @@ public class FinalizeProjectHandler : IRequestHandler<FinalizeProjectCommand, Fi
         var decidedAt = DateTime.UtcNow;
         var actorUserId = _currentUser.UserId;
 
-        project.StatusGlobal = ProjectStatusCodes.Archived;
+        project.StatusGlobal = ProjectStatusCodes.Finalise;
 
         // Same audit carrier as CompleteProject until the audit_logs table exists.
         _db.Add(new ConstructionUpdate
@@ -134,7 +134,7 @@ public class FinalizeProjectHandler : IRequestHandler<FinalizeProjectCommand, Fi
         return new FinalizeProjectResponse
         {
             ProjectId = project.Id,
-            Status = ProjectStatusCodes.Archived,
+            Status = ProjectStatusCodes.Finalise,
             BusinessPhase = ProjectStatusCodes.Phase.Finalise,
             ComputedProgressPercent = progress,
             Message = "Projet finalisé : il est désormais en lecture seule."

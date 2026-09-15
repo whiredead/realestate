@@ -43,9 +43,9 @@ public class Project
     public string Module3DLink { get; set; }
 
     /// <summary>
-    /// Gets or sets the global status of the project (e.g., ComingSoon, UnderConstruction).
+    /// Gets or sets the global status of the project (SUR_PLAN, EN_LIVRAISON or FINALISE — see ProjectStatusCodes).
     /// </summary>
-    public string StatusGlobal { get; set; } = "CommingSoon";
+    public string StatusGlobal { get; set; } = "SUR_PLAN";
 
     /// <summary>
     /// Gets or sets the type of the project (e.g., "Livraison immédiate", "Vente sur plan", 
