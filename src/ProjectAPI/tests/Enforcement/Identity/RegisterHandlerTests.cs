@@ -1,7 +1,9 @@
-using AuthenticationAPI.Api.Application.Common.Exceptions;
-using AuthenticationAPI.Api.Application.Users.Register;
-using AuthenticationAPI.Domain.ApplicationUser.Entities;
-using AuthenticationAPI.Domain.Common.Interfaces;
+using Moq;
+using ProjectAPI.Domain.Users.Entities;
+using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Identity.Users.Register;
+using ProjectAPI.Domain.Identity.Entities;
+using ProjectAPI.Domain.Common.Interfaces;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 
@@ -123,10 +125,11 @@ public class RegisterHandlerTests
         // Every request that clears the internal-role and BUYER guards must
         // produce exactly PROSPECT — never whatever label the caller sent,
         // even when that label normalizes to PROSPECT anyway (e.g. the
-        // legacy no-meaning codes). The value written to Discriminator /
-        // AddToRolesAsync is hard-coded, not derived from the request, so
+        // legacy no-meaning codes). The role passed to AddToRolesAsync is
+        // hard-coded, not derived from the request, and the entity is built as
+        // a plain User — whose CLR type IS the stored TPH discriminator — so
         // this also proves the two writes can never drift apart again.
-        string? persistedDiscriminator = null;
+        User? persistedUser = null;
         IEnumerable<string>? persistedRoles = null;
 
         var store = new Mock<IUserStore<User>>();
@@ -135,7 +138,7 @@ public class RegisterHandlerTests
 
         userManager
             .Setup(m => m.CreateAsync(It.IsAny<User>(), It.IsAny<string>()))
-            .Callback<User, string>((u, _) => persistedDiscriminator = u.Discriminator)
+            .Callback<User, string>((u, _) => persistedUser = u)
             .ReturnsAsync(IdentityResult.Success);
         userManager
             .Setup(m => m.AddToRolesAsync(It.IsAny<User>(), It.IsAny<IEnumerable<string>>()))
@@ -148,7 +151,8 @@ public class RegisterHandlerTests
 
         await handler.Handle(command, CancellationToken.None);
 
-        persistedDiscriminator.Should().Be(RoleCodes.Prospect);
+        persistedUser.Should().NotBeNull();
+        persistedUser!.GetType().Should().Be(typeof(User));
         persistedRoles.Should().ContainSingle().Which.Should().Be(RoleCodes.Prospect);
     }
 
@@ -160,7 +164,7 @@ public class RegisterHandlerTests
         // the normal shape of this request, not invalid input: it must
         // succeed and still produce PROSPECT, exactly like any other request
         // that clears the internal-role/BUYER guards.
-        string? persistedDiscriminator = null;
+        User? persistedUser = null;
         IEnumerable<string>? persistedRoles = null;
 
         var store = new Mock<IUserStore<User>>();
@@ -169,7 +173,7 @@ public class RegisterHandlerTests
 
         userManager
             .Setup(m => m.CreateAsync(It.IsAny<User>(), It.IsAny<string>()))
-            .Callback<User, string>((u, _) => persistedDiscriminator = u.Discriminator)
+            .Callback<User, string>((u, _) => persistedUser = u)
             .ReturnsAsync(IdentityResult.Success);
         userManager
             .Setup(m => m.AddToRolesAsync(It.IsAny<User>(), It.IsAny<IEnumerable<string>>()))
@@ -182,7 +186,8 @@ public class RegisterHandlerTests
 
         await handler.Handle(command, CancellationToken.None);
 
-        persistedDiscriminator.Should().Be(RoleCodes.Prospect);
+        persistedUser.Should().NotBeNull();
+        persistedUser!.GetType().Should().Be(typeof(User));
         persistedRoles.Should().ContainSingle().Which.Should().Be(RoleCodes.Prospect);
     }
 }

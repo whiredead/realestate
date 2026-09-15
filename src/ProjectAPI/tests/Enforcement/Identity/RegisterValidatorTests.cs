@@ -1,4 +1,6 @@
-using AuthenticationAPI.Api.Application.Users.Register;
+using Moq;
+using ProjectAPI.Domain.Users.Entities;
+using ProjectAPI.Api.Application.Identity.Users.Register;
 using FluentAssertions;
 
 namespace Men.ProfessorAssignmentApi.Api.Tests.Unit;

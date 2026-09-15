@@ -1,5 +1,7 @@
-using AuthenticationAPI.Api.Application.Internal.ProvisionInternalUser;
-using AuthenticationAPI.Domain.ApplicationUser.Entities;
+using Moq;
+using ProjectAPI.Domain.Users.Entities;
+using ProjectAPI.Api.Application.Internal.ProvisionInternalUser;
+using ProjectAPI.Domain.Identity.Entities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 

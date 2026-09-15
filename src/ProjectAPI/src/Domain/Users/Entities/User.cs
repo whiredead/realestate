@@ -27,11 +27,15 @@ public class User : IdentityUser
     public string FirstName { get; set; }
     public string LastName { get; set; }
 
-    /// <summary>Arabic given name, optional — carried over from the auth module.</summary>
-    public string FirstNameAr { get; set; } = default!;
+    /// <summary>
+    /// Arabic given name. Optional, and empty rather than null when unknown:
+    /// the column is NOT NULL, so a default of `default!` would make every
+    /// caller that does not set it fail on insert.
+    /// </summary>
+    public string FirstNameAr { get; set; } = string.Empty;
 
-    /// <summary>Arabic family name, optional — carried over from the auth module.</summary>
-    public string LastNameAr { get; set; } = default!;
+    /// <summary>Arabic family name. Optional — see <see cref="FirstNameAr"/>.</summary>
+    public string LastNameAr { get; set; } = string.Empty;
 
     public ICollection<LikedProject> LikedProjects { get; set; }
 

@@ -17,10 +17,11 @@ public class Role : IdentityRole<string>
     public string? RoleAr { get; set; } = default!;
 
     /// <summary>
-    /// Human-readable label. NOT NULL in the database; callers that create a
-    /// role set this to the role code when they have nothing better.
+    /// Human-readable label. NOT NULL in the database, so it defaults to empty
+    /// rather than `default!` — a role created without one must not fail on
+    /// insert. Callers that have nothing better set it to the role code.
     /// </summary>
-    public string DisplayName { get; set; } = default!;
+    public string DisplayName { get; set; } = string.Empty;
 
     /// <summary>Join navigation to the users holding this role.</summary>
     public ICollection<UserRole> UserRoles { get; set; } = [];

@@ -1,9 +1,0 @@
-<Project>
-
-  <Import Project="..\Directory.Build.props" />
-
-  <PropertyGroup Label="Compilation">
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
-  </PropertyGroup>
-
-</Project>

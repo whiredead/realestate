@@ -1,3 +1,4 @@
+using ProjectAPI.Domain.Identity.Entities;
 using FluentAssertions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,10 +85,10 @@ public class ProjectMutationAndDashboardScopeTests
                 SecurityStamp = Guid.NewGuid().ToString()
             };
 
-            var roleManager = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<Microsoft.AspNetCore.Identity.IdentityRole>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<Microsoft.AspNetCore.Identity.RoleManager<ProjectAPI.Domain.Identity.Entities.Role>>();
             if (!await roleManager.RoleExistsAsync(roleCode))
             {
-                await roleManager.CreateAsync(new Microsoft.AspNetCore.Identity.IdentityRole(roleCode));
+                await roleManager.CreateAsync(new ProjectAPI.Domain.Identity.Entities.Role { Id = Guid.NewGuid().ToString(), Name = roleCode, DisplayName = roleCode });
             }
 
             (await userManager.CreateAsync(user)).Succeeded.Should().BeTrue("test user seeding must succeed");

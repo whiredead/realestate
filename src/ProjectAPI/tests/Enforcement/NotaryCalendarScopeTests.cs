@@ -1,3 +1,4 @@
+using ProjectAPI.Domain.Identity.Entities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -66,10 +67,10 @@ public class NotaryCalendarScopeTests
                 SecurityStamp = Guid.NewGuid().ToString()
             };
 
-            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
             if (!await roleManager.RoleExistsAsync(RoleCodes.Notary))
             {
-                await roleManager.CreateAsync(new IdentityRole(RoleCodes.Notary));
+                await roleManager.CreateAsync(new Role { Id = Guid.NewGuid().ToString(), Name = RoleCodes.Notary, DisplayName = RoleCodes.Notary });
             }
 
             (await userManager.CreateAsync(user)).Succeeded.Should().BeTrue("test notary seeding must succeed");

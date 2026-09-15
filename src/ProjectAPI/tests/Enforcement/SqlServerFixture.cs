@@ -1,3 +1,4 @@
+using ProjectAPI.Domain.Identity.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -61,7 +62,7 @@ public sealed class SqlServerFixture : IAsyncLifetime
         var services = new ServiceCollection();
         services.AddDbContext<ApplicationDbContext>(o => o.UseSqlServer(ConnectionString));
         services.AddLogging();
-        services.AddIdentity<User, IdentityRole>()
+        services.AddIdentity<User, Role>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
 
