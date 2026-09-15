@@ -78,40 +78,11 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
         project.Images = request.Images ?? project.Images;
         project.Type = request.Type ?? project.Type;
 
-        // §3 / §15.3 — COMPLETED is a gate, not a field. It unlocks final-visit
-        // requests, so it may only be reached through CompleteProjectCommand,
-        // which verifies 100% weighted progress, an explicit confirmation and a
-        // real end date, and records the decision. Letting a generic PUT write it
-        // would reopen the gate to anyone who can edit a project.
+        // The admin may set any of the three statuses from the edit form. A project
+        // already FINALISE never reaches this point: ProjectReadOnlyGuard refuses
+        // every write on it (409 PROJECT_READ_ONLY), so finalising stays one-way.
         if (request.StatusGlobal != null)
-        {
-            var target = ProjectStatusCodes.Normalize(request.StatusGlobal);
-            var current = ProjectStatusCodes.Normalize(project.StatusGlobal);
-
-            if (target == ProjectStatusCodes.EnLivraison && current != ProjectStatusCodes.EnLivraison)
-            {
-                throw new BusinessRuleException(
-                    BusinessErrorCodes.InvalidStatusTransition,
-                    "Un projet ne peut être marqué COMPLETED que via la commande de finalisation " +
-                    "(POST /api/construction/projects/{id}/complete), qui vérifie l'avancement à 100%.",
-                    StatusCodes.Status409Conflict);
-            }
-
-            // Same for FINALISE (ARCHIVED), reached only through FinalizeProjectCommand,
-            // and neither gate may be undone by an edit: a generic PUT moving a
-            // project out of EN_LIVRAISON/FINALISE would reopen reservations.
-            var isGated = current is ProjectStatusCodes.EnLivraison or ProjectStatusCodes.Finalise;
-            if (target != current && (target == ProjectStatusCodes.Finalise || isGated))
-            {
-                throw new BusinessRuleException(
-                    BusinessErrorCodes.InvalidStatusTransition,
-                    $"Le statut {current} ne peut pas être modifié en {target} par une édition du projet : " +
-                    "utilisez les actions « Passer en livraison » / « Finaliser le projet ».",
-                    StatusCodes.Status409Conflict);
-            }
-
-            project.StatusGlobal = target;
-        }
+            project.StatusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal);
 
         project.OverAllProgress = request.OverallProgress ?? project.OverAllProgress;
 
