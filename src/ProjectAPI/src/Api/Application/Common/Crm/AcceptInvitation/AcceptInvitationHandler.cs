@@ -1,28 +1,29 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Api.Application.Internal.ProvisionInternalUser;
 using ProjectAPI.Domain.Crm.Entities;
-using ProjectAPI.Infrastructure.Clients;
+using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.Application.Common.Crm.AcceptInvitation;
 
 /// <summary>
-/// N20 — the account-creation half of the Phase 2 invitation flow that
+/// N20 — the account-creation half of the invitation flow that
 /// ApproveReservationHandler's IssueInvitationAsync always assumed would
-/// exist (see ProvisionInternalUserCommand's own doc comment, which already
-/// named this class). ProjectAPI owns the invitation and the CrmContact link;
-/// AuthenticationAPI owns the actual account and is the only thing that ever
-/// calls UserManager.CreateAsync (§6.1).
+/// exist. This module owns the invitation and the CrmContact link; the
+/// identity module owns the account and remains the only thing that ever
+/// calls UserManager.CreateAsync (§6.1), which is why the account is created
+/// by sending ProvisionInternalUserCommand rather than inline here.
 /// </summary>
 public class AcceptInvitationHandler : IRequestHandler<AcceptInvitationCommand, AcceptInvitationResponse>
 {
     private readonly ApplicationDbContext _db;
-    private readonly IAuthenticationApiClient _authApi;
+    private readonly ISender _sender;
 
-    public AcceptInvitationHandler(ApplicationDbContext db, IAuthenticationApiClient authApi)
+    public AcceptInvitationHandler(ApplicationDbContext db, ISender sender)
     {
         _db = db;
-        _authApi = authApi;
+        _sender = sender;
     }
 
     public async Task<AcceptInvitationResponse> Handle(AcceptInvitationCommand request, CancellationToken ct)
@@ -59,19 +60,21 @@ public class AcceptInvitationHandler : IRequestHandler<AcceptInvitationCommand, 
 
         var contact = invitation.CrmContact;
 
-        var provisioned = await _authApi.ProvisionBuyerAsync(new ProvisionBuyerRequest(
-            invitation.Email,
-            contact.FirstName,
-            contact.LastName,
-            request.Password,
-            contact.Phone), ct);
+        var provisioned = await _sender.Send(new ProvisionInternalUserCommand
+        {
+            Email = invitation.Email,
+            FirstName = contact.FirstName,
+            LastName = contact.LastName,
+            Password = request.Password,
+            PhoneNumber = contact.Phone,
+            RoleCode = RoleCodes.Buyer
+        }, ct);
 
         // §1.1 — one account maps to at most one contact (filtered unique
-        // index). ProvisionBuyerAsync is idempotent on AuthenticationAPI's
-        // side (existing-account-by-email adds the role rather than erroring),
-        // so a contact already linked to a DIFFERENT account here would be a
-        // genuine data inconsistency worth refusing rather than silently
-        // overwriting.
+        // index). Provisioning is idempotent (an existing account for this
+        // email gains the role rather than erroring), so a contact already
+        // linked to a DIFFERENT account here would be a genuine data
+        // inconsistency worth refusing rather than silently overwriting.
         if (!string.IsNullOrEmpty(contact.UserId) && contact.UserId != provisioned.UserId)
         {
             throw new BusinessRuleException(
