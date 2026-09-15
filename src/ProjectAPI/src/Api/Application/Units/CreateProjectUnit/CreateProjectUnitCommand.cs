@@ -75,4 +75,12 @@ public class CreateProjectUnitCommand : IRequest<CreateProjectUnitResponse>
     /// uploaded separately via the blob storage endpoint before this call.
     /// </summary>
     public string? Images { get; set; }
+
+    /// <summary>
+    /// The référentiel layout this unit realises (§7.2) — Studio, Appartement
+    /// 3 Chambres, Plateau de Bureaux. Optional: stock whose layout is not in
+    /// the référentiel is still valid and falls back to the bedroom-count
+    /// match in the public catalogue.
+    /// </summary>
+    public int? TypeBienId { get; set; }
 }

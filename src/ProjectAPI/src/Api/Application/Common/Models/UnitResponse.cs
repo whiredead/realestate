@@ -106,4 +106,17 @@ public class UnitResponse
 
     /// <summary>This unit's own photo URLs (comma-delimited), distinct from the building's Images.</summary>
     public string? Images { get; set; }
+
+    /// <summary>
+    /// The référentiel layout this unit realises (§7.2), null when the unit
+    /// declares none — see Unit.TypeBienId.
+    /// </summary>
+    public int? TypeBienId { get; set; }
+
+    /// <summary>
+    /// Display name of <see cref="TypeBienId"/> ("Studio Vue Marina"), so a
+    /// caller listing units does not need a second request per row to label
+    /// them. Null whenever TypeBienId is.
+    /// </summary>
+    public string? TypeBienName { get; set; }
 }

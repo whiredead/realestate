@@ -44,9 +44,10 @@ public async Task<PaginatedResponse<UnitResponse>> Handle(GetAllUnitsQuery reque
             (!request.ProjectId.HasValue || unit.Immeuble.ProjectId == request.ProjectId) &&
             (!request.ImmeubleId.HasValue || unit.ProjectId == request.ImmeubleId);
 
-        // Fetch all filtered units from the repository first — Floor is
-        // eager-loaded since the projection below reads its display name.
-        var allMatchingUnits = (await _unitRepository.Find(predicate, u => u.Floor)).ToList();
+        // Fetch all filtered units from the repository first — Floor and
+        // TypeBien are eager-loaded since the projection below reads their
+        // display names.
+        var allMatchingUnits = (await _unitRepository.Find(predicate, u => u.Floor, u => u.TypeBien)).ToList();
         
         // Calculate the total number of items BEFORE pagination
         var totalItems = allMatchingUnits.Count;
@@ -81,7 +82,9 @@ public async Task<PaginatedResponse<UnitResponse>> Handle(GetAllUnitsQuery reque
                 // Canonical §3 code, not the enum's numeric value: clients gate on
                 // "AVAILABLE", and an integer on the wire would be meaningless.
                 Status = u.Status.ToCode(),
-                Images = u.Images
+                Images = u.Images,
+                TypeBienId = u.TypeBienId,
+                TypeBienName = u.TypeBien?.Name
             }).ToList();
 
         // Return the paginated response

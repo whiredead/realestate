@@ -112,6 +112,22 @@ public class Unit
     public Immeuble Immeuble { get; set; }
 
     /// <summary>
+    /// The référentiel layout this unit realises (§7.2) — "Studio",
+    /// "Appartement 3 Chambres", "Plateau de Bureaux".
+    ///
+    /// Nullable on purpose. Until this column existed the catalogue inferred a
+    /// unit's type from its bedroom count alone, which cannot separate two
+    /// types that share one (a 3-bedroom apartment and a 3-bedroom penthouse,
+    /// or a studio and an office plateau at zero). Rows created before the
+    /// column, and stock whose layout genuinely is not in the référentiel, stay
+    /// null and fall back to that bedroom match — see GetPublicPlansQuery.
+    /// </summary>
+    public int? TypeBienId { get; set; }
+
+    /// <summary>Navigation to <see cref="TypeBienId"/>.</summary>
+    public TypeBien? TypeBien { get; set; }
+
+    /// <summary>
     /// Navigation property for related property deliveries.
     /// </summary>
     public ICollection<PropertyDelivery> PropertyDeliveries { get; set; } = new List<PropertyDelivery>();

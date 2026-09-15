@@ -102,6 +102,13 @@ public class UpdateUnitCommand : IRequest<UpdateUnitResponse>
     /// </summary>
     public string? Images { get; set; }
 
+    /// <summary>
+    /// The référentiel layout this unit realises (§7.2). Null leaves the
+    /// current value alone, like every other field here; clearing a type that
+    /// was set is done by passing 0, which the handler maps back to null.
+    /// </summary>
+    public int? TypeBienId { get; set; }
+
     // Status is deliberately absent (§7: direct status updates are forbidden).
     // A unit's commercial status is a consequence of the sale workflow — it moves
     // only through the reservation, notary and handover commands, via

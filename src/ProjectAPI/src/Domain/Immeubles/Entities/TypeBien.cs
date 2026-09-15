@@ -53,4 +53,11 @@ public class TypeBien
     public ICollection<ProjectTypeBien> Projects { get; set; } = new List<ProjectTypeBien>();
     public ICollection<ImmeubleTypeBien> Immeubles { get; set; } = new List<ImmeubleTypeBien>();
 
+    /// <summary>
+    /// The individual units that realise this layout. Deleting a type does not
+    /// delete its stock: the FK is SET NULL, so the units survive and fall back
+    /// to the bedroom-count match.
+    /// </summary>
+    public ICollection<Unit> Units { get; set; } = new List<Unit>();
+
 }

@@ -117,6 +117,22 @@ namespace ProjectAPI.Infrastructure.Configurations
                 .WithOne(delivery => delivery.Unit)
                 .HasForeignKey(delivery => delivery.UnitId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // §7.2 — the référentiel layout this unit realises. Optional: rows
+            // that predate the column keep NULL and stay on the bedroom-count
+            // fallback, so adding this breaks no existing stock.
+            //
+            // SET NULL rather than Cascade: retiring a type from the
+            // référentiel must never delete the flats that were built to it.
+            builder.HasOne(unit => unit.TypeBien)
+                .WithMany(type => type.Units)
+                .HasForeignKey(unit => unit.TypeBienId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // The catalogue groups a project's stock by type, so the lookup is
+            // always "units of this type", never a scan by id.
+            builder.HasIndex(unit => unit.TypeBienId)
+                   .HasDatabaseName("IX_Units_TypeBienId");
         }
     }
 

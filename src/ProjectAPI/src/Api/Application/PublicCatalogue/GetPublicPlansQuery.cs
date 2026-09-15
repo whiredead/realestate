@@ -157,6 +157,7 @@ public static class PublicCatalogueProjection
             select new
             {
                 RealProjectId = im.ProjectId,
+                u.TypeBienId,
                 u.NumberOfBedrooms,
                 u.LatestPrice,
                 u.Status
@@ -173,18 +174,28 @@ public static class PublicCatalogueProjection
             unitsByProject.TryGetValue(project.Id, out var projectUnits);
             projectUnits ??= new();
 
+            // Whether this project's stock is labelled decides how the whole
+            // project is matched — not each plan on its own. A project part-way
+            // through labelling would otherwise match its labelled units
+            // exactly AND still sweep the rest in by bedroom count, so a
+            // penthouse would keep appearing under the 3-bedroom apartment plan
+            // it was just labelled away from.
+            var projectIsTyped = projectUnits.Any(u => u.TypeBienId is not null);
+
             foreach (var link in project.TypeBiens.Where(t => t.TypeBien is not null))
             {
                 var type = link.TypeBien!;
 
-                // A Unit carries no TypeBienId — the model has no join between
-                // the two. Bedroom count is the only signal linking a plan to
-                // the stock that realises it, and it is what the catalogue has
-                // always matched on. Documented rather than hidden: a real
-                // Unit.TypeBienId would make this exact.
-                var matching = type.NbrChambre is null
-                    ? projectUnits
-                    : projectUnits.Where(u => u.NumberOfBedrooms == type.NbrChambre).ToList();
+                // Exact where the stock declares its type. Bedroom count cannot
+                // separate two types that share one — a 3-bedroom apartment
+                // from a 3-bedroom penthouse, or a studio from an office
+                // plateau at zero — so it was only ever an approximation, kept
+                // here for projects whose units predate Unit.TypeBienId.
+                var matching = projectIsTyped
+                    ? projectUnits.Where(u => u.TypeBienId == type.Id).ToList()
+                    : type.NbrChambre is null
+                        ? projectUnits
+                        : projectUnits.Where(u => u.NumberOfBedrooms == type.NbrChambre).ToList();
 
                 var availableUnits = matching
                     .Where(u => u.Status == UnitCommercialStatus.Available)

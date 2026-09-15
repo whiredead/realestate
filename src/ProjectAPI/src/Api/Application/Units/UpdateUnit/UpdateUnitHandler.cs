@@ -2,6 +2,7 @@
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Entities;
+using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 using ProjectAPI.Infrastructure.Context;
 
@@ -59,6 +60,21 @@ public class UpdateUnitHandler : IRequestHandler<UpdateUnitCommand, UpdateUnitRe
             }
         }
 
+        // §7.2 — same rule as on create: a unit may only claim a layout its own
+        // project offers. 0 is the "clear it" sentinel and skips the check.
+        if (request.TypeBienId is int typeBienId && typeBienId != 0)
+        {
+            var typeOfferedByProject = await _db.Set<ProjectTypeBien>()
+                .AnyAsync(
+                    link => link.ProjectId == realProjectId.Value && link.TypeBienId == typeBienId,
+                    cancellationToken);
+
+            if (!typeOfferedByProject)
+            {
+                throw new NotFoundException("Type de bien not offered by this unit's project.");
+            }
+        }
+
         // Dictionary of updates to apply only if the field is filled
         var updateActions = new Dictionary<Func<bool>, Action>
         {
@@ -78,7 +94,11 @@ public class UpdateUnitHandler : IRequestHandler<UpdateUnitCommand, UpdateUnitRe
             { () => request.PriceSaleableValue.HasValue, () => unit.PriceSaleableValue = request.PriceSaleableValue },
             { () => request.PriceSaleableValue1.HasValue, () => unit.PriceSaleableValue1 = request.PriceSaleableValue1 },
             { () => request.LatestPrice.HasValue, () => unit.LatestPrice = request.LatestPrice },
-            { () => request.Images != null, () => unit.Images = request.Images }
+            { () => request.Images != null, () => unit.Images = request.Images },
+            // 0 means "clear the type"; any other value sets it. Null, like
+            // every other field here, leaves the current value untouched.
+            { () => request.TypeBienId.HasValue,
+              () => unit.TypeBienId = request.TypeBienId == 0 ? null : request.TypeBienId }
             // No Status entry: see the note on UpdateUnitCommand (§7).
         };
 

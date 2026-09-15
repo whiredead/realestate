@@ -2,6 +2,7 @@
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Entities;
+using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
 using ProjectAPI.Infrastructure.Context;
 
@@ -63,6 +64,23 @@ namespace ProjectAPI.Api.Application.Units.CreateProjectUnit
                 throw new NotFoundException("Floor not found for this building.");
             }
 
+            // §7.2 — a unit may only claim a layout its own project offers. The
+            // FK alone would accept any type in the référentiel, which would let
+            // a unit advertise a plan its project does not sell and leave it
+            // invisible in the catalogue (which iterates the project's types).
+            if (request.TypeBienId is int typeBienId)
+            {
+                var typeOfferedByProject = await _db.Set<ProjectTypeBien>()
+                    .AnyAsync(
+                        link => link.ProjectId == building.ProjectId && link.TypeBienId == typeBienId,
+                        cancellationToken);
+
+                if (!typeOfferedByProject)
+                {
+                    throw new NotFoundException("Type de bien not offered by this project.");
+                }
+            }
+
             // Create a new unit
             var unit = new Domain.Immeubles.Entities.Unit
             {
@@ -79,7 +97,8 @@ namespace ProjectAPI.Api.Application.Units.CreateProjectUnit
                 View = request.View,
                 Orientation = request.Orientation,
                 TotalSurface = request.TotalSurface,
-                Images = request.Images
+                Images = request.Images,
+                TypeBienId = request.TypeBienId
             };
 
             // Insert the unit
