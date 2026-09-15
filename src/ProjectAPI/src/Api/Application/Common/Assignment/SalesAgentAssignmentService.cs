@@ -43,14 +43,6 @@ public class SalesAgentAssignmentService : ISalesAgentAssignmentService
         }
 
         // Rule 2 — the project's configured automatic rule.
-        var config = (await _configRepo.Find(c => c.ProjectId == projectId)).FirstOrDefault();
-        if (config == null)
-        {
-            throw new BusinessRuleException(
-                BusinessErrorCodes.NoEligibleAgentFound,
-                "Ce projet n'a pas de règle d'affectation d'agent configurée.");
-        }
-
         var eligibleAgentIds = await GetEligibleAgentIdsAsync(projectId, ct);
         if (eligibleAgentIds.Count == 0)
         {
@@ -58,6 +50,12 @@ public class SalesAgentAssignmentService : ISalesAgentAssignmentService
                 BusinessErrorCodes.NoEligibleAgentFound,
                 "Aucun agent commercial actif n'est affecté à ce projet.");
         }
+
+        // No rule configured: the sales agents assigned on the Affectations page
+        // are enough — the least busy available one takes the visit.
+        var config = (await _configRepo.Find(c => c.ProjectId == projectId)).FirstOrDefault();
+        if (config == null)
+            return await AssignLowestWorkloadAsync(eligibleAgentIds, slotStart, slotEnd, ct);
 
         return config.RuleType switch
         {
