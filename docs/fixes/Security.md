@@ -19,3 +19,8 @@
 - **Files:** `src/ProjectAPI/src/Api/Controllers/FileController.cs`
 - **Wrong:** `POST api/File/upload`, `PUT update/{fileName}` and `DELETE delete/{fileName}` only required a login: a buyer could replace or delete the public images of every project.
 - **Changed:** `[Authorize(Roles = AdminsAgents)]` on the three writes (the only UI callers are staff screens); download unchanged.
+
+## 2026-09-15 — Anonymous unit data, audit attribution
+- **Buyer/agent names on an anonymous endpoint:** `GET /api/Immeuble/floors/{floorId}/units` was `[AllowAnonymous]` and returns `BuyerName`, `AgentId`, `AgentName` for reserved/sold units. It, `by-immeuble`, `all` and `{immeubleId}/floor-stats` (unit ids, statuses, prices, sold counts) are now `RoleGroups.InternalStaff`; the public site reads `/api/public/*` only. Verified live beforehand that anonymous `/api/Projects` and `/api/public/*` carry no staff e-mail, phone or id.
+- **Caller-supplied audit actor:** commands bound `ActorUserId`, `AuthorUserId`, `CreatedBy`, `ConnectedUserId`, `UpdatedByUserId`, `BuyerUserId` from the JSON body and handlers wrote them to history/payments/reports (title status, appointment status, payments, construction updates, final visits, notary). New `ActorStampingBehaviour` (first MediatR behaviour) overwrites them with the token's user id for every authenticated request.
+- Removed the unused `ClaimAccess` class (any internal role could read any claim); `ClaimAccessPolicy` is the only policy.

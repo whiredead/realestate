@@ -235,30 +235,3 @@ public class DownloadClaimAttachmentHandler : IRequestHandler<DownloadClaimAttac
             : path;
     }
 }
-
-/// <summary>
-/// Who may see a claim, and therefore its evidence (§6.3/§6.4).
-///
-/// One place rather than two: upload and download must agree, and a check that
-/// exists twice is a check that will eventually disagree with itself.
-/// </summary>
-internal static class ClaimAccess
-{
-    public static Task EnsureCanAccessAsync(
-        ApplicationDbContext db, ICurrentUser user, AfterSaleClaim claim, CancellationToken ct)
-    {
-        // Admins and technicians handle claims across the SAV desk — that is
-        // the whole point of RoleGroups.AdminsTechnicians on this controller.
-        var isInternal = user.Roles.Any(r => RoleCodes.Internal.Contains(r, StringComparer.Ordinal));
-        if (isInternal) return Task.CompletedTask;
-
-        // A buyer sees their own claim and nothing else.
-        if (!string.IsNullOrEmpty(claim.BuyerId) &&
-            string.Equals(claim.BuyerId, user.UserId, StringComparison.Ordinal))
-        {
-            return Task.CompletedTask;
-        }
-
-        throw BusinessRuleException.BuyerScopeDenied();
-    }
-}

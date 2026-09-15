@@ -201,7 +201,7 @@ public class ImmeubleController : ControllerBase
 
     /// <summary>Drill-down: a building's floors with live per-floor unit-status counts.</summary>
     [HttpGet("{immeubleId}/floor-stats")]
-    [AllowAnonymous] // §6.3 Catalogue public — structure d'un immeuble.
+    [Authorize(Roles = RoleGroups.InternalStaff)] // Sold/reserved counts per floor are internal stock reporting, not published catalogue data.
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetFloorStats(Guid immeubleId)
     {
@@ -211,7 +211,9 @@ public class ImmeubleController : ControllerBase
 
     /// <summary>Drill-down: every unit on one floor, enriched with buyer/agent info when sold.</summary>
     [HttpGet("floors/{floorId}/units")]
-    [AllowAnonymous] // §6.3 Catalogue public — biens d'un immeuble (same class of data as by-immeuble above).
+    // Carries the buyer's name and the agent's id/name on reserved or sold units:
+    // it was anonymous, so any visitor could read who bought what. Staff only.
+    [Authorize(Roles = RoleGroups.InternalStaff)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     public async Task<IActionResult> GetUnitsByFloor(Guid floorId)
     {
@@ -225,7 +227,7 @@ public class ImmeubleController : ControllerBase
     /// <param name="query">Query parameters including immeuble ID, page number, and page size.</param>
     /// <returns>A paginated list of units associated with the specified immeuble.</returns>
     [HttpGet("by-immeuble")]
-    [AllowAnonymous] // §6.3 Catalogue public — biens d'un immeuble.
+    [Authorize(Roles = RoleGroups.InternalStaff)] // Unit ids, statuses and prices are internal stock; the public site reads /api/public instead.
     public async Task<IActionResult> GetUnitsByImmeubleId([FromQuery] GetUnitsByProjectIdQuery query)
     {
         var response = await _mediator.Send(query);
@@ -238,7 +240,7 @@ public class ImmeubleController : ControllerBase
     /// <param name="queryParams">Query parameters to filter units.</param>
     /// <returns>A filtered and paginated list of units.</returns>
     [HttpGet("all")]
-    [AllowAnonymous] // §6.3 Catalogue public — liste des biens.
+    [Authorize(Roles = RoleGroups.InternalStaff)] // Unit ids, statuses and prices are internal stock; the public site reads /api/public instead.
     public async Task<IActionResult> GetAllUnits([FromQuery] GetAllUnitsQuery queryParams)
     {
         var response = await _mediator.Send(queryParams);

@@ -29,6 +29,8 @@ public static class DependencyInjection
         services.AddMediatR(cfg =>
         {
             cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
+            // First: the acting user is the token's, before validation or the handler reads it.
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(Common.Behaviours.ActorStampingBehaviour<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(PaginationBehaviour<,>));
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehaviour<,>));
             // §7 — applies only to commands implementing IIdempotentRequest;
