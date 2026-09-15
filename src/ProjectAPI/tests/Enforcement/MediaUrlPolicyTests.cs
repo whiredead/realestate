@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using FluentAssertions;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Media;
@@ -160,6 +161,71 @@ public class MediaUrlPolicyTests
         Policy().Invoking(p => p.EnsureImageUrls(withNew, "Images", stored))
             .Should().Throw<BusinessRuleException>()
             .WithMessage("*evil.test*");
+    }
+
+    // -------------------------------------------------- shipped configuration
+
+    /// <summary>
+    /// The 3D hosts the product actually ships with, read from appsettings.json
+    /// rather than restated here.
+    ///
+    /// Allowed3DHosts was an empty list while the frontend already embedded
+    /// Matterport, Kuula and Momento360 (see Visit3DSection's EMBEDDABLE_HOSTS),
+    /// so every real tour link was refused on save with "le domaine n'est pas
+    /// autorisé" — the policy was fail-closed exactly as designed, against a
+    /// list nobody had filled in. This pins the two sides together: emptying the
+    /// config, or adding a host the frontend cannot frame, fails here.
+    /// </summary>
+    [Theory]
+    [InlineData("https://my.matterport.com/show/?m=SxQL3iGyoDo")]
+    [InlineData("https://matterport.com/show/?m=SxQL3iGyoDo")]
+    [InlineData("https://kuula.co/share/collection/7lrZP?logo=1&fs=1")]
+    [InlineData("https://momento360.com/e/u/7b0e5b1d5f3c4a8e9d2f1a6c8b4e7d90")]
+    public void Shipped_config_accepts_the_3D_hosts_the_frontend_embeds(string url)
+    {
+        Policy(ShippedSettings()).Invoking(p => p.Ensure3DLink(url, "Module3DLink"))
+            .Should().NotThrow();
+    }
+
+    /// <summary>
+    /// Opening the list to real providers must not open it to everything: the
+    /// entries are specific hosts, never "*".
+    /// </summary>
+    [Fact]
+    public void Shipped_config_still_refuses_an_unknown_3D_host()
+    {
+        Policy(ShippedSettings()).Invoking(p => p.Ensure3DLink("https://evil.test/tour", "Module3DLink"))
+            .Should().Throw<BusinessRuleException>()
+            .WithMessage("*evil.test*");
+    }
+
+    /// <summary>
+    /// Binds the real appsettings.json Media section, so these tests assert what
+    /// the app is deployed with and not a copy that can drift from it.
+    /// </summary>
+    private static MediaSettings ShippedSettings()
+    {
+        // The Api project sits next to the test project in the repo; walk up
+        // from the test binary rather than hard-coding an absolute path.
+        var dir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "ProjectAPI.sln")))
+        {
+            dir = dir.Parent;
+        }
+
+        dir.Should().NotBeNull("the test must be able to locate ProjectAPI.sln to read appsettings.json");
+
+        var path = Path.Combine(dir!.FullName, "src", "Api", "appsettings.json");
+        File.Exists(path).Should().BeTrue($"expected appsettings.json at {path}");
+
+        var settings = new ConfigurationBuilder()
+            .AddJsonFile(path)
+            .Build()
+            .GetSection(MediaSettings.SectionName)
+            .Get<MediaSettings>();
+
+        settings.Should().NotBeNull();
+        return settings!;
     }
 
     /// <summary>Opens every kind, to isolate the structural checks from the host rules.</summary>
