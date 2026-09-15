@@ -1,3 +1,4 @@
+using ProjectAPI.Domain.Identity.Entities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -64,10 +65,10 @@ public class AgentCalendarScopeTests
                 SecurityStamp = Guid.NewGuid().ToString()
             };
 
-            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
             if (!await roleManager.RoleExistsAsync(RoleCodes.SalesAgent))
             {
-                await roleManager.CreateAsync(new IdentityRole(RoleCodes.SalesAgent));
+                await roleManager.CreateAsync(new Role { Id = Guid.NewGuid().ToString(), Name = RoleCodes.SalesAgent, DisplayName = RoleCodes.SalesAgent });
             }
 
             (await userManager.CreateAsync(user)).Succeeded.Should().BeTrue("test agent seeding must succeed");

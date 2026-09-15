@@ -8,6 +8,10 @@ using ProjectAPI.Domain.Projects.Interfaces;
 using ProjectAPI.Domain.Purchases.Interfaces;
 using ProjectAPI.Domain.Reservations.Interface;
 using ProjectAPI.Domain.Sales.Interfaces;
+using ProjectAPI.Domain.Identity.Entities;
+using ProjectAPI.Domain.Identity.Interfaces;
+using ProjectAPI.Infrastructure.Identity.Providers;
+using ProjectAPI.Infrastructure.Identity.Repositories;
 using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Domain.Users.Interfaces;
 using ProjectAPI.Infrastructure.Context;
@@ -37,6 +41,7 @@ public static class DependencyInjection
 
         // Add identity to get user informations
         services.ConfigureIdentity();
+        services.ConfigureIdentityModule();
 
         // Register custom services
         services.ConfigureCustomServices();
@@ -58,9 +63,28 @@ public static class DependencyInjection
     }
     private static void ConfigureIdentity(this IServiceCollection services)
     {
-        services.AddIdentity<User, IdentityRole>()
+        // Role, not IdentityRole: AspNetRoles carries a NOT NULL DisplayName
+        // that the framework type does not map (see Domain.Identity.Role).
+        services.AddIdentity<User, Role>()
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
+    }
+
+    /// <summary>
+    /// Identity module services — token issuing, the user repository and the
+    /// in-memory OTP store. These came from the separate authentication
+    /// service and keep their own registration method so the module's
+    /// dependencies stay visible in one place.
+    /// </summary>
+    private static void ConfigureIdentityModule(this IServiceCollection services)
+    {
+        services
+            .AddSingleton<ITokenProvider, TokenProvider>()
+            // OTP codes are held in a ConcurrentDictionary, so this is
+            // deliberately a singleton and deliberately per-instance: codes do
+            // not survive a restart and are not shared across instances.
+            .AddSingleton<IOtpVerificationRepository, OtpVerificationRepository>()
+            .AddScoped<IUserRepository, UserRepository>();
     }
     private static void ConfigureDbContexts(this IServiceCollection services, IConfiguration configuration)
     {

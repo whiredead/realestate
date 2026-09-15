@@ -79,18 +79,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]))
         };
-    })
-    // Service-to-service calls from AuthenticationAPI (e.g. mirroring a
-    // newly admin-created account into this service's own AspNetUsers
-    // table) — a separate scheme, only opted into by InternalController.
-    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, ProjectAPI.Infrastructure.Security.InternalApiKeyAuthenticationHandler>(
-        ProjectAPI.Infrastructure.Security.InternalApiKeyDefaults.AuthenticationScheme, _ => { });
+    });
 
-builder.Services.AddSingleton(new ProjectAPI.Infrastructure.Settings.InternalApiSettings
-{
-    ApiKey = builder.Configuration["InternalApi:ApiKey"] ?? throw new InvalidOperationException("InternalApi:ApiKey is not configured."),
-    AuthApiBaseUrl = builder.Configuration["InternalApi:AuthApiBaseUrl"] ?? throw new InvalidOperationException("InternalApi:AuthApiBaseUrl is not configured.")
-});
+// There is no service-to-service API-key scheme any more: authentication and
+// project management run in one process, so what used to be an authenticated
+// HTTP hop between them is now an in-process MediatR send and the shared key
+// it required no longer exists.
 
 // The whole storage account (and default container) lives in these two
 // appsettings values — change either one and every upload path (images,
@@ -125,15 +119,10 @@ builder.Services.AddSingleton(new ProjectAPI.Infrastructure.Settings.SmtpSetting
     EnableSsl = !bool.TryParse(builder.Configuration["Smtp:EnableSsl"], out var ssl) || ssl,
 });
 
-// Phase 2 invitation-acceptance flow: this service validates the
-// AccountInvitation token, then calls AuthenticationAPI's own internal
-// endpoint to actually create the account (AuthenticationAPI is the source
-// of truth for accounts; ProjectAPI never writes AspNetUsers directly).
-builder.Services.AddHttpClient<ProjectAPI.Infrastructure.Clients.IAuthenticationApiClient, ProjectAPI.Infrastructure.Clients.AuthenticationApiClient>((sp, client) =>
-{
-    var settings = sp.GetRequiredService<ProjectAPI.Infrastructure.Settings.InternalApiSettings>();
-    client.BaseAddress = new Uri(settings.AuthApiBaseUrl);
-});
+// The invitation-acceptance flow no longer needs an HTTP client: it validates
+// the AccountInvitation token and then sends ProvisionInternalUserCommand.
+// The identity module is still the only thing that writes AspNetUsers (§6.1) —
+// that is now a module boundary rather than a network boundary.
 
 builder.Services
     // Registers MVC & Web API services.

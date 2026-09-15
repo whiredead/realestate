@@ -1,3 +1,4 @@
+using ProjectAPI.Domain.Identity.Entities;
 using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
@@ -87,10 +88,10 @@ public class ProjectMembershipAdminScopeTests
                 SecurityStamp = Guid.NewGuid().ToString()
             };
 
-            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<Role>>();
             if (roleCode != null && !await roleManager.RoleExistsAsync(roleCode))
             {
-                await roleManager.CreateAsync(new IdentityRole(roleCode));
+                await roleManager.CreateAsync(new Role { Id = Guid.NewGuid().ToString(), Name = roleCode, DisplayName = roleCode });
             }
 
             (await userManager.CreateAsync(user)).Succeeded.Should().BeTrue("test user seeding must succeed");

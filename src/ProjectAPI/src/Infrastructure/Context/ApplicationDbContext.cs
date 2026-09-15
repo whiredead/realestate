@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+﻿using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Domain.Appointments.Entities;
 using ProjectAPI.Domain.Common.Idempotency;
@@ -12,15 +13,31 @@ using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Purchases.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Domain.Sales.Entities;
+using ProjectAPI.Domain.Identity.Entities;
 using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Infrastructure.Configurations;
+using ProjectAPI.Infrastructure.Identity.Configurations;
 
 namespace ProjectAPI.Infrastructure.Context;
 
 /// <summary>
-/// Represents the application database context, extending IdentityDbContext for Project management.
+/// The single database context for the application.
+///
+/// Identity is registered with the custom <see cref="Role"/> and
+/// <see cref="UserRole"/> types rather than the framework defaults: AspNetRoles
+/// carries a NOT NULL DisplayName column, and UserRole exposes navigations so a
+/// user's roles can be loaded in one query. Using IdentityDbContext&lt;User&gt;
+/// here would silently drop those mappings.
+///
+/// This replaces the two contexts that existed while authentication and project
+/// management were separate services — both mapped their own AspNetUsers table
+/// in their own database and were kept in step over HTTP. There is now one
+/// table and no synchronisation.
 /// </summary>
-public class ApplicationDbContext : IdentityDbContext<User>
+public class ApplicationDbContext : IdentityDbContext<
+    User, Role, string,
+    IdentityUserClaim<string>, UserRole, IdentityUserLogin<string>,
+    IdentityRoleClaim<string>, IdentityUserToken<string>>
 {
     public DbSet<Immeuble> Immeubles { get; set; }
     public DbSet<Project> Projects { get; set; }
@@ -133,6 +150,13 @@ public class ApplicationDbContext : IdentityDbContext<User>
             .HasValue<Notary>("Notaire"); // Notaries mapped to Notary entity
 
         });
+        // Identity module: custom Role/UserRole mappings (DisplayName, join
+        // navigations). UserConfiguration is deliberately NOT applied here —
+        // the User entity is configured in the discriminator block above, which
+        // owns the TPH mapping for the whole hierarchy.
+        builder.ApplyConfiguration(new RoleConfiguration());
+        builder.ApplyConfiguration(new UserRoleConfiguration());
+
         builder.ApplyConfiguration(new CrmContactConfiguration());
         builder.ApplyConfiguration(new HandoverAppointmentConfiguration());
         builder.ApplyConfiguration(new HandoverReportConfiguration());
