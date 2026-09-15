@@ -152,34 +152,19 @@ public class PublicCatalogueBoundaryTests
     }
 
     [Fact]
-    public void The_filter_response_is_three_flat_lists()
+    public void The_filter_response_is_flat_lists()
     {
         // Flat lists of primitives cannot drag an entity graph behind them.
         var props = typeof(PublicFilterOptions).GetProperties();
 
         props.Select(p => p.Name).OrderBy(n => n)
-            .Should().Equal("Projects", "PropertyTypes", "Quartiers");
+            .Should().Equal("Projects", "PropertyTypes", "Quartiers", "TypeBiens");
 
         typeof(PublicFilterOptions).GetProperty("Quartiers")!.PropertyType
             .Should().Be(typeof(List<string>));
         typeof(PublicFilterOptions).GetProperty("PropertyTypes")!.PropertyType
             .Should().Be(typeof(List<string>));
-    }
-
-    [Theory]
-    [InlineData("Studio 35m²", null, "Studio")]
-    [InlineData("T3", "Bureaux", "Bureau")]
-    [InlineData("Local", "Magasin et Commerce", "Commerce")]
-    // "commercial" is not a superstring of "commerce": they diverge at the
-    // seventh letter, so this exact name silently classified as Appartement.
-    [InlineData("Local commercial", null, "Commerce")]
-    [InlineData("Boutique", null, "Commerce")]
-    [InlineData("T4 duplex", "Livraison immédiate", "Appartement")]
-    public void Plans_are_classified_into_the_four_public_categories(
-        string planName, string? projectType, string expected)
-    {
-        // The referential has no category column, so the category is inferred
-        // once here rather than in every component that renders a card.
-        PublicCatalogueProjection.ClassifyPropertyType(planName, projectType).Should().Be(expected);
+        typeof(PublicTypeBienOption).GetProperties().Select(p => p.Name).OrderBy(n => n)
+            .Should().Equal("Id", "Image", "Name");
     }
 }

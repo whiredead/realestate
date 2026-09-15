@@ -217,7 +217,7 @@ public static class PublicCatalogueProjection
                     ProjectId = project.Id,
                     PlanName = type.Name,
                     Description = type.Description,
-                    PropertyType = ClassifyPropertyType(type.Name, project.Type),
+                    PropertyType = type.Name,
                     ProjectName = project.Name,
                     QuartierName = project.Quartier?.Name,
                     Location = project.Location,
@@ -237,27 +237,6 @@ public static class PublicCatalogueProjection
         }
 
         return plans;
-    }
-
-    /// <summary>
-    /// Maps a plan onto the four commercial categories the public site filters
-    /// by. The referential has no category column, so this reads the plan's own
-    /// name first and falls back to the project's type — which is how the
-    /// listings page has always inferred it, just done once here instead of in
-    /// every component.
-    /// </summary>
-    public static string ClassifyPropertyType(string? planName, string? projectType)
-    {
-        var text = $"{planName} {projectType}".ToLowerInvariant();
-
-        if (text.Contains("studio")) return "Studio";
-        if (text.Contains("bureau")) return "Bureau";
-        // "commercial" does not contain "commerce" — the substrings diverge at
-        // the seventh letter — so a plan named "Local commercial" was falling
-        // through to Appartement and the Commerce filter stayed empty.
-        if (text.Contains("commerce") || text.Contains("commercial") ||
-            text.Contains("magasin") || text.Contains("boutique")) return "Commerce";
-        return "Appartement";
     }
 
     /// <summary>TypeBien.Image is a single column that sometimes holds a comma-separated list.</summary>

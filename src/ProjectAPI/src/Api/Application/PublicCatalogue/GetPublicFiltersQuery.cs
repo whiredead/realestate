@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Domain.Construction.Entities;
+using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -31,11 +32,24 @@ public class PublicFilterOption
     public string? QuartierName { get; set; }
 }
 
+/// <summary>One row of the TypeBien referential, as the public site shows it.</summary>
+public class PublicTypeBienOption
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string? Image { get; set; }
+}
+
 public class PublicFilterOptions
 {
     public List<PublicFilterOption> Projects { get; set; } = new();
     public List<string> Quartiers { get; set; } = new();
+
+    /// <summary>TypeBien names, the values the plans' PropertyType filter accepts.</summary>
     public List<string> PropertyTypes { get; set; } = new();
+
+    /// <summary>The same TypeBien rows with their photo, for the site's category tiles and menus.</summary>
+    public List<PublicTypeBienOption> TypeBiens { get; set; } = new();
 }
 
 public class GetPublicFiltersHandler : IRequestHandler<GetPublicFiltersQuery, PublicFilterOptions>
@@ -68,23 +82,23 @@ public class GetPublicFiltersHandler : IRequestHandler<GetPublicFiltersQuery, Pu
             .OrderBy(q => q, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
-        // Derived from the plans actually on offer rather than from a fixed
-        // list, so the filter never advertises a category with nothing behind
-        // it — and a new category appears the moment stock exists for it.
-        var plans = await PublicCatalogueProjection.BuildPlansAsync(_db, null, ct);
-
-        var propertyTypes = plans
-            .Select(p => p.PropertyType)
-            .Where(t => !string.IsNullOrWhiteSpace(t))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(t => t, StringComparer.CurrentCultureIgnoreCase)
+        // The property types are the TypeBien referential itself: a type an admin
+        // adds on the Types de biens page appears on the public site at once.
+        var typeBiens = (await _db.Set<TypeBien>()
+                .AsNoTracking()
+                .Where(t => t.Name != null && t.Name != "")
+                .Select(t => new PublicTypeBienOption { Id = t.Id, Name = t.Name, Image = t.Image })
+                .ToListAsync(ct))
+            .OrderBy(t => t.Name, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
+        foreach (var t in typeBiens) t.Image = PublicCatalogueProjection.FirstImage(t.Image);
 
         return new PublicFilterOptions
         {
             Projects = projects,
             Quartiers = quartiers,
-            PropertyTypes = propertyTypes
+            PropertyTypes = typeBiens.Select(t => t.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            TypeBiens = typeBiens
         };
     }
 }
