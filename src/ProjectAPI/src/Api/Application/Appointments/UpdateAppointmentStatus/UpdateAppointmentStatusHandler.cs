@@ -153,6 +153,7 @@ public class UpdateAppointmentStatusHandler : IRequestHandler<UpdateAppointmentS
                     Name = appointment.Name,
                     Email = appointment.Email,
                     PhoneNumber = appointment.PhoneNumber,
+                    Notes = appointment.Notes,
                     LastName = appointment.LastName,
                     Status = AppointmentAttemptStatus.Requested.ToString(),
                 };

@@ -102,4 +102,5 @@ public class AppointmentResponse
 
     /// <summary>When this row exists because a confirmed appointment was reassigned/rescheduled, this points at the row it replaced.</summary>
     public Guid? PreviousAppointmentId { get; set; }
+    public DateTime? CreatedAt { get; set; }
 }

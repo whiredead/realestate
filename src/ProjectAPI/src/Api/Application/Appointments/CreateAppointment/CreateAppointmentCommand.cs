@@ -47,4 +47,7 @@ public string? PropertyType { get; set; }
     public string PhoneNumber { get; set; } // Guest phone number if not authenticated
     public List<int> TypeBienIds { get; set; } = new List<int>();
 
+    /// <summary>The visitor's message, optional.</summary>
+    public string? Notes { get; set; }
+
 }

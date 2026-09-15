@@ -108,6 +108,11 @@ namespace ProjectAPI.Domain.Appointments.Entities
         public string PhoneNumber { get; set; }
 
         /// <summary>
+        /// The visitor's message from the visit request form (and the plan they were looking at).
+        /// </summary>
+        public string? Notes { get; set; }
+
+        /// <summary>
         /// Navigation property to the related project.
         /// </summary>
         public Project Project { get; set; }

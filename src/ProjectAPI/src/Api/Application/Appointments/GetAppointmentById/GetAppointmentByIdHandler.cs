@@ -65,6 +65,8 @@ public class GetAppointmentByIdHandler : IRequestHandler<GetAppointmentByIdQuery
             LastName = appointment.LastName,
             Email = appointment.Email,
             PhoneNumber = appointment.PhoneNumber,
+            Notes = appointment.Notes,
+            CreatedAt = appointment.CreatedAt,
             AssignmentSource = appointment.AssignmentSource,
             AssignedAt = appointment.AssignedAt,
             PreviousSalesAgentId = appointment.PreviousSalesAgentId,

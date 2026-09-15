@@ -111,6 +111,8 @@ public class GetAppointmentsHandler : IRequestHandler<GetAppointmentsQuery, Pagi
                 LastName = a.LastName,
                 Email = a.Email,
                 PhoneNumber = a.PhoneNumber,
+                Notes = a.Notes,
+                CreatedAt = a.CreatedAt,
                 AssignmentSource = a.AssignmentSource,
                 AssignedAt = a.AssignedAt,
                 PreviousSalesAgentId = a.PreviousSalesAgentId,

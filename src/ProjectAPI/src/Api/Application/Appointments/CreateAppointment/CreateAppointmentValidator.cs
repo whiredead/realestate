@@ -4,6 +4,7 @@ public class CreateAppointmentValidator : AbstractValidator<CreateAppointmentCom
     public CreateAppointmentValidator()
     {
         RuleFor(x => x.ProjectId).NotEmpty().WithMessage("ProjectId is required.");
+        RuleFor(x => x.Notes).MaximumLength(2000).WithMessage("Le message ne peut pas dépasser 2000 caractères.");
         //RuleFor(x => x.AgentId).NotEmpty().WithMessage("AgentId is required.");
         RuleFor(x => x.AppointmentDate).GreaterThan(DateTime.Now).WithMessage("Appointment date must be in the future.");
 

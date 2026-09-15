@@ -121,6 +121,7 @@ public class CreateAppointmentHandler : IRequestHandler<CreateAppointmentCommand
             Email = request.Email,
             PhoneNumber = request.PhoneNumber,
             LastName = request.LastName,
+            Notes = string.IsNullOrWhiteSpace(request.Notes) ? null : request.Notes.Trim(),
             Status = AppointmentAttemptStatus.Requested.ToString(),
         };
 
