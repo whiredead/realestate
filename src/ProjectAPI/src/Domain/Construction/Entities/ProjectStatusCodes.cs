@@ -65,26 +65,4 @@ public static class ProjectStatusCodes
 
     /// <summary>A finalised project accepts no business mutation.</summary>
     public static bool IsReadOnly(string? status) => Normalize(status) == Finalise;
-
-    /// <summary>
-    /// Building (Immeuble) statuses keep their own vocabulary, which used to be
-    /// normalised by the project function: DRAFT, PLANNED, IN_PROGRESS,
-    /// SUSPENDED, COMPLETED, ARCHIVED.
-    /// </summary>
-    public static string NormalizeBuildingStatus(string? status)
-    {
-        if (string.IsNullOrWhiteSpace(status)) return "DRAFT";
-
-        return status.Trim().ToUpperInvariant() switch
-        {
-            "DRAFT" => "DRAFT",
-            "PLANNED" or "COMINGSOON" or "COMMINGSOON" or "COMING_SOON" => "PLANNED",
-            "IN_PROGRESS" or "INPROGRESS" or "UNDERCONSTRUCTION" or "UNDER_CONSTRUCTION"
-                or "AVAILABLE" or "SOLD" => "IN_PROGRESS",
-            "SUSPENDED" => "SUSPENDED",
-            "COMPLETED" or "DELIVERED" => "COMPLETED",
-            "ARCHIVED" => "ARCHIVED",
-            _ => "DRAFT"
-        };
-    }
 }

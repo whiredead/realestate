@@ -1,3 +1,4 @@
+using ProjectAPI.Domain.Construction.Entities;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
@@ -77,7 +78,7 @@ public class GetProjectByIdHandler : IRequestHandler<GetProjectByIdQuery, Projec
                 Id = im.Id,
                 Name = im.Name,
                 Location = im.Location,
-                Status = im.Status,
+                Status = ProjectStatusCodes.Normalize(im.Status),
                 MinPrice = im.MinPrice,
                 MaxPrice = im.MaxPrice,
                 ImagePrincipale = im.ImagePrincipale,

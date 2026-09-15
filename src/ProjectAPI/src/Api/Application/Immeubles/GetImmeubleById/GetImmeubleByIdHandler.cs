@@ -75,7 +75,7 @@ public class GetImmeubleByIdHandler : IRequestHandler<GetImmeubleByIdQuery, Imme
             MinPrice = immeuble.MinPrice,
             MaxPrice = immeuble.MaxPrice,
 
-            Status = ProjectStatusCodes.NormalizeBuildingStatus(immeuble.Status),
+            Status = ProjectStatusCodes.Normalize(immeuble.Status),
 
             // If immeuble.Images is a comma-separated string
             // e.g., "img1.jpg,img2.jpg"

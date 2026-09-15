@@ -1,3 +1,4 @@
+using ProjectAPI.Domain.Construction.Entities;
 ﻿using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
@@ -61,7 +62,8 @@ namespace ProjectAPI.Api.Application.Immeubles.CreateImmeuble
                 Description = request.Description,
                 Longitude = request.Longitude,
                 Latitude = request.Latitude,
-                Status = "ComingSoon",
+                // A new building starts with its project's status (SUR_PLAN / EN_LIVRAISON / FINALISE).
+                Status = ProjectStatusCodes.Normalize(project.StatusGlobal),
                 NumberOfUnits = request.NumberOfUnits,
                 MinSellableSurfaceRange = request.MinSellableSurfaceRange,
                 MaxSellableSurfaceRange = request.MaxSellableSurfaceRange,
@@ -78,7 +80,7 @@ namespace ProjectAPI.Api.Application.Immeubles.CreateImmeuble
             {
                 Id = Guid.NewGuid(),
                 ImmeubleId = immeuble.Id,
-                StatusUpdate = "ComingSoon",
+                StatusUpdate = immeuble.Status,
                 DateUpdated = DateTime.Now
             };
 
