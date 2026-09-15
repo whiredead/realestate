@@ -107,11 +107,33 @@ public class CreateNotaryAppointmentHandler : IRequestHandler<CreateNotaryAppoin
         }
 
         // Increment leads for the agent associated with the reservation.
+        //
+        // This used to be `performanceIndicator?.IncrementLeadsGenerated()` — a
+        // silent no-op when the agent has no row yet (e.g. their first-ever
+        // conversion is a notary appointment, with no prior commercial
+        // appointment on record). The lead was lost for good: nothing created
+        // the row later, so it never appeared on the dashboard. Mirrors
+        // CreateAppointmentHandler's create-or-increment pattern.
         if (!string.IsNullOrEmpty(request.AgentId))
         {
             var performanceIndicator = await _db.Set<PerformanceIndicator>()
                 .FirstOrDefaultAsync(pi => pi.AgentId == request.AgentId, ct);
-            performanceIndicator?.IncrementLeadsGenerated();
+            if (performanceIndicator is null)
+            {
+                _db.Add(new PerformanceIndicator
+                {
+                    Id = Guid.NewGuid(),
+                    AgentId = request.AgentId,
+                    LeadsGenerated = 1,
+                    AppointmentsScheduled = 0,
+                    SuccessfulSales = 0,
+                    RecordedAt = DateTime.UtcNow
+                });
+            }
+            else
+            {
+                performanceIndicator.IncrementLeadsGenerated();
+            }
         }
 
         // Tax/tahfid fees are due to third parties (state, conservation foncière),

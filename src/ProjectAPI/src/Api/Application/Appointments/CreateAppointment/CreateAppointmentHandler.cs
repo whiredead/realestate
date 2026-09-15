@@ -147,13 +147,17 @@ public class CreateAppointmentHandler : IRequestHandler<CreateAppointmentCommand
 
             if (performanceIndicatorList == null || !performanceIndicatorList.Any())
             {
-                // Create new performance indicator for the agent
+                // Create new performance indicator for the agent. This call IS
+                // the agent's first scheduled appointment, so the counter starts
+                // at 1 — it used to start at 0, silently under-counting every
+                // agent's very first appointment forever (nothing ever revisits
+                // this row to correct it).
                 performanceIndicator = new PerformanceIndicator
                 {
                     Id = Guid.NewGuid(),
                     AgentId = agentId,
                     LeadsGenerated = 0,
-                    AppointmentsScheduled = 0,
+                    AppointmentsScheduled = 1,
                     SuccessfulSales = 0,
                     RecordedAt = DateTime.UtcNow
                 };

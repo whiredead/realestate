@@ -184,8 +184,20 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
         //    the owning agent via Reservation.OwnerSalesAgentId (frozen at
         //    submit, §5.3) — the same source of truth SalesThisMonth/
         //    SalesVolumeThisMonth already use.
-        var perfQuery = _context.Set<PerformanceIndicator>()
-            .Where(pi => pi.RecordedAt >= periodStart && pi.RecordedAt < periodEnd);
+        //
+        //    PerformanceIndicator is ONE running-total row per agent — created
+        //    once on their first appointment and incremented in place forever
+        //    after (RecordedAt is never touched again past creation; see
+        //    PerformanceIndicator.IncrementLeadsGenerated/AppointmentsScheduled).
+        //    Filtering that lifetime total by "RecordedAt within THIS period"
+        //    used to make an agent's entire Leads/Appointments history vanish
+        //    from the dashboard the moment the calendar rolled past the month
+        //    their row happened to be created in — not "no activity this
+        //    month", the row (and its ongoing increments) simply stopped
+        //    matching the filter. There is no per-period breakdown in this
+        //    table to filter by, so none is applied: these two figures are
+        //    lifetime totals, same as every other read of this table.
+        var perfQuery = _context.Set<PerformanceIndicator>().AsQueryable();
         if (scopedAgentIds is not null)
         {
             perfQuery = perfQuery.Where(pi => pi.AgentId != null && scopedAgentIds.Contains(pi.AgentId));
