@@ -170,6 +170,24 @@ public class ProjectsController : ControllerBase
         await _mediator.Send(command);
         return NoContent();
     }
+
+    /// <summary>Edits one project "atout" (name, icon, one-line description).</summary>
+    [HttpPut("features/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    public async Task<IActionResult> UpdateProjectFeature(Guid id, [FromBody] Application.Projects.UpdateProjectFeature.UpdateProjectFeatureCommand command)
+    {
+        command.Id = id;
+        return Ok(await _mediator.Send(command));
+    }
+
+    /// <summary>Removes one project "atout".</summary>
+    [HttpDelete("features/{id:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    public async Task<IActionResult> DeleteProjectFeature(Guid id)
+    {
+        await _mediator.Send(new Application.Projects.DeleteProjectFeature.DeleteProjectFeatureCommand { Id = id });
+        return NoContent();
+    }
     /// <summary>
     /// Get all features for a specific Project.
     /// </summary>

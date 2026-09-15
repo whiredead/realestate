@@ -64,3 +64,25 @@
 - **Files:** `src/ProjectAPI/src/Api/Application/Immeubles/DeleteImmeuble/DeleteImmeublesHandler.cs`; `tests/Enforcement/InventoryScopeTests.cs`
 - **Wrong:** deleting a building first deleted its **sales and reservations** (commercial records), non-transactionally, after loading every unit/sale/reservation into memory — and still failed on configuration rows.
 - **Changed:** same model as project deletion: refused when the building has business history or its project is finalised; otherwise building, floors, units and their configuration rows deleted in one transaction.
+
+## 2026-09-15 — Project "Nos atouts" (per-project features), full CRUD
+Requested to match the quartier features editor. Project already had a
+`ProjectFeature` (icon + name) referential feeding the public "Les atouts de
+la résidence" section, but nothing in the UI could add, edit or delete a row
+(only a bulk-add endpoint with no frontend caller existed) and the public
+page's `description` field, already wired on the frontend type, was never
+populated because the column didn't exist.
+
+- **Backend:** `ProjectFeature` gains `Description` (one-line, ≤300 chars),
+  `SequenceNo` (display order) and `CreatedAt` (migration
+  `AddProjectFeatureDescription`). New `PUT /api/Projects/features/{id}` and
+  `DELETE /api/Projects/features/{id}` (admins, project-scoped via the
+  feature's own `ProjectId` — never a caller-supplied one). The existing bulk
+  create appends after the current max `SequenceNo`. `GetPublicProjectQuery`
+  now selects `Description` into `amenities`, ordered by `SequenceNo`.
+- **Frontend:** `ProjectFeaturesEditor.tsx` (mirrors `QuartierFeaturesEditor`
+  in `QuartiersPage.tsx`) — icon select (reusing `AMENITY_ICON_TOKENS`, newly
+  exported from `SpecIcons.tsx`) instead of an image upload, since the
+  reference layout ("Nos atouts") is a small pictogram, not a photo. Wired
+  behind a "Gérer" button on the project's "Nos atouts" card (renamed from
+  "Équipements"), which now also shows each chip's icon.

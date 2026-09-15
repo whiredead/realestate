@@ -42,7 +42,8 @@ public class GetPublicProjectHandler : IRequestHandler<GetPublicProjectQuery, Pu
         var amenities = await _db.Set<ProjectFeature>()
             .AsNoTracking()
             .Where(f => f.ProjectId == project.Id)
-            .Select(f => new PublicFeature { Name = f.Name, Icon = f.Icon })
+            .OrderBy(f => f.SequenceNo).ThenBy(f => f.CreatedAt)
+            .Select(f => new PublicFeature { Name = f.Name, Icon = f.Icon, Description = f.Description })
             .ToListAsync(ct);
 
         var quartierFeatures = await _db.Set<QuartierAmenity>()

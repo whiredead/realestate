@@ -22,12 +22,19 @@ public class AddProjectFeatureHandler : IRequestHandler<AddProjectFeatureCommand
         // catalogue entry.
         await _projectScope.EnsureProjectAccessAsync(request.ProjectId, cancellationToken);
 
-        var features = request.Features.Select(f => new ProjectFeature
+        var existing = await _repository.Find(f => f.ProjectId == request.ProjectId);
+        var nextSequence = (existing.Any() ? existing.Max(f => f.SequenceNo) : 0) + 1;
+        var now = DateTime.UtcNow;
+
+        var features = request.Features.Select((f, i) => new ProjectFeature
         {
             Id = Guid.NewGuid(),
             ProjectId = request.ProjectId,
             Name = f.Name,
-            Icon = f.Icon
+            Icon = f.Icon,
+            Description = string.IsNullOrWhiteSpace(f.Description) ? null : f.Description.Trim(),
+            SequenceNo = nextSequence + i,
+            CreatedAt = now
         }).ToList();
 
         foreach(var feature in features)

@@ -17,6 +17,17 @@ public class ProjectFeature
     public string Icon { get; set; }
 
     /// <summary>
+    /// One-line selling point shown under the name — "Nos atouts" (§7.2 public
+    /// project page): icon, name, short description.
+    /// </summary>
+    public string? Description { get; set; }
+
+    /// <summary>Display order; lower first.</summary>
+    public int SequenceNo { get; set; }
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
     /// Gets or sets the identifier of the related project.
     /// </summary>
     public Guid ProjectId { get; set; }

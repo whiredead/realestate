@@ -14,6 +14,15 @@ public class ProjectFeatureConfiguration : IEntityTypeConfiguration<ProjectFeatu
             .IsRequired()
             .HasMaxLength(150);
 
+        builder.Property(f => f.Description)
+            .HasMaxLength(300);
+
+        builder.Property(f => f.SequenceNo)
+            .HasDefaultValue(0);
+
+        builder.Property(f => f.CreatedAt)
+            .HasDefaultValueSql("SYSUTCDATETIME()");
+
         builder.HasOne(f => f.Project)
             .WithMany(p => p.Features)
             .HasForeignKey(f => f.ProjectId)

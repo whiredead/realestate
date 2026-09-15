@@ -15,11 +15,16 @@ public class GetProjectFeaturesHandler : IRequestHandler<GetProjectFeaturesQuery
     public async Task<List<ProjectFeatureResponse>> Handle(GetProjectFeaturesQuery request, CancellationToken cancellationToken)
     {
         var features = await _repository.Find(f => f.ProjectId == request.ProjectId);
-        return features.Select(f => new ProjectFeatureResponse
-        {
-            Id = f.Id,
-            Name = f.Name,
-            Icon = f.Icon
-        }).ToList();
+        return features
+            .OrderBy(f => f.SequenceNo).ThenBy(f => f.CreatedAt).ThenBy(f => f.Id)
+            .Select(f => new ProjectFeatureResponse
+            {
+                Id = f.Id,
+                Name = f.Name,
+                Icon = f.Icon,
+                Description = f.Description,
+                SequenceNo = f.SequenceNo,
+                ProjectId = f.ProjectId
+            }).ToList();
     }
 }
