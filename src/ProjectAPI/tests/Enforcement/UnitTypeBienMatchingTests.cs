@@ -71,9 +71,7 @@ public class UnitTypeBienMatchingTests
             Id = Guid.NewGuid(),
             ProjectId = project.Id,
             Name = "Bâtiment A",
-            Status = ProjectStatusCodes.SurPlan,
-            MinPrice = 0,
-            MaxPrice = 0
+            Status = ProjectStatusCodes.SurPlan
         };
         db.Set<Immeuble>().Add(immeuble);
 

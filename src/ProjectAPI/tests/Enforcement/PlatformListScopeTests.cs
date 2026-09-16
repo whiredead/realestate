@@ -335,7 +335,6 @@ public class PlatformListScopeTests
             Name = "Building without surface range",
             ProjectId = projectId,
             Location = "Casablanca",
-            Type = "Appartements",
             Images = string.Empty,
             Description = "test",
             MinSellableSurfaceRange = 0,

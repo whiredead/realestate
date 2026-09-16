@@ -181,7 +181,6 @@ public class InventoryScopeTests
             Name = "Rogue building",
             ProjectId = projectId,
             Location = "Casablanca",
-            Type = "Appartements",
             Images = string.Empty,
             Description = "test",
         };
@@ -212,7 +211,6 @@ public class InventoryScopeTests
             Name = "Authorized building",
             ProjectId = projectId,
             Location = "Casablanca",
-            Type = "Appartements",
             Images = string.Empty,
             Description = "test",
         };
