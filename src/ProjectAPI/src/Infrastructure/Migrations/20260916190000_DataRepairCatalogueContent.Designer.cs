@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProjectAPI.Infrastructure.Context;
 
@@ -11,9 +12,11 @@ using ProjectAPI.Infrastructure.Context;
 namespace ProjectAPI.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260916190000_DataRepairCatalogueContent")]
+    partial class DataRepairCatalogueContent
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1636,7 +1639,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("ImmeubleId");
 
-                    b.ToTable("ImmeubleFeature", (string)null);
+                    b.ToTable("ImmeubleFeature");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.ImmeublePlanInterieur", b =>
@@ -1702,7 +1705,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("TypeBienId");
 
-                    b.ToTable("ImmeubleTypeBien", (string)null);
+                    b.ToTable("ImmeubleTypeBien");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.TypeBien", b =>
@@ -1923,7 +1926,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("UnitId");
 
-                    b.ToTable("UnitTracking", (string)null);
+                    b.ToTable("UnitTracking");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Imports.Entities.ImportBatch", b =>
@@ -2402,7 +2405,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("EspaceTempsReel", (string)null);
+                    b.ToTable("EspaceTempsReel");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.LikedProject", b =>
@@ -2648,7 +2651,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectFeature", (string)null);
+                    b.ToTable("ProjectFeature");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectMembership", b =>
@@ -3252,7 +3255,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.ToTable("PaymentTracking", (string)null);
+                    b.ToTable("PaymentTracking");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Sales.Entities.PropertyDelivery", b =>
@@ -3586,7 +3589,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("NotaryId");
 
-                    b.ToTable("NotaryDateDisponibilite", (string)null);
+                    b.ToTable("NotaryDateDisponibilite");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.User", b =>

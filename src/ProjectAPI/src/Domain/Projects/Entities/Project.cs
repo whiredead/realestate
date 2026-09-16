@@ -33,6 +33,15 @@ public class Project
     public string Address { get; set; }
 
     /// <summary>
+    /// Real map coordinates, distinct from <see cref="Location"/> (a free-text
+    /// field that in practice holds an external Google Maps share link, not
+    /// coordinates, despite its own doc comment). Null until set — the public
+    /// map skips a project with no coordinates rather than guessing one.
+    /// </summary>
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
+    /// <summary>
     /// Gets or sets a detailed description of the project.
     /// </summary>
     public string Description { get; set; }

@@ -75,6 +75,10 @@ public class PublicPlanSummary
 
     public string? CoverImage { get; set; }
 
+    /// <summary>The parent project's coordinates (not the plan's own — a plan has no address of its own). Null when the project has none set.</summary>
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
     /// <summary>A band, never a count — see <see cref="PublicAvailability"/>.</summary>
     public string Availability { get; set; } = PublicAvailability.Available;
 
@@ -128,6 +132,10 @@ public class PublicProjectDetail
     public List<string> Videos { get; set; } = new();
     public string? Module3DLink { get; set; }
 
+    /// <summary>Real map coordinates. Null when the project has none set — the public map skips it rather than guessing a pin.</summary>
+    public double? Latitude { get; set; }
+    public double? Longitude { get; set; }
+
     public string? QuartierName { get; set; }
     public string? QuartierDescription { get; set; }
     public List<string> QuartierImages { get; set; } = new();
@@ -143,4 +151,14 @@ public class PublicProjectDetail
 
     /// <summary>Distinct commercial categories on offer, for the quick-facts strip.</summary>
     public List<string> PropertyTypes { get; set; } = new();
+
+    /// <summary>
+    /// The assigned agent's first name only — never a last name, email, phone
+    /// or user id. Null when no agent is assigned yet. The one deliberate
+    /// exception to this file's own rule above ("nothing here carries an
+    /// agent"): a name puts a human face on the visit-request ask without
+    /// publishing a directory entry. The actual contact action still goes
+    /// through the company's published number, not a personal one.
+    /// </summary>
+    public string? AgentFirstName { get; set; }
 }

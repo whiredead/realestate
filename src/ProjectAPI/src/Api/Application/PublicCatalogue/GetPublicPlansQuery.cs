@@ -230,6 +230,8 @@ public static class PublicCatalogueProjection
                     Showers = type.NbrDouche,
                     Parking = type.NbrParking,
                     CoverImage = FirstImage(type.Image) ?? project.Images.FirstOrDefault(),
+                    Latitude = project.Latitude,
+                    Longitude = project.Longitude,
                     Availability = PublicAvailability.FromCount(availableUnits.Count),
                     Module3DLink = string.IsNullOrWhiteSpace(type.Module3DLink) ? null : type.Module3DLink
                 });
@@ -245,4 +247,18 @@ public static class PublicCatalogueProjection
             ? null
             : packed.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .FirstOrDefault();
+
+    /// <summary>
+    /// First name only of the project's assigned agent (Project.AgentId) —
+    /// see PublicProjectDetail.AgentFirstName for why nothing more than a
+    /// first name ever leaves this boundary. Null project.AgentId (no agent
+    /// assigned yet) skips the query entirely rather than joining on null.
+    /// </summary>
+    public static Task<string?> GetAgentFirstNameAsync(ApplicationDbContext db, string? agentId, CancellationToken ct) =>
+        string.IsNullOrWhiteSpace(agentId)
+            ? Task.FromResult<string?>(null)
+            : db.Set<Domain.Users.Entities.User>().AsNoTracking()
+                .Where(u => u.Id == agentId)
+                .Select(u => u.FirstName)
+                .FirstOrDefaultAsync(ct);
 }

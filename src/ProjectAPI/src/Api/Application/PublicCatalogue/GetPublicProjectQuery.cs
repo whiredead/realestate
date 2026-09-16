@@ -66,6 +66,8 @@ public class GetPublicProjectHandler : IRequestHandler<GetPublicProjectQuery, Pu
             .Select(v => v.VideoLink)
             .ToListAsync(ct);
 
+        var agentFirstName = await PublicCatalogueProjection.GetAgentFirstNameAsync(_db, project.AgentId, ct);
+
         var prices = plans.Where(p => p.StartingPrice.HasValue).Select(p => p.StartingPrice!.Value).ToList();
         var minSurfaces = plans.Where(p => p.MinSurface.HasValue).Select(p => p.MinSurface!.Value).ToList();
         var maxSurfaces = plans.Where(p => p.MaxSurface.HasValue).Select(p => p.MaxSurface!.Value).ToList();
@@ -95,6 +97,8 @@ public class GetPublicProjectHandler : IRequestHandler<GetPublicProjectQuery, Pu
             Images = project.Images ?? new List<string>(),
             Videos = videos,
             Module3DLink = string.IsNullOrWhiteSpace(project.Module3DLink) ? null : project.Module3DLink,
+            Latitude = project.Latitude,
+            Longitude = project.Longitude,
 
             QuartierName = project.Quartier?.Name,
             QuartierDescription = project.Quartier?.Description,
@@ -103,7 +107,8 @@ public class GetPublicProjectHandler : IRequestHandler<GetPublicProjectQuery, Pu
             Amenities = amenities,
             QuartierFeatures = quartierFeatures,
             Plans = plans.OrderBy(p => p.StartingPrice ?? decimal.MaxValue).ThenBy(p => p.PlanName).ToList(),
-            PropertyTypes = plans.Select(p => p.PropertyType).Distinct().OrderBy(t => t).ToList()
+            PropertyTypes = plans.Select(p => p.PropertyType).Distinct().OrderBy(t => t).ToList(),
+            AgentFirstName = string.IsNullOrWhiteSpace(agentFirstName) ? null : agentFirstName
         };
     }
 
@@ -136,6 +141,9 @@ public class PublicPlanDetail
 
     /// <summary>Falls back to the project's tour when the plan has none of its own.</summary>
     public string? ProjectModule3DLink { get; set; }
+
+    /// <summary>Same field, same boundary, as PublicProjectDetail.AgentFirstName.</summary>
+    public string? AgentFirstName { get; set; }
 }
 
 public class GetPublicPlanHandler : IRequestHandler<GetPublicPlanQuery, PublicPlanDetail>
@@ -165,7 +173,20 @@ public class GetPublicPlanHandler : IRequestHandler<GetPublicPlanQuery, PublicPl
 
         // ImagesInterieur and Image are both comma-separated columns; the cover
         // is whichever came first, and the gallery is everything else.
-        var gallery = Split(type?.ImagesInterieur).Concat(Split(type?.Image)).Distinct().ToList();
+        //
+        // A plan with no photography of its own is not the same as a plan with
+        // no photography at all: the project's own gallery (project.Images)
+        // already exists and is real — PublicPlanSummary.CoverImage falls back
+        // to it, but until now this full-gallery endpoint did not, so a plan
+        // with an empty Image/ImagesInterieur showed nothing even when the
+        // project it belongs to has real photos. Project photos are appended,
+        // never substituted, so a plan's own shoot (once it has one) still
+        // leads.
+        var gallery = Split(type?.ImagesInterieur)
+            .Concat(Split(type?.Image))
+            .Concat(project.Images ?? new List<string>())
+            .Distinct()
+            .ToList();
 
         return new PublicPlanDetail
         {
@@ -173,7 +194,8 @@ public class GetPublicPlanHandler : IRequestHandler<GetPublicPlanQuery, PublicPl
             Images = gallery,
             ProjectDescription = project.Description,
             QuartierDescription = project.Quartier?.Description,
-            ProjectModule3DLink = string.IsNullOrWhiteSpace(project.Module3DLink) ? null : project.Module3DLink
+            ProjectModule3DLink = string.IsNullOrWhiteSpace(project.Module3DLink) ? null : project.Module3DLink,
+            AgentFirstName = await PublicCatalogueProjection.GetAgentFirstNameAsync(_db, project.AgentId, ct)
         };
     }
 
