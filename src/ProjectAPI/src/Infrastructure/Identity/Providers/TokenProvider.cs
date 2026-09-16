@@ -126,7 +126,7 @@ public class TokenProvider : ITokenProvider
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.Now.AddMinutes(expirationTimeInMinutes),
+            expires: DateTime.UtcNow.AddMinutes(expirationTimeInMinutes),
             signingCredentials: new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256)
         );
     }

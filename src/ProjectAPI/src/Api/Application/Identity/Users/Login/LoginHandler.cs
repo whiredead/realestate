@@ -3,6 +3,8 @@ using ProjectAPI.Domain.Identity.Entities;
 using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Domain.Identity.Interfaces;
 using Microsoft.AspNetCore.Identity;
+using ProjectAPI.Infrastructure.Context;
+using System.Security.Cryptography;
 
 namespace ProjectAPI.Api.Application.Identity.Users.Login;
 
@@ -14,17 +16,19 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResponse>
     private readonly SignInManager<User> _signInManager;
     private readonly ITokenProvider _tokenProvider;
     private readonly IUserRepository _userRepository;
+    private readonly ApplicationDbContext _db;
 
 
     public LoginHandler(
         SignInManager<User> signInManager,
         ITokenProvider tokenProvider,
-        IUserRepository userRepository
+        IUserRepository userRepository, ApplicationDbContext db
        )
     {
         _signInManager = signInManager ?? throw new ArgumentNullException(nameof(signInManager));
         _tokenProvider = tokenProvider ?? throw new ArgumentNullException(nameof(signInManager));
         _userRepository = userRepository ?? throw new ArgumentNullException(nameof(userRepository));
+        _db = db;
     }
 
     /// <summary>
@@ -51,6 +55,9 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResponse>
                 {
                     // Generate a JWT token
                     var token = _tokenProvider.GenerateAccessToken(user);
+                    var refreshToken = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
+                    _db.SessionRefreshTokens.Add(new SessionRefreshToken { Id = Guid.NewGuid(), UserId = user.Id, TokenHash = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(refreshToken))), ExpiresAtUtc = DateTime.UtcNow.AddDays(14) });
+                    await _db.SaveChangesAsync(cancellationToken);
 
                     // Adapt user entity to UserResponse model
                     var userResponse = user.Adapt<UserResponse>();
@@ -60,6 +67,7 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResponse>
                     {
                         User = userResponse,
                         AccessToken = token,
+                        RefreshToken = refreshToken,
                         IsAutheticated = true,
                         Message = "Logged In Successfully",
                         // Spec §6.1 codes, not the stored legacy labels: the UI

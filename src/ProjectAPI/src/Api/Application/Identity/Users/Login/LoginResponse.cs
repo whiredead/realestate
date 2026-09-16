@@ -12,6 +12,7 @@ public record LoginResponse
     /// Gets or sets the access token for the authenticated user.
     /// </summary>
     public string? AccessToken { get; init; }
+    public string? RefreshToken { get; init; }
 
     /// <summary>
     /// Gets or sets a boolean indicating whether the user is authenticated.

@@ -56,7 +56,10 @@ public static class DependencyInjection
         // §6.4 — caller identity and project perimeter. Scoped, not singleton:
         // both read the current request's claims, so they must not outlive it.
         services.AddHttpContextAccessor();
+        services.AddMemoryCache();
+        services.AddSingleton<PermissionCacheVersion>();
         services.AddScoped<ICurrentUser, CurrentUser>();
+        services.AddScoped<IPermissionService, PermissionService>();
         services.AddScoped<ProjectScopeService>();
 
         // §17.6 — single source of truth for notary eligibility, shared between

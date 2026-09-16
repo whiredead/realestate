@@ -45,6 +45,10 @@ public class ApplicationDbContext : IdentityDbContext<
     public DbSet<ProjectStatusReference> ProjectStatusReferences { get; set; }
     public DbSet<FeatureReference> FeatureReferences { get; set; }
     public DbSet<ReferenceItem> ReferenceItems { get; set; }
+    public DbSet<RolePermission> RolePermissions { get; set; }
+    public DbSet<PermissionEndpoint> PermissionEndpoints { get; set; }
+    public DbSet<UserPermissionOverride> UserPermissionOverrides { get; set; }
+    public DbSet<SessionRefreshToken> SessionRefreshTokens { get; set; }
     public DbSet<Unit> Units { get; set; }
     public DbSet<Floor> Floors { get; set; }
     public DbSet<ImmeubleAssignment> Assignments { get; set; }
@@ -185,6 +189,10 @@ public class ApplicationDbContext : IdentityDbContext<
         builder.ApplyConfiguration(new ProjectStatusReferenceConfiguration());
         builder.ApplyConfiguration(new FeatureReferenceConfiguration());
         builder.ApplyConfiguration(new ReferenceItemConfiguration());
+        builder.ApplyConfiguration(new RolePermissionConfiguration());
+        builder.ApplyConfiguration(new PermissionEndpointConfiguration());
+        builder.ApplyConfiguration(new UserPermissionOverrideConfiguration());
+        builder.ApplyConfiguration(new SessionRefreshTokenConfiguration());
         builder.ApplyConfiguration(new ImmeubleConfiguration());
         builder.ApplyConfiguration(new ImmeublePlanInterieurConfiguration());
         builder.ApplyConfiguration(new AppointmentConfiguration());

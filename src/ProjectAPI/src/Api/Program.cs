@@ -74,6 +74,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidateIssuer = true,
             ValidateAudience = true,
             ValidateLifetime = true,
+            ClockSkew = TimeSpan.Zero,
             ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["JwtSettings:Issuer"],
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
@@ -127,7 +128,7 @@ builder.Services.AddSingleton(new ProjectAPI.Infrastructure.Settings.SmtpSetting
 builder.Services
     // Registers MVC & Web API services.
     .AddMvcCore(
-        options => options.Filters.Add<ApiExceptionFilter>()
+        options => { options.Filters.Add<ApiExceptionFilter>(); options.Filters.AddService<EndpointPermissionFilter>(); }
     )
     .AddApiExplorer()
     .AddDataAnnotations()
@@ -155,6 +156,7 @@ builder.Services
                    .AllowAnyHeader();
         });
     });
+builder.Services.AddScoped<EndpointPermissionFilter>();
 
 
 // AddIdentity (in Infrastructure) registers cookie schemes and makes the cookie
