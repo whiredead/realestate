@@ -28,6 +28,17 @@ public class UpdateTypeBienHandler : IRequestHandler<UpdateTypeBienCommand, Upda
             throw new NotFoundException($"TypeBien {request.Id} not found.");
         }
 
+        var nextMinPrice = request.MinPrice ?? typeBien.MinPrice;
+        var nextMaxPrice = request.MaxPrice ?? typeBien.MaxPrice;
+        if (nextMinPrice is < 0 || nextMaxPrice is < 0 ||
+            (nextMinPrice.HasValue && nextMaxPrice.HasValue && nextMinPrice > nextMaxPrice))
+        {
+            throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure("MaxPrice", "Le prix maximum doit être supérieur ou égal au prix minimum.")
+            });
+        }
+
         // §7.2 — only the links the caller is actually changing are checked, so
         // a type whose media predates this policy stays editable (§9).
         if (request.Image is not null && request.Image != typeBien.Image)
@@ -53,6 +64,8 @@ public class UpdateTypeBienHandler : IRequestHandler<UpdateTypeBienCommand, Upda
             { () => request.Description != null, () => typeBien.Description = request.Description },
             { () => request.Image != null, () => typeBien.Image = request.Image },
             { () => request.Price.HasValue, () => typeBien.Price = request.Price },
+            { () => request.MinPrice.HasValue, () => typeBien.MinPrice = request.MinPrice },
+            { () => request.MaxPrice.HasValue, () => typeBien.MaxPrice = request.MaxPrice },
             { () => request.NbrChambre.HasValue, () => typeBien.NbrChambre = request.NbrChambre },
             { () => request.NbrSalleDeBain.HasValue, () => typeBien.NbrSalleDeBain = request.NbrSalleDeBain },
             { () => request.NbrDouche.HasValue, () => typeBien.NbrDouche = request.NbrDouche },

@@ -17,6 +17,7 @@ public class ConstructionMilestoneConfiguration : IEntityTypeConfiguration<Const
         builder.Property(m => m.NameFr).HasMaxLength(200).IsRequired();
         builder.Property(m => m.NameEn).HasMaxLength(200);
         builder.Property(m => m.WeightPercent).HasColumnType("decimal(7,4)");
+        builder.Property(m => m.IsValidated).HasDefaultValue(false);
 
         builder.HasIndex(m => new { m.ProjectId, m.Code })
                .IsUnique()

@@ -95,7 +95,7 @@ public class CompleteProjectHandler : IRequestHandler<CompleteProjectCommand, Co
 
         var totalWeight = milestones.Sum(m => m.WeightPercent);
         var doneWeight = milestones
-            .Where(m => m.Status == MilestoneStatus.Completed)
+            .Where(m => m.IsValidated && m.Status == MilestoneStatus.Completed)
             .Sum(m => m.WeightPercent);
 
         var progress = totalWeight > 0 ? Math.Round(doneWeight / totalWeight * 100, 2) : 0m;

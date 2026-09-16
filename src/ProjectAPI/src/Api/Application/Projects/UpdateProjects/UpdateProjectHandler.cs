@@ -4,6 +4,7 @@ using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Projects.Interfaces;
 using ProjectAPI.Api.Application.Common.Exceptions;
+using Microsoft.EntityFrameworkCore;
 
 namespace ProjectAPI.Api.Application.Projects.UpdateProjects;
 
@@ -82,7 +83,19 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
         // already FINALISE never reaches this point: ProjectReadOnlyGuard refuses
         // every write on it (409 PROJECT_READ_ONLY), so finalising stays one-way.
         if (request.StatusGlobal != null)
-            project.StatusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal);
+        {
+            var statusCode = ProjectStatusCodes.Normalize(request.StatusGlobal);
+            var statusIsAvailable = await _db.ProjectStatusReferences.AsNoTracking()
+                .AnyAsync(x => x.Code == statusCode && (x.IsActive || x.Code == project.StatusGlobal), cancellationToken);
+            if (!statusIsAvailable)
+            {
+                throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure(nameof(request.StatusGlobal), "Le statut sélectionné n'est pas disponible.")
+                });
+            }
+            project.StatusGlobal = statusCode;
+        }
 
         project.OverAllProgress = request.OverallProgress ?? project.OverAllProgress;
 

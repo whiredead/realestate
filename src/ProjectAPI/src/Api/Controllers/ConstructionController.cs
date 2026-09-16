@@ -6,6 +6,7 @@ using ProjectAPI.Api.Application.Construction.GetTitleStatus;
 using ProjectAPI.Api.Application.Construction.PublishConstructionUpdate;
 using ProjectAPI.Api.Application.Construction.UpdateMilestoneStatus;
 using ProjectAPI.Api.Application.Construction.UpdateTitleStatus;
+using ProjectAPI.Api.Application.Construction.ValidateMilestone;
 using ProjectAPI.Api.Application.Common.Security;
 using Microsoft.AspNetCore.Authorization;
 
@@ -80,6 +81,11 @@ public class ConstructionController : ControllerBase
         body.MilestoneId = milestoneId;
         return Ok(await _mediator.Send(body));
     }
+
+    [Authorize(Roles = RoleGroups.Admins)]
+    [HttpPost("milestones/{milestoneId:guid}/validate")]
+    public async Task<IActionResult> ValidateMilestone(Guid milestoneId)
+        => Ok(await _mediator.Send(new ValidateMilestoneCommand { MilestoneId = milestoneId }));
 
     /// <summary>Publishes a progress update (§15.2).</summary>
     [Authorize(Roles = RoleGroups.Admins)] // §15.2 FR-CON-003 publication — admin.

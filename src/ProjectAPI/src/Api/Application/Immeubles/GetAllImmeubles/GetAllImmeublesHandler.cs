@@ -49,8 +49,6 @@ public class GetAllImmeublesHandler : IRequestHandler<GetAllImmeublesQuery, Pagi
             p => (string.IsNullOrEmpty(request.Name) || p.Name.Contains(request.Name)) &&
                  (string.IsNullOrEmpty(request.Location) || p.Location!.Contains(request.Location)) &&
                  (!request.ProjectId.HasValue || p.ProjectId == request.ProjectId) &&
-                 (request.MinPrice == null || p.MinPrice >= request.MinPrice) &&
-                 (request.MaxPrice == null || p.MaxPrice <= request.MaxPrice) &&
                  (request.Type == null || p.Type == request.Type.ToString()) &&
                  (request.MinSellableSurfaceRange == null || p.MinSellableSurfaceRange >= request.MinSellableSurfaceRange) &&
                  (request.MaxSellableSurfaceRange == null || p.MaxSellableSurfaceRange <= request.MaxSellableSurfaceRange),
@@ -103,8 +101,6 @@ public class GetAllImmeublesHandler : IRequestHandler<GetAllImmeublesQuery, Pagi
                     Name = p.Name,
                     Location = p.Location,
                     Type = p.Type,
-                    MinPrice = p.MinPrice,
-                    MaxPrice = p.MaxPrice,
                     // Normalize, not a fixed enum: Immeuble.Status is free
                     // text and now carries canonical §3 codes as well as
                     // legacy spellings (same shape as Project.StatusGlobal).

@@ -26,6 +26,7 @@ public class MilestoneDto
     public DateTime? PlannedDate { get; set; }
     public DateTime? ActualDate { get; set; }
     public string Status { get; set; } = string.Empty;
+    public bool IsValidated { get; set; }
     public bool VisibleToBuyer { get; set; }
     public bool VisibleToPublic { get; set; }
 }

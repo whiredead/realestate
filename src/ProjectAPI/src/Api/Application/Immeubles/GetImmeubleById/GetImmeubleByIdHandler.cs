@@ -72,8 +72,6 @@ public class GetImmeubleByIdHandler : IRequestHandler<GetImmeubleByIdQuery, Imme
             Name = immeuble.Name,
             Location = immeuble.Location,
             Type = immeuble.Type,
-            MinPrice = immeuble.MinPrice,
-            MaxPrice = immeuble.MaxPrice,
 
             Status = ProjectStatusCodes.Normalize(immeuble.Status),
 

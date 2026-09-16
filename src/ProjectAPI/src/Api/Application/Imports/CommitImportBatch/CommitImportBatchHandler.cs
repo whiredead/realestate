@@ -96,8 +96,6 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     Location = b.Location,
                     Type = b.Type,
                     ResidencyType = b.ResidencyType,
-                    MinPrice = b.MinPrice,
-                    MaxPrice = b.MaxPrice,
                     Latitude = b.Latitude,
                     Longitude = b.Longitude,
                     Description = b.Description,

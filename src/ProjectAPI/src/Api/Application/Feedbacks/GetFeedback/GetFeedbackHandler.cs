@@ -94,8 +94,8 @@ public class GetFeedbackHandler : IRequestHandler<GetFeedbackQuery, PaginatedRes
                     Name = p.FeedBack_Project.Name,
                     Location = p.FeedBack_Project.Location,
                     Type = p.FeedBack_Project.Type ?? string.Empty,
-                    MinPrice = p.FeedBack_Project.MinPrice,
-                    MaxPrice = p.FeedBack_Project.MaxPrice
+                    MinPrice = 0,
+                    MaxPrice = 0
                 } : null,
                 Rating = p.Rating,
                 Comments = p.Comments,

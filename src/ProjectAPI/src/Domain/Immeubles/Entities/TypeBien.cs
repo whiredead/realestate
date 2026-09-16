@@ -15,6 +15,10 @@ public class TypeBien
     public string Name { get; set; }
     public string? Description { get; set; }
     public double? Price { get; set; }
+    /// <summary>Lowest advertised price for this layout, in MAD.</summary>
+    public decimal? MinPrice { get; set; }
+    /// <summary>Highest advertised price for this layout, in MAD.</summary>
+    public decimal? MaxPrice { get; set; }
     public int? NbrChambre { get; set; }
     public int? NbrSalleDeBain { get; set; }
 

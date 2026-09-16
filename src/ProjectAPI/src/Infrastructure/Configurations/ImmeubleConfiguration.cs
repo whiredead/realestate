@@ -37,18 +37,6 @@ namespace ProjectAPI.Infrastructure.Configurations
             builder.Property(p => p.ResidencyType)
                 .HasMaxLength(100);
 
-            // Configures the MinPrice property to be required.
-            builder.Property(p => p.MinPrice)
-                   .HasColumnType("decimal(18,2)")
-                   .IsRequired();
-
-
-            // Configures the MaxPrice property to be required.
-
-            builder.Property(p => p.MaxPrice)
-                .HasColumnType("decimal(18,2)")
-                .IsRequired();
-
 
             // Configures the Status property to be required.
             builder.Property(p => p.Status)

@@ -37,6 +37,14 @@ namespace ProjectAPI.Api.Application.TypeBiens.CreateTypeBien
                     new FluentValidation.Results.ValidationFailure("MinSurface", "Les surfaces ne peuvent pas être négatives.")
                 });
             }
+            if (request.MinPrice is < 0 || request.MaxPrice is < 0 ||
+                (request.MinPrice.HasValue && request.MaxPrice.HasValue && request.MinPrice > request.MaxPrice))
+            {
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure("MaxPrice", "Le prix maximum doit être supérieur ou égal au prix minimum.")
+                });
+            }
 
             // §7.2 — reference data feeds the public catalogue like everything else.
             _media.EnsureImageUrl(request.Image, "Image");
@@ -51,6 +59,8 @@ namespace ProjectAPI.Api.Application.TypeBiens.CreateTypeBien
                 Description = request.Description,
                 Image = request.Image,
                 Price = request.Price,
+                MinPrice = request.MinPrice,
+                MaxPrice = request.MaxPrice,
                 NbrChambre = request.NbrChambre,
                 NbrSalleDeBain = request.NbrSalleDeBain,
                 NbrDouche = request.NbrDouche,

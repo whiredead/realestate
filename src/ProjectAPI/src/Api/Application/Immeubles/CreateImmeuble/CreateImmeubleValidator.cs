@@ -19,11 +19,6 @@
             /*RuleFor(project => project.Location)
                 .NotEmpty().WithMessage("Project location is required.");*/
 
-            // Validation rule for Type
-            RuleFor(project => project.Type)
-                .NotEmpty().WithMessage("Project type is required.")
-                .MaximumLength(50).WithMessage("Project type must not exceed 50 characters.");
-
             // Validation rule for MinPrice
             /*RuleFor(project => project.MinPrice)
                 .GreaterThanOrEqualTo(0).WithMessage("Minimum price must be greater than or equal to 0.");

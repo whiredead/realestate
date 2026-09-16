@@ -28,16 +28,6 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
         public string Type { get; set; }
 
         /// <summary>
-        /// Gets or sets the minimum price of the immeuble.
-        /// </summary>
-        public decimal MinPrice { get; set; }
-
-        /// <summary>
-        /// Gets or sets the maximum price of the immeuble.
-        /// </summary>
-        public decimal MaxPrice { get; set; }
-
-        /// <summary>
         /// Gets or sets the minimum sellable surface area range of the immeuble.
         /// </summary>
         public int MinSellableSurfaceRange { get; set; }

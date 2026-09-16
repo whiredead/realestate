@@ -25,6 +25,15 @@ public class UpdateTypeBienValidator : AbstractValidator<UpdateTypeBienCommand>
         RuleFor(x => x.Price)
             .GreaterThanOrEqualTo(0).When(x => x.Price.HasValue).WithMessage("Price must be greater than or equal to 0.");
 
+        RuleFor(x => x.MinPrice)
+            .GreaterThanOrEqualTo(0).When(x => x.MinPrice.HasValue).WithMessage("Minimum price must be greater than or equal to 0.");
+
+        RuleFor(x => x.MaxPrice)
+            .GreaterThanOrEqualTo(0).When(x => x.MaxPrice.HasValue).WithMessage("Maximum price must be greater than or equal to 0.")
+            .Must((command, maxPrice) => !command.MinPrice.HasValue || !maxPrice.HasValue || command.MinPrice <= maxPrice)
+            .When(x => x.MaxPrice.HasValue && x.MinPrice.HasValue)
+            .WithMessage("Maximum price must be greater than or equal to minimum price.");
+
         RuleFor(x => x.NbrChambre)
             .GreaterThanOrEqualTo(0).When(x => x.NbrChambre.HasValue).WithMessage("Number of bedrooms must be greater than or equal to 0.");
 

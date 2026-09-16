@@ -34,6 +34,9 @@ namespace ProjectAPI.Infrastructure.Configurations
                    .HasColumnType("float")
                    .IsRequired(false);
 
+            builder.Property(tb => tb.MinPrice).HasColumnType("decimal(18,2)").IsRequired(false);
+            builder.Property(tb => tb.MaxPrice).HasColumnType("decimal(18,2)").IsRequired(false);
+
             // Configure the NbrChambre property (optional)
             builder.Property(tb => tb.NbrChambre)
                    .IsRequired(false);

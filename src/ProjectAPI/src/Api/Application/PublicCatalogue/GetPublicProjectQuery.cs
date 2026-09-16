@@ -46,11 +46,18 @@ public class GetPublicProjectHandler : IRequestHandler<GetPublicProjectQuery, Pu
             .Select(f => new PublicFeature { Name = f.Name, Icon = f.Icon, Description = f.Description })
             .ToListAsync(ct);
 
-        var quartierFeatures = await _db.Set<QuartierAmenity>()
-            .AsNoTracking()
-            .Where(a => a.ProjectId == project.Id)
-            .Select(a => new PublicFeature { Name = a.Name, Icon = a.Icon })
-            .ToListAsync(ct);
+        // These are the neighbourhood's own atouts, shared by every project
+        // assigned to it. The old query read project-only QuartierAmenities,
+        // so the public "Découvrir ce programme" section never reflected the
+        // features configured in the Quartiers referential.
+        var quartierFeatures = project.QuartierId is Guid quartierId
+            ? await _db.Set<QuartierFeature>()
+                .AsNoTracking()
+                .Where(f => f.QuartierId == quartierId)
+                .OrderBy(f => f.SequenceNo).ThenBy(f => f.CreatedAt)
+                .Select(f => new PublicFeature { Name = f.Title, Icon = f.Image, Description = f.Description })
+                .ToListAsync(ct)
+            : new List<PublicFeature>();
 
         var videos = await _db.Set<EspaceTempsReel>()
             .AsNoTracking()

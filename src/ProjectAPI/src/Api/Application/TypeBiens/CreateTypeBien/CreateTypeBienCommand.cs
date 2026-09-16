@@ -21,6 +21,8 @@
         public string? Image { get; set; }
 
         public double? Price { get; set; }
+        public decimal? MinPrice { get; set; }
+        public decimal? MaxPrice { get; set; }
         public int? NbrChambre { get; set; }
         public int? NbrSalleDeBain { get; set; }
 

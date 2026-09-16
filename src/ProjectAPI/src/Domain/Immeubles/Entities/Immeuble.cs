@@ -34,16 +34,6 @@ namespace ProjectAPI.Domain.Immeubles.Entities
         public string? ResidencyType { get; set; }
 
         /// <summary>
-        /// Gets or sets the minimum price of properties in the Immeuble.
-        /// </summary>
-        public decimal MinPrice { get; set; }
-
-        /// <summary>
-        /// Gets or sets the maximum price of properties in the Immeuble.
-        /// </summary>
-        public decimal MaxPrice { get; set; }
-
-        /// <summary>
         /// Gets or sets the image URLs associated with the Immeuble.
         /// </summary>
         public string? Images { get; set; }

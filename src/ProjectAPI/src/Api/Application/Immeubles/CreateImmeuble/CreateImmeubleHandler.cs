@@ -55,10 +55,11 @@ namespace ProjectAPI.Api.Application.Immeubles.CreateImmeuble
                 Name = request.Name,
                 ProjectId = request.ProjectId,
                 Location = request.Location,
-                Type = request.Type,
+                // Type and price range are managed on TypeBien, not on a new
+                // building. Existing columns stay populated for compatibility
+                // with legacy listings until their data is migrated.
+                Type = string.Empty,
                 Images = request.Images,
-                MinPrice = request.MinPrice,
-                MaxPrice = request.MaxPrice,
                 Description = request.Description,
                 Longitude = request.Longitude,
                 Latitude = request.Latitude,

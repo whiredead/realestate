@@ -39,8 +39,6 @@ public class ImmeubleDrillDownDto
     public string Name { get; set; } = string.Empty;
     public string? Location { get; set; }
     public string? Status { get; set; }
-    public decimal MinPrice { get; set; }
-    public decimal MaxPrice { get; set; }
     public string? ImagePrincipale { get; set; }
 
     public int TotalUnits { get; set; }

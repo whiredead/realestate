@@ -53,6 +53,7 @@ public class GetProjectConstructionHandler
                 PlannedDate = m.PlannedDate,
                 ActualDate = m.ActualDate,
                 Status = m.Status.ToString(),
+                IsValidated = m.IsValidated,
                 VisibleToBuyer = m.VisibleToBuyer,
                 VisibleToPublic = m.VisibleToPublic
             })
@@ -88,7 +89,7 @@ public class GetProjectConstructionHandler
         // not read from a stored field that could drift.
         var totalWeight = milestones.Sum(m => m.WeightPercent);
         var doneWeight = milestones
-            .Where(m => m.Status == MilestoneStatus.Completed.ToString())
+            .Where(m => m.IsValidated && m.Status == MilestoneStatus.Completed.ToString())
             .Sum(m => m.WeightPercent);
 
         var progress = totalWeight > 0 ? Math.Round(doneWeight / totalWeight * 100, 2) : 0;

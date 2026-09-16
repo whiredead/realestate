@@ -30,6 +30,7 @@ public class ConstructionMilestone
     public DateTime? ActualDate { get; set; }
 
     public MilestoneStatus Status { get; set; } = MilestoneStatus.NotStarted;
+    public bool IsValidated { get; set; }
 
     /// <summary>Visible in the buyer area.</summary>
     public bool VisibleToBuyer { get; set; } = true;

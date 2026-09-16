@@ -5,6 +5,8 @@ using ProjectAPI.Infrastructure.Context;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Projects.Interfaces;
+using ProjectAPI.Api.Application.Common.Exceptions;
+using Microsoft.EntityFrameworkCore;
 
 namespace ProjectAPI.Api.Application.Projects.CreateProjects;
 
@@ -48,6 +50,17 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
 
         await ProjectTypeBienLinks.EnsureQuartierExistsAsync(_db, request.QuartierId, cancellationToken);
 
+        var statusCode = ProjectStatusCodes.Normalize(request.StatusGlobal ?? ProjectStatusCodes.SurPlan);
+        var statusIsAvailable = await _db.ProjectStatusReferences.AsNoTracking()
+            .AnyAsync(x => x.Code == statusCode && x.IsActive, cancellationToken);
+        if (!statusIsAvailable)
+        {
+            throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
+            {
+                new FluentValidation.Results.ValidationFailure(nameof(request.StatusGlobal), "Le statut sélectionné n'est pas disponible.")
+            });
+        }
+
         // Step 1: Resolve or create Quartier
         Guid? quartierId = null;
         if (request.QuartierId.HasValue)
@@ -88,7 +101,7 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
             // §3 / FR-CMS-001 — a project is created in DRAFT. Normalised so the
             // column only ever holds canonical codes, never the legacy (and
             // misspelled) "CommingSoon" spellings.
-            StatusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal ?? ProjectStatusCodes.SurPlan),
+            StatusGlobal = statusCode,
             // §8 — omitted takes the entity default (12 months).
             WarrantyMonths = request.WarrantyMonths ?? 12
         };

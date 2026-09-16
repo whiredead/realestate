@@ -41,6 +41,10 @@ public class ApplicationDbContext : IdentityDbContext<
 {
     public DbSet<Immeuble> Immeubles { get; set; }
     public DbSet<Project> Projects { get; set; }
+    /// <summary>Admin-managed labels and availability for the project lifecycle codes.</summary>
+    public DbSet<ProjectStatusReference> ProjectStatusReferences { get; set; }
+    public DbSet<FeatureReference> FeatureReferences { get; set; }
+    public DbSet<ReferenceItem> ReferenceItems { get; set; }
     public DbSet<Unit> Units { get; set; }
     public DbSet<Floor> Floors { get; set; }
     public DbSet<ImmeubleAssignment> Assignments { get; set; }
@@ -178,6 +182,9 @@ public class ApplicationDbContext : IdentityDbContext<
         builder.ApplyConfiguration(new SnagConfiguration());
         builder.ApplyConfiguration(new SnagHistoryConfiguration());
         builder.ApplyConfiguration(new ProjectConfiguration());
+        builder.ApplyConfiguration(new ProjectStatusReferenceConfiguration());
+        builder.ApplyConfiguration(new FeatureReferenceConfiguration());
+        builder.ApplyConfiguration(new ReferenceItemConfiguration());
         builder.ApplyConfiguration(new ImmeubleConfiguration());
         builder.ApplyConfiguration(new ImmeublePlanInterieurConfiguration());
         builder.ApplyConfiguration(new AppointmentConfiguration());

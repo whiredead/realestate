@@ -27,16 +27,6 @@
                 .Must(BeAValidType).WithMessage("Invalid property type.")
                 .When(command => !string.IsNullOrWhiteSpace(command.Type));
 
-            // Validate MinPrice
-            RuleFor(command => command.MinPrice)
-                .GreaterThanOrEqualTo(0).WithMessage("Minimum price must be greater than or equal to 0.")
-                .When(command => command.MinPrice >= 0);
-
-            // Validate MaxPrice
-            RuleFor(command => command.MaxPrice)
-                .GreaterThanOrEqualTo(command => command.MinPrice).WithMessage("Maximum price must be greater than or equal to the minimum price.")
-                .When(command => command.MaxPrice >= 0 && command.MinPrice >= 0);
-
             // Validate MinSellableSurfaceRange
             RuleFor(command => command.MinSellableSurfaceRange)
                 .GreaterThanOrEqualTo(0).WithMessage("Minimum sellable surface range must be greater than or equal to 0.")

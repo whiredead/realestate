@@ -29,6 +29,8 @@ public class TypeBienRepository : BaseRepository<TypeBien>, ITypeBienRepository
                 Description = tb.Description,
                 Image = tb.Image,
                 Price = tb.Price,
+                MinPrice = tb.MinPrice,
+                MaxPrice = tb.MaxPrice,
                 NbrChambre = tb.NbrChambre,
                 NbrSalleDeBain = tb.NbrSalleDeBain,
                 NbrDouche = tb.NbrDouche,

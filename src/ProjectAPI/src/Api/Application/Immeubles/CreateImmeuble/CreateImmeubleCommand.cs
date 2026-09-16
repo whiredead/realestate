@@ -17,21 +17,6 @@ public class CreateImmeubleCommand : IRequest<Guid>
     public string Location { get; set; }
 
     /// <summary>
-    /// Gets or sets the type of the immeuble (e.g., residential, commercial).
-    /// </summary>
-    public string Type { get; set; }
-
-    /// <summary>
-    /// Gets or sets the minimum price of the immeuble.
-    /// </summary>
-    public decimal MinPrice { get; set; }
-
-    /// <summary>
-    /// Gets or sets the maximum price of the immeuble.
-    /// </summary>
-    public decimal MaxPrice { get; set; }
-
-    /// <summary>
     /// Gets or sets the images associated with the immeuble.
     /// </summary>
     public string Images { get; set; }

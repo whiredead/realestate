@@ -30,6 +30,12 @@ public class UpdateTypeBienCommand : IRequest<UpdateTypeBienResponse>
     /// </summary>
     public double? Price { get; set; }
 
+    /// <summary>Lowest advertised price for this layout, in MAD.</summary>
+    public decimal? MinPrice { get; set; }
+
+    /// <summary>Highest advertised price for this layout, in MAD.</summary>
+    public decimal? MaxPrice { get; set; }
+
     /// <summary>
     /// Gets or sets the number of bedrooms.
     /// </summary>

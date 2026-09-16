@@ -36,7 +36,7 @@ public class GetProjectByIdHandler : IRequestHandler<GetProjectByIdQuery, Projec
 
         var immeubles = await _db.Set<Immeuble>()
             .Where(im => im.ProjectId == request.Id)
-            .Select(im => new { im.Id, im.Name, im.Location, im.Status, im.MinPrice, im.MaxPrice, im.ImagePrincipale })
+            .Select(im => new { im.Id, im.Name, im.Location, im.Status, im.ImagePrincipale })
             .ToListAsync(ct);
 
         var immeubleIds = immeubles.Select(im => im.Id).ToList();
@@ -79,8 +79,6 @@ public class GetProjectByIdHandler : IRequestHandler<GetProjectByIdQuery, Projec
                 Name = im.Name,
                 Location = im.Location,
                 Status = ProjectStatusCodes.Normalize(im.Status),
-                MinPrice = im.MinPrice,
-                MaxPrice = im.MaxPrice,
                 ImagePrincipale = im.ImagePrincipale,
                 TotalUnits = total,
                 AvailableUnits = available,
