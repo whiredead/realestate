@@ -13,6 +13,7 @@ public class CreateProjectCommand : IRequest<CreateProjectResponse>
 
     /// <summary>Commercial status (§7.5): ComingSoon | UnderConstruction | Available | Sold.</summary>
     public string? StatusGlobal { get; set; }
+    public string? StatusReferenceCode { get; set; }
 
     /// <summary>
     /// §8 — warranty granted on every unit of this project, in months. Omitted

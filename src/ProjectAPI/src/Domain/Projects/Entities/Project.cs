@@ -57,6 +57,12 @@ public class Project
     public string StatusGlobal { get; set; } = "SUR_PLAN";
 
     /// <summary>
+    /// The business-facing status selected from the reference table. StatusGlobal
+    /// keeps the protected lifecycle phase; this field keeps the displayed label.
+    /// </summary>
+    public string? StatusReferenceCode { get; set; }
+
+    /// <summary>
     /// Gets or sets the type of the project (e.g., "Livraison immédiate", "Vente sur plan", 
     /// "Magasin et Commerce", or "Lots de terrains").
     /// </summary>

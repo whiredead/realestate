@@ -12,6 +12,7 @@ public sealed class ProjectStatusReferenceConfiguration : IEntityTypeConfigurati
         builder.HasKey(x => x.Code);
         builder.Property(x => x.Code).HasMaxLength(50).IsRequired();
         builder.Property(x => x.Label).HasMaxLength(100).IsRequired();
+        builder.Property(x => x.BusinessPhase).HasMaxLength(50).IsRequired();
         builder.Property(x => x.SortOrder).IsRequired();
         builder.Property(x => x.IsActive).IsRequired();
     }

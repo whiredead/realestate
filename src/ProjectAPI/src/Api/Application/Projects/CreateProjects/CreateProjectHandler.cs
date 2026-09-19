@@ -50,10 +50,10 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
 
         await ProjectTypeBienLinks.EnsureQuartierExistsAsync(_db, request.QuartierId, cancellationToken);
 
-        var statusCode = ProjectStatusCodes.Normalize(request.StatusGlobal ?? ProjectStatusCodes.SurPlan);
-        var statusIsAvailable = await _db.ProjectStatusReferences.AsNoTracking()
-            .AnyAsync(x => x.Code == statusCode && x.IsActive, cancellationToken);
-        if (!statusIsAvailable)
+        var selectedStatusCode = (request.StatusReferenceCode ?? request.StatusGlobal ?? ProjectStatusCodes.SurPlan).Trim().ToUpperInvariant();
+        var status = await _db.ProjectStatusReferences.AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Code == selectedStatusCode && x.IsActive, cancellationToken);
+        if (status is null)
         {
             throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
             {
@@ -101,7 +101,8 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
             // §3 / FR-CMS-001 — a project is created in DRAFT. Normalised so the
             // column only ever holds canonical codes, never the legacy (and
             // misspelled) "CommingSoon" spellings.
-            StatusGlobal = statusCode,
+            StatusGlobal = ProjectStatusCodes.Normalize(status.BusinessPhase),
+            StatusReferenceCode = status.Code,
             // §8 — omitted takes the entity default (12 months).
             WarrantyMonths = request.WarrantyMonths ?? 12
         };

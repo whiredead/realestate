@@ -11,6 +11,7 @@ public class UpdateProjectCommand : IRequest<ProjectResponse>
     public List<string> Images { get; set; } = new();
     public string? Type { get; set; }
     public string? StatusGlobal { get; set; }
+    public string? StatusReferenceCode { get; set; }
     public decimal? OverallProgress { get; set; }
 
     /// <summary>

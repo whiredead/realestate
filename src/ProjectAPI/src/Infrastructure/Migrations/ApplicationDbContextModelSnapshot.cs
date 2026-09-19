@@ -633,6 +633,11 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<string>("DescriptionFr")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<bool>("IsValidated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("NameEn")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -1422,6 +1427,53 @@ namespace ProjectAPI.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Identity.Entities.PermissionEndpoint", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ActionName")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("Controller")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("HttpMethod")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("nvarchar(12)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(180)
+                        .HasColumnType("nvarchar(180)");
+
+                    b.Property<string>("Module")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("RouteTemplate")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Key")
+                        .IsUnique();
+
+                    b.ToTable("PermissionEndpoints", (string)null);
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Identity.Entities.Role", b =>
                 {
                     b.Property<string>("Id")
@@ -1454,6 +1506,100 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasFilter("[NormalizedName] IS NOT NULL");
 
                     b.ToTable("AspNetRoles", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Identity.Entities.RolePermission", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("Allowed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Resource")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("RoleCode")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RoleCode", "Resource", "Action")
+                        .IsUnique();
+
+                    b.ToTable("RolePermissions", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Identity.Entities.SessionRefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.ToTable("SessionRefreshTokens", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Identity.Entities.UserPermissionOverride", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<bool>("Allowed")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Resource")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "Resource", "Action")
+                        .IsUnique();
+
+                    b.ToTable("UserPermissionOverrides", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Identity.Entities.UserRole", b =>
@@ -1529,14 +1675,8 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<double>("Longitude")
                         .HasColumnType("float");
 
-                    b.Property<decimal>("MaxPrice")
-                        .HasColumnType("decimal(18,2)");
-
                     b.Property<int>("MaxSellableSurfaceRange")
                         .HasColumnType("int");
-
-                    b.Property<decimal>("MinPrice")
-                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int>("MinSellableSurfaceRange")
                         .HasColumnType("int");
@@ -1636,7 +1776,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("ImmeubleId");
 
-                    b.ToTable("ImmeubleFeature", (string)null);
+                    b.ToTable("ImmeubleFeature");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.ImmeublePlanInterieur", b =>
@@ -1702,7 +1842,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("TypeBienId");
 
-                    b.ToTable("ImmeubleTypeBien", (string)null);
+                    b.ToTable("ImmeubleTypeBien");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Immeubles.Entities.TypeBien", b =>
@@ -1725,8 +1865,14 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
 
+                    b.Property<decimal?>("MaxPrice")
+                        .HasColumnType("decimal(18,2)");
+
                     b.Property<int?>("MaxSurface")
                         .HasColumnType("int");
+
+                    b.Property<decimal?>("MinPrice")
+                        .HasColumnType("decimal(18,2)");
 
                     b.Property<int?>("MinSurface")
                         .HasColumnType("int");
@@ -1923,7 +2069,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("UnitId");
 
-                    b.ToTable("UnitTracking", (string)null);
+                    b.ToTable("UnitTracking");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Imports.Entities.ImportBatch", b =>
@@ -2402,7 +2548,39 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("EspaceTempsReel", (string)null);
+                    b.ToTable("EspaceTempsReel");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.FeatureReference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("IconUrl")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("Scope")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("FeatureReferences", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.LikedProject", b =>
@@ -2484,6 +2662,10 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<string>("StatusGlobal")
                         .IsRequired()
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("StatusReferenceCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
 
                     b.Property<string>("Type")
                         .HasColumnType("nvarchar(max)");
@@ -2648,7 +2830,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("ProjectId");
 
-                    b.ToTable("ProjectFeature", (string)null);
+                    b.ToTable("ProjectFeature");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectMembership", b =>
@@ -2701,6 +2883,33 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasFilter("[IsActive] = 1");
 
                     b.ToTable("ProjectMemberships", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectStatusReference", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("BusinessPhase")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("ProjectStatusReferences", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ProjectTypeBien", b =>
@@ -2806,6 +3015,47 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.HasIndex("QuartierId", "SequenceNo");
 
                     b.ToTable("QuartierFeatures", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.ReferenceItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Label")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("Category", "SortOrder");
+
+                    b.ToTable("ReferenceItems", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Purchases.Entities.Purchase", b =>
@@ -3252,7 +3502,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("SaleId");
 
-                    b.ToTable("PaymentTracking", (string)null);
+                    b.ToTable("PaymentTracking");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Sales.Entities.PropertyDelivery", b =>
@@ -3586,7 +3836,7 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.HasIndex("NotaryId");
 
-                    b.ToTable("NotaryDateDisponibilite", (string)null);
+                    b.ToTable("NotaryDateDisponibilite");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.User", b =>

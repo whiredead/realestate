@@ -82,19 +82,20 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
         // The admin may set any of the three statuses from the edit form. A project
         // already FINALISE never reaches this point: ProjectReadOnlyGuard refuses
         // every write on it (409 PROJECT_READ_ONLY), so finalising stays one-way.
-        if (request.StatusGlobal != null)
+        if (request.StatusReferenceCode != null || request.StatusGlobal != null)
         {
-            var statusCode = ProjectStatusCodes.Normalize(request.StatusGlobal);
-            var statusIsAvailable = await _db.ProjectStatusReferences.AsNoTracking()
-                .AnyAsync(x => x.Code == statusCode && (x.IsActive || x.Code == project.StatusGlobal), cancellationToken);
-            if (!statusIsAvailable)
+            var selectedStatusCode = (request.StatusReferenceCode ?? request.StatusGlobal)!.Trim().ToUpperInvariant();
+            var status = await _db.ProjectStatusReferences.AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Code == selectedStatusCode && (x.IsActive || x.Code == project.StatusReferenceCode), cancellationToken);
+            if (status is null)
             {
                 throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
                 {
                     new FluentValidation.Results.ValidationFailure(nameof(request.StatusGlobal), "Le statut sélectionné n'est pas disponible.")
                 });
             }
-            project.StatusGlobal = statusCode;
+            project.StatusGlobal = ProjectStatusCodes.Normalize(status.BusinessPhase);
+            project.StatusReferenceCode = status.Code;
         }
 
         project.OverAllProgress = request.OverallProgress ?? project.OverAllProgress;
@@ -124,6 +125,8 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
             Images = project.Images,
             Module3DLink = project.Module3DLink,
             QuartierId = project.QuartierId,
+            StatusGlobal = project.StatusGlobal,
+            StatusReferenceCode = project.StatusReferenceCode,
             WarrantyMonths = project.WarrantyMonths,
         };
     }

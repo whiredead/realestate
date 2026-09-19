@@ -14,6 +14,7 @@ public class ProjectResponse
     public string Module3DLink { get; set; }
     public string? Type { get; set; }
     public string? StatusGlobal { get; set; }
+    public string? StatusReferenceCode { get; set; }
     public decimal OverAllProgress { get; set; }
     public long NumberLikes { get; set; }
 
