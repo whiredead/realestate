@@ -20,7 +20,30 @@ public sealed class PermissionsController : ControllerBase
  [HttpDelete("users/{userId}")] public async Task<IActionResult> ClearUser(string userId,[FromQuery] string resource,[FromQuery] string action,CancellationToken ct) { var row=await _db.UserPermissionOverrides.FirstOrDefaultAsync(x=>x.UserId==userId&&x.Resource==resource&&x.Action==action,ct); if(row is not null){_db.Remove(row);await _db.SaveChangesAsync(ct);_cacheVersion.Advance();} return NoContent(); }
  [HttpPut("users/{userId}")] public async Task<IActionResult> SetUser(string userId,[FromBody] PermissionInput input,CancellationToken ct) { var row=await _db.UserPermissionOverrides.FirstOrDefaultAsync(x=>x.UserId==userId&&x.Resource==input.Resource&&x.Action==input.Action,ct); if(row is null){row=new UserPermissionOverride{Id=Guid.NewGuid(),UserId=userId,Resource=input.Resource,Action=input.Action};_db.Add(row);}row.Allowed=input.Allowed;await _db.SaveChangesAsync(ct);_cacheVersion.Advance();return Ok(row); }
  [HttpGet("roles/{roleCode}")] public async Task<IActionResult> GetRole(string roleCode,CancellationToken ct)=>Ok(await _db.RolePermissions.AsNoTracking().Where(x=>x.RoleCode==roleCode).ToListAsync(ct));
+ [HttpPost("role-baseline")] public IActionResult RoleBaseline([FromBody] RoleBaselineRequest input)
+ {
+     var roles = input.RoleCodes.Where(x => !string.IsNullOrWhiteSpace(x)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+     var result = new List<RoleBaselinePermission>();
+     foreach (var action in _actions.ActionDescriptors.Items.OfType<ControllerActionDescriptor>())
+     {
+         if (action.EndpointMetadata.OfType<AllowAnonymousAttribute>().Any() || action.MethodInfo.GetCustomAttributes(typeof(AllowAnonymousAttribute), true).Any()) continue;
+         var authorizations = action.EndpointMetadata.OfType<IAuthorizeData>()
+             .Concat(action.MethodInfo.GetCustomAttributes(typeof(IAuthorizeData), true).Cast<IAuthorizeData>())
+             .Concat(action.ControllerTypeInfo.GetCustomAttributes(typeof(IAuthorizeData), true).Cast<IAuthorizeData>())
+             .Where(x => !string.IsNullOrWhiteSpace(x.Roles))
+             .Select(x => x.Roles!)
+             .Distinct(StringComparer.OrdinalIgnoreCase)
+             .ToArray();
+         if (authorizations.Length == 0) continue;
+         var allowed = authorizations.All(csv => csv.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).Any(roles.Contains));
+         var methods = action.ActionConstraints?.OfType<HttpMethodActionConstraint>().SelectMany(x => x.HttpMethods).DefaultIfEmpty("ANY") ?? ["ANY"];
+         foreach (var method in methods) result.Add(new RoleBaselinePermission($"{action.ControllerName}.{action.ActionName}.{method}".ToLowerInvariant(), allowed));
+     }
+     return Ok(result);
+ }
  [HttpPut("roles/{roleCode}")] public async Task<IActionResult> SetRole(string roleCode,[FromBody] PermissionInput input,CancellationToken ct) { var row=await _db.RolePermissions.FirstOrDefaultAsync(x=>x.RoleCode==roleCode&&x.Resource==input.Resource&&x.Action==input.Action,ct);if(row is null){row=new RolePermission{Id=Guid.NewGuid(),RoleCode=roleCode,Resource=input.Resource,Action=input.Action};_db.Add(row);}row.Allowed=input.Allowed;await _db.SaveChangesAsync(ct);_cacheVersion.Advance();return Ok(row); }
  private static string ModuleFor(string controller)=>controller switch { var c when c.Contains("Project",StringComparison.OrdinalIgnoreCase)||c.Contains("Immeuble",StringComparison.OrdinalIgnoreCase)||c.Contains("TypeBien",StringComparison.OrdinalIgnoreCase)=>"Patrimoine", var c when c.Contains("Reservation",StringComparison.OrdinalIgnoreCase)||c.Contains("Sale",StringComparison.OrdinalIgnoreCase)||c.Contains("Appointment",StringComparison.OrdinalIgnoreCase)=>"Commercialisation", var c when c.Contains("Notary",StringComparison.OrdinalIgnoreCase)=>"Notaire", var c when c.Contains("Claim",StringComparison.OrdinalIgnoreCase)||c.Contains("Feedback",StringComparison.OrdinalIgnoreCase)=>"Après-vente", _=>"Administration"};
 }
 public sealed record PermissionInput(string Resource,string Action,bool Allowed);
+public sealed record RoleBaselineRequest(IReadOnlyCollection<string> RoleCodes);
+public sealed record RoleBaselinePermission(string Resource,bool Allowed);
