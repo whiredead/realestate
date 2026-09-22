@@ -42,6 +42,30 @@ public class ProjectsController : ControllerBase
     /// <summary>A caller holding no internal role (buyer, prospect) may only act on their own favourites.</summary>
     private bool IsInternalCaller => _currentUser.Roles.Any(r => ProjectAPI.Domain.Users.Entities.RoleCodes.Internal.Contains(r, StringComparer.Ordinal));
 
+    /// <summary>
+    /// Signed in: the caller's own token id wins, same trust boundary as
+    /// before — a buyer/prospect cannot act on someone else's favourites by
+    /// passing a different id in the body. Signed out: favouriting is still
+    /// allowed (a visitor should not have to create an account to save a
+    /// listing), but only with a client-supplied anonymous id shaped like a
+    /// GUID (the frontend keeps this in a cookie) — never blank, never free
+    /// text, so this remains "whose favourite", not an open write.
+    /// </summary>
+    private IActionResult? ResolveFavouriteUserId(ref string? userId)
+    {
+        if (_currentUser.IsAuthenticated)
+        {
+            if (!IsInternalCaller) userId = _currentUser.UserId!;
+            return null;
+        }
+
+        if (string.IsNullOrWhiteSpace(userId) || !Guid.TryParse(userId, out _))
+        {
+            return BadRequest("Un identifiant invité valide est requis pour un visiteur non connecté.");
+        }
+        return null;
+    }
+
     [HttpPost]
     [Authorize(Roles = RoleGroups.Admins)] // §6.3 Catalogue: "A périmètre" — création réservée aux admins.
     public async Task<IActionResult> CreateProject([FromBody] CreateProjectCommand command)
@@ -90,11 +114,15 @@ public class ProjectsController : ControllerBase
         var result = await _mediator.Send(command);
         return Ok(result);
     }
+    /// <summary>Favourites a project. Works signed out — see ResolveFavouriteUserId.</summary>
     [HttpPost("Like")]
+    [AllowAnonymous]
     public async Task<IActionResult> AddLikedProject([FromBody] AddLikedProjectCommand command)
     {
-        // The user comes from the token for a buyer/prospect, never from the body.
-        if (!IsInternalCaller) command.UserId = _currentUser.UserId!;
+        var userId = command.UserId;
+        var refused = ResolveFavouriteUserId(ref userId);
+        if (refused is not null) return refused;
+        command.UserId = userId!;
         var response = await _mediator.Send(command);
         return Ok(response);
     }
@@ -103,18 +131,30 @@ public class ProjectsController : ControllerBase
     /// DELETE /api/projects/{projectId}/like?userId=...
     /// </summary>
     [HttpDelete("DisLikeProject")]
+    [AllowAnonymous]
     public async Task<IActionResult> DisLikeProject([FromBody] RemoveLikedProjectCommand command)
     {
-        if (!IsInternalCaller) command.UserId = _currentUser.UserId!;
+        var userId = command.UserId;
+        var refused = ResolveFavouriteUserId(ref userId);
+        if (refused is not null) return refused;
+        command.UserId = userId!;
         var res = await _mediator.Send(command);
         if (!res.Success) return BadRequest(res.Message);
         return NoContent();
     }
-    /// <summary>The signed-in user's own favourites.</summary>
+    /// <summary>The caller's own favourites — signed-in id from the token, or the anonymous id passed as ?userId= when signed out.</summary>
     [HttpGet("LikedProjects/mine")]
+    [AllowAnonymous]
     public async Task<IActionResult> GetMyLikedProjects([FromQuery] GetLikedProjectsQuery query)
     {
-        query.UserId = _currentUser.UserId;
+        if (_currentUser.IsAuthenticated)
+        {
+            query.UserId = _currentUser.UserId;
+        }
+        else if (string.IsNullOrWhiteSpace(query.UserId) || !Guid.TryParse(query.UserId, out _))
+        {
+            return BadRequest("Un identifiant invité valide est requis pour un visiteur non connecté.");
+        }
         return Ok(await _mediator.Send(query));
     }
 

@@ -1,8 +1,9 @@
 namespace ProjectAPI.Api.Application.Imports.ValidateImportBatch;
 
 /// <summary>
-/// §5.11/§23 — dry-run validation. Parses the Buildings + Units tabs, reports
-/// every row's errors WITHOUT writing anything to the stock tables — only the
+/// §5.11/§23 — dry-run validation against a caller-chosen project. Parses a
+/// workbook where each sheet is one building, reports every row's errors
+/// WITHOUT writing anything to the stock tables — only the
 /// ImportBatch/ImportRow bookkeeping rows are persisted, so the batch can be
 /// re-inspected before CommitImportBatchCommand actually applies it.
 /// </summary>

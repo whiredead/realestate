@@ -19,15 +19,9 @@ public class GetLikedProjectsHandler : IRequestHandler<GetLikedProjectsQuery, Pa
 
 public async Task<PaginatedResponse<LikedProjectResponse>> Handle(GetLikedProjectsQuery request, CancellationToken cancellationToken)
     {
-        if (!string.IsNullOrEmpty(request.UserId))
-        {
-            var userExists = await _context.Users.AnyAsync(u => u.Id == request.UserId);
-            if (!userExists)
-            {
-                return new PaginatedResponse<LikedProjectResponse>(new List<LikedProjectResponse>(), request.PageNumber, request.PageSize, 0);
-            }
-        }
-
+        // No "does this user exist" short-circuit: UserId can be an anonymous
+        // guest id with no Users row at all (see LikedProject.UserId), and
+        // that is a normal, valid case here, not a reason to return empty.
         var items = await _repository.Find(
             lp => (string.IsNullOrEmpty(request.UserId) || lp.UserId == request.UserId)
             && (request.ProjectId == null || lp.ProjectId.ToString() == request.ProjectId),

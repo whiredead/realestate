@@ -56,6 +56,15 @@ public class RemoveLikedProjectHandler
         var leadsToDelete = new List<Lead>();
         var perfDecrements = new Dictionary<string, PerformanceIndicator>();
 
+        // The lead query only depends on (ProjectId, UserId, AgentId), not on
+        // which immeuble asked — two immeubles sharing an agent (including
+        // two both unassigned, AgentId == null) queued the SAME Lead row
+        // twice. Deleting it twice deletes zero rows the second time, which
+        // EF's concurrency check reads as a stale write and surfaces as a
+        // 409 RESOURCE_VERSION_CONFLICT on every un-favourite of a project
+        // with more than one immeuble on the same agent.
+        var seenLeadIds = new HashSet<Guid>();
+
         foreach (var im in immeubles)
         {
             var leads = (await _leads.Find(l =>
@@ -64,7 +73,7 @@ public class RemoveLikedProjectHandler
                 l.AgentId == im.AgentId)).ToList();
 
             if (leads.Count == 0) continue;
-            leadsToDelete.AddRange(leads);
+            leadsToDelete.AddRange(leads.Where(l => seenLeadIds.Add(l.Id)));
 
             if (string.IsNullOrWhiteSpace(im.AgentId) || perfDecrements.ContainsKey(im.AgentId))
                 continue;

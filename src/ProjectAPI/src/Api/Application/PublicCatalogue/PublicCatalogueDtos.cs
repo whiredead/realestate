@@ -161,4 +161,7 @@ public class PublicProjectDetail
     /// through the company's published number, not a personal one.
     /// </summary>
     public string? AgentFirstName { get; set; }
+
+    /// <summary>How many visitors (signed in or anonymous) have favourited this project — Project.NumberLikes, published as a simple interest count.</summary>
+    public int InterestCount { get; set; }
 }

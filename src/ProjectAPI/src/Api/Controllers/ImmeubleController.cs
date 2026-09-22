@@ -1,4 +1,5 @@
 ﻿using ProjectAPI.Api.Application.Floors.CreateFloor;
+using ProjectAPI.Api.Application.Floors.DeleteFloor;
 using ProjectAPI.Api.Application.Floors.GetFloorsByImmeuble;
 using ProjectAPI.Api.Application.Immeubles.CreateIImmeubleFeature;
 using ProjectAPI.Api.Application.Immeubles.CreateImmeuble;
@@ -197,6 +198,18 @@ public class ImmeubleController : ControllerBase
     {
         var response = await _mediator.Send(new GetFloorsByImmeubleQuery { ImmeubleId = immeubleId });
         return Ok(response);
+    }
+
+    /// <summary>Deletes a floor — refused (409) while it still holds units.</summary>
+    [HttpDelete("floors/{floorId:guid}")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> DeleteFloor(Guid floorId)
+    {
+        await _mediator.Send(new DeleteFloorCommand { Id = floorId });
+        return NoContent();
     }
 
     /// <summary>Drill-down: a building's floors with live per-floor unit-status counts.</summary>
