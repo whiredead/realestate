@@ -123,10 +123,7 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     ProjectId = project.Id,
                     Name = b.Name,
                     Location = b.Location,
-                    Type = b.Type,
-                    ResidencyType = b.ResidencyType,
                     Description = b.Description,
-                    Module3DLink = b.Module3DLink,
                     Status = ProjectAPI.Domain.Construction.Entities.ProjectStatusCodes.SurPlan
                 };
                 _db.Add(immeuble);
@@ -210,9 +207,6 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     existingUnit.NumberOfBedrooms = u.NumberOfBedrooms;
                     existingUnit.NumberOfBathrooms = u.NumberOfBathrooms;
                     existingUnit.ApartmentSurface = u.ApartmentSurface;
-                    existingUnit.BalconySurface = u.BalconySurface;
-                    existingUnit.TerraceSurface = u.TerraceSurface;
-                    existingUnit.GardenSurface = u.GardenSurface;
                     existingUnit.TotalSurface = u.TotalSurface;
                     // View/Orientation are NOT NULL columns; the sheet's are
                     // optional, so a blank cell must not become a literal
@@ -220,18 +214,6 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     existingUnit.View = u.View ?? string.Empty;
                     existingUnit.Orientation = u.Orientation ?? string.Empty;
                     if (typeBienId.HasValue) existingUnit.TypeBienId = typeBienId;
-                    existingUnit.SaleableValue = u.SaleableValue;
-                    existingUnit.SaleableValue1 = u.SaleableValue1;
-                    existingUnit.PriceSaleableValue = u.PriceSaleableValue;
-                    existingUnit.PriceSaleableValue1 = u.PriceSaleableValue1;
-
-                    if (existingUnit.LatestPrice is null && u.LatestPrice.HasValue)
-                    {
-                        // Only fills a price the unit never had; an existing
-                        // contractual price is never overwritten by import.
-                        existingUnit.LatestPrice = u.LatestPrice;
-                    }
-
                     response.UnitsUpdated++;
                     continue;
                 }
@@ -245,18 +227,10 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     NumberOfBedrooms = u.NumberOfBedrooms,
                     NumberOfBathrooms = u.NumberOfBathrooms,
                     ApartmentSurface = u.ApartmentSurface,
-                    BalconySurface = u.BalconySurface,
-                    TerraceSurface = u.TerraceSurface,
-                    GardenSurface = u.GardenSurface,
                     TotalSurface = u.TotalSurface,
                     View = u.View ?? string.Empty,
                     Orientation = u.Orientation ?? string.Empty,
-                    LatestPrice = u.LatestPrice,
                     TypeBienId = typeBienId,
-                    SaleableValue = u.SaleableValue,
-                    SaleableValue1 = u.SaleableValue1,
-                    PriceSaleableValue = u.PriceSaleableValue,
-                    PriceSaleableValue1 = u.PriceSaleableValue1,
                     Status = UnitCommercialStatus.Available
                 };
                 _db.Add(unit);

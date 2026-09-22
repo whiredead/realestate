@@ -159,7 +159,9 @@ public class GenerateImportTemplateHandler : IRequestHandler<GenerateImportTempl
 
         // Row 1: labels for the building-info row below (row 2). Row 3 is
         // left blank as a visual separator before the unit table.
-        var buildingHeaders = new[] { "Location", "Type", "ResidencyType", "Description", "Module3DLink" };
+        // Mirrors the two fields in the new-building form. The tab itself is
+        // the building name and the selected project is already known.
+        var buildingHeaders = new[] { "Localisation", "Description" };
         for (var i = 0; i < buildingHeaders.Length; i++)
         {
             sheet.Cell(1, i + 1).Value = buildingHeaders[i];
@@ -168,10 +170,8 @@ public class GenerateImportTemplateHandler : IRequestHandler<GenerateImportTempl
 
         var unitHeaders = new[]
         {
-            "Floor", "UnitNumber", "NumberOfBedrooms", "NumberOfBathrooms",
-            "ApartmentSurface", "BalconySurface", "TerraceSurface", "GardenSurface",
-            "TotalSurface", "View", "Orientation", "LatestPrice", "TypeBien",
-            "SaleableValue", "SaleableValue1", "PriceSaleableValue", "PriceSaleableValue1"
+            "Étage", "Numéro d’unité", "Type de bien", "Chambres", "Salles de bain",
+            "Surface habitable (m²)", "Surface totale (m²)", "Vue", "Orientation"
         };
         var headerRow = ImportWorkbookReader.UnitHeaderRow;
         for (var i = 0; i < unitHeaders.Length; i++)
@@ -184,28 +184,23 @@ public class GenerateImportTemplateHandler : IRequestHandler<GenerateImportTempl
         if (includeExampleValues)
         {
             sheet.Cell(ImportWorkbookReader.BuildingInfoRow, 1).Value = "Ouest";
-            sheet.Cell(ImportWorkbookReader.BuildingInfoRow, 2).Value = "Appartement";
-            sheet.Cell(ImportWorkbookReader.BuildingInfoRow, 3).Value = "Résidentiel";
-            sheet.Cell(ImportWorkbookReader.BuildingInfoRow, 4).Value = $"Exemple — remplacez par la description de {project.Name}.";
+            sheet.Cell(ImportWorkbookReader.BuildingInfoRow, 2).Value = $"Exemple — remplacez par la description de {project.Name}.";
 
             sheet.Cell(firstDataRow, 1).Value = "RDC";
             sheet.Cell(firstDataRow, 2).Value = "A-001";
-            sheet.Cell(firstDataRow, 3).Value = 2;
-            sheet.Cell(firstDataRow, 4).Value = 1;
-            sheet.Cell(firstDataRow, 5).Value = 65.5;
-            sheet.Cell(firstDataRow, 10).Value = "Mer";
-            sheet.Cell(firstDataRow, 11).Value = "Sud";
-            sheet.Cell(firstDataRow, 12).Value = 850000;
-            if (typeBienNames.Count > 0)
-            {
-                sheet.Cell(firstDataRow, 13).Value = typeBienNames[0];
-            }
+            sheet.Cell(firstDataRow, 3).Value = typeBienNames.Count > 0 ? typeBienNames[0] : string.Empty;
+            sheet.Cell(firstDataRow, 4).Value = 2;
+            sheet.Cell(firstDataRow, 5).Value = 1;
+            sheet.Cell(firstDataRow, 6).Value = 65.5;
+            sheet.Cell(firstDataRow, 7).Value = 65.5;
+            sheet.Cell(firstDataRow, 8).Value = "Mer";
+            sheet.Cell(firstDataRow, 9).Value = "Sud";
         }
 
         if (typeBienRange is not null)
         {
             const int unitDataRows = 1000;
-            var typeBienColumn = sheet.Range(firstDataRow, 13, firstDataRow + unitDataRows, 13);
+            var typeBienColumn = sheet.Range(firstDataRow, 3, firstDataRow + unitDataRows, 3);
             var validation = typeBienColumn.SetDataValidation();
             validation.List(typeBienRange, true);
             validation.InputMessage = $"Sélectionnez un type de bien déjà rattaché à {project.Name}, ou laissez vide.";

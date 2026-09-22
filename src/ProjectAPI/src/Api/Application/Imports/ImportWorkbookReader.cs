@@ -40,11 +40,7 @@ public static class ImportWorkbookReader
         /// <summary>The sheet's tab name — the building's identity. Not a cell value.</summary>
         public string Name { get; set; } = string.Empty;
         public string? Location { get; set; }
-        public string? Type { get; set; }
-        public string? ResidencyType { get; set; }
         public string? Description { get; set; }
-        /// <summary>3D tour link — settable at creation on the normal single-building form too (never on a later edit there).</summary>
-        public string? Module3DLink { get; set; }
     }
 
     public class UnitRow
@@ -61,19 +57,11 @@ public static class ImportWorkbookReader
         public int? NumberOfBedrooms { get; set; }
         public int? NumberOfBathrooms { get; set; }
         public double? ApartmentSurface { get; set; }
-        public double? BalconySurface { get; set; }
-        public double? TerraceSurface { get; set; }
-        public double? GardenSurface { get; set; }
         public double? TotalSurface { get; set; }
         public string? View { get; set; }
         public string? Orientation { get; set; }
-        public decimal? LatestPrice { get; set; }
         /// <summary>Must match a TypeBien already linked to the target project (case-insensitive) — validated in ValidateImportBatchHandler. Blank falls back to the bedroom-count match every other unit-creation path already uses.</summary>
         public string? TypeBien { get; set; }
-        public double? SaleableValue { get; set; }
-        public double? SaleableValue1 { get; set; }
-        public decimal? PriceSaleableValue { get; set; }
-        public decimal? PriceSaleableValue1 { get; set; }
     }
 
     public class ParsedWorkbook
@@ -171,12 +159,9 @@ public static class ImportWorkbookReader
         var r = new BuildingRow { RowNumber = BuildingInfoRow, Name = name };
 
         var location = row.Cell(1).GetString().Trim();
-        var type = row.Cell(2).GetString().Trim();
-        var residencyType = row.Cell(3).GetString().Trim();
-        var description = row.Cell(4).GetString().Trim();
-        var module3DLink = row.Cell(5).GetString().Trim();
+        var description = row.Cell(2).GetString().Trim();
 
-        r.RawJson = JsonSerializer.Serialize(new { name, location, type, residencyType, description, module3DLink });
+        r.RawJson = JsonSerializer.Serialize(new { name, location, description });
 
         var errors = new List<string>();
         if (string.IsNullOrWhiteSpace(name))
@@ -185,10 +170,7 @@ public static class ImportWorkbookReader
         }
 
         r.Location = string.IsNullOrWhiteSpace(location) ? null : location;
-        r.Type = string.IsNullOrWhiteSpace(type) ? null : type;
-        r.ResidencyType = string.IsNullOrWhiteSpace(residencyType) ? null : residencyType;
         r.Description = string.IsNullOrWhiteSpace(description) ? null : description;
-        r.Module3DLink = string.IsNullOrWhiteSpace(module3DLink) ? null : module3DLink;
 
         r.IsValid = errors.Count == 0;
         r.Error = errors.Count == 0 ? null : string.Join(" ", errors);
@@ -201,27 +183,18 @@ public static class ImportWorkbookReader
 
         var floor = row.Cell(1).GetString().Trim();
         var unitNumber = row.Cell(2).GetString().Trim();
-        var bedroomsRaw = row.Cell(3).GetString().Trim();
-        var bathroomsRaw = row.Cell(4).GetString().Trim();
-        var apartmentSurfaceRaw = row.Cell(5).GetString().Trim();
-        var balconySurfaceRaw = row.Cell(6).GetString().Trim();
-        var terraceSurfaceRaw = row.Cell(7).GetString().Trim();
-        var gardenSurfaceRaw = row.Cell(8).GetString().Trim();
-        var totalSurfaceRaw = row.Cell(9).GetString().Trim();
-        var view = row.Cell(10).GetString().Trim();
-        var orientation = row.Cell(11).GetString().Trim();
-        var priceRaw = row.Cell(12).GetString().Trim();
-        var typeBien = row.Cell(13).GetString().Trim();
-        var saleableValueRaw = row.Cell(14).GetString().Trim();
-        var saleableValue1Raw = row.Cell(15).GetString().Trim();
-        var priceSaleableValueRaw = row.Cell(16).GetString().Trim();
-        var priceSaleableValue1Raw = row.Cell(17).GetString().Trim();
+        var typeBien = row.Cell(3).GetString().Trim();
+        var bedroomsRaw = row.Cell(4).GetString().Trim();
+        var bathroomsRaw = row.Cell(5).GetString().Trim();
+        var apartmentSurfaceRaw = row.Cell(6).GetString().Trim();
+        var totalSurfaceRaw = row.Cell(7).GetString().Trim();
+        var view = row.Cell(8).GetString().Trim();
+        var orientation = row.Cell(9).GetString().Trim();
 
         r.RawJson = JsonSerializer.Serialize(new
         {
-            buildingName, floor, unitNumber, bedroomsRaw, bathroomsRaw, apartmentSurfaceRaw,
-            balconySurfaceRaw, terraceSurfaceRaw, gardenSurfaceRaw, totalSurfaceRaw, view, orientation, priceRaw,
-            typeBien, saleableValueRaw, saleableValue1Raw, priceSaleableValueRaw, priceSaleableValue1Raw
+            buildingName, floor, unitNumber, typeBien, bedroomsRaw, bathroomsRaw,
+            apartmentSurfaceRaw, totalSurfaceRaw, view, orientation
         });
 
         var errors = new List<string>();
@@ -241,26 +214,15 @@ public static class ImportWorkbookReader
         r.NumberOfBedrooms = TryParseIntOrNull(bedroomsRaw);
         r.NumberOfBathrooms = TryParseIntOrNull(bathroomsRaw);
         r.ApartmentSurface = TryParseDoubleOrNull(apartmentSurfaceRaw);
-        r.BalconySurface = TryParseDoubleOrNull(balconySurfaceRaw);
-        r.TerraceSurface = TryParseDoubleOrNull(terraceSurfaceRaw);
-        r.GardenSurface = TryParseDoubleOrNull(gardenSurfaceRaw);
         r.TotalSurface = TryParseDoubleOrNull(totalSurfaceRaw);
         r.View = string.IsNullOrWhiteSpace(view) ? null : view;
         r.Orientation = string.IsNullOrWhiteSpace(orientation) ? null : orientation;
-        r.LatestPrice = TryParseDecimalOrNull(priceRaw);
         r.TypeBien = string.IsNullOrWhiteSpace(typeBien) ? null : typeBien;
-        r.SaleableValue = TryParseDoubleOrNull(saleableValueRaw);
-        r.SaleableValue1 = TryParseDoubleOrNull(saleableValue1Raw);
-        r.PriceSaleableValue = TryParseDecimalOrNull(priceSaleableValueRaw);
-        r.PriceSaleableValue1 = TryParseDecimalOrNull(priceSaleableValue1Raw);
 
         r.IsValid = errors.Count == 0;
         r.Error = errors.Count == 0 ? null : string.Join(" ", errors);
         return r;
     }
-
-    private static decimal? TryParseDecimalOrNull(string raw) =>
-        decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : null;
 
     private static int? TryParseIntOrNull(string raw) =>
         int.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : null;

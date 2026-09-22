@@ -1,7 +1,6 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
-using ProjectAPI.Api.Application.Common.Media;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Imports;
 using ProjectAPI.Domain.Immeubles.Entities;
@@ -21,13 +20,11 @@ public class ValidateImportBatchHandler : IRequestHandler<ValidateImportBatchCom
 {
     private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _projectScope;
-    private readonly MediaUrlPolicy _media;
 
-    public ValidateImportBatchHandler(ApplicationDbContext db, ProjectScopeService projectScope, MediaUrlPolicy media)
+    public ValidateImportBatchHandler(ApplicationDbContext db, ProjectScopeService projectScope)
     {
         _db = db;
         _projectScope = projectScope;
-        _media = media;
     }
 
     public async Task<ValidateImportBatchResponse> Handle(ValidateImportBatchCommand request, CancellationToken ct)
@@ -109,20 +106,6 @@ public class ValidateImportBatchHandler : IRequestHandler<ValidateImportBatchCom
             if (!b.IsValid)
             {
                 buildingErrors.Add(b.Error!);
-            }
-            else
-            {
-                // Same allowlist CreateImmeubleCommand's Module3DLink goes
-                // through — a bulk import must not be a back door around the
-                // host restriction every other path enforces.
-                try
-                {
-                    _media.Ensure3DLink(b.Module3DLink, "Module3DLink");
-                }
-                catch (BusinessRuleException ex)
-                {
-                    buildingErrors.Add(ex.Message);
-                }
             }
 
             var isValid = buildingErrors.Count == 0;
