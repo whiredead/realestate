@@ -96,8 +96,6 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     Location = b.Location,
                     Type = b.Type,
                     ResidencyType = b.ResidencyType,
-                    Latitude = b.Latitude,
-                    Longitude = b.Longitude,
                     Description = b.Description,
                     Status = ProjectAPI.Domain.Construction.Entities.ProjectStatusCodes.SurPlan
                 };

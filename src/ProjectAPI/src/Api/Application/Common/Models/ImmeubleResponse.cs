@@ -67,16 +67,6 @@ namespace ProjectAPI.Api.Application.Common.Models
         public string Description { get; set; }
 
         /// <summary>
-        /// Gets or sets the latitude of the project's location.
-        /// </summary>
-        public double Latitude { get; set; }
-
-        /// <summary>
-        /// Gets or sets the longitude of the project's location.
-        /// </summary>
-        public double Longitude { get; set; }
-
-        /// <summary>
         /// Gets or sets the number of units in the project.
         /// </summary>
         public int NumberOfUnits { get; set; }

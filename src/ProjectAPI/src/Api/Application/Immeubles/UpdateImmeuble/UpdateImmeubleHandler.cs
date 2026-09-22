@@ -56,8 +56,6 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
                 { () => !string.IsNullOrWhiteSpace(request.Status), () => immeuble.Status = ProjectStatusCodes.Normalize(request.Status) },
                 { () => request.Images != null && request.Images.Any(), () => immeuble.Images = request.Images },
                 { () => !string.IsNullOrWhiteSpace(request.Description), () => immeuble.Description = request.Description },
-                { () => request.Latitude != 0, () => immeuble.Latitude = request.Latitude },
-                { () => request.Longitude != 0, () => immeuble.Longitude = request.Longitude },
                 { () => request.MaxSellableSurfaceRange > 0, () => immeuble.MaxSellableSurfaceRange = request.MaxSellableSurfaceRange },
                 { () => request.MinSellableSurfaceRange > 0, () => immeuble.MinSellableSurfaceRange = request.MinSellableSurfaceRange }
             };
@@ -97,9 +95,7 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
                 Type = immeuble.Type,
                 Status = ProjectStatusCodes.Normalize(immeuble.Status),
                 Images = immeuble.Images.Split(',').ToList(),
-                Description = immeuble.Description,
-                Latitude = immeuble.Latitude,
-                Longitude = immeuble.Longitude
+                Description = immeuble.Description
             };
         }
     }
