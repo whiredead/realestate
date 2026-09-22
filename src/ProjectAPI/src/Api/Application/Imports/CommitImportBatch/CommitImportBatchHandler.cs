@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Imports;
+using ProjectAPI.Api.Application.Units.Pricing;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Imports.Entities;
 using ProjectAPI.Domain.Projects.Entities;
@@ -207,7 +208,10 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     existingUnit.NumberOfBedrooms = u.NumberOfBedrooms;
                     existingUnit.NumberOfBathrooms = u.NumberOfBathrooms;
                     existingUnit.ApartmentSurface = u.ApartmentSurface;
-                    existingUnit.TotalSurface = u.TotalSurface;
+                    existingUnit.BalconySurface = u.BalconySurface;
+                    existingUnit.TerraceSurface = u.TerraceSurface;
+                    existingUnit.GardenSurface = u.GardenSurface;
+                    ApplyPricing(existingUnit, u);
                     // View/Orientation are NOT NULL columns; the sheet's are
                     // optional, so a blank cell must not become a literal
                     // NULL write (that fails the insert/update outright).
@@ -227,12 +231,15 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     NumberOfBedrooms = u.NumberOfBedrooms,
                     NumberOfBathrooms = u.NumberOfBathrooms,
                     ApartmentSurface = u.ApartmentSurface,
-                    TotalSurface = u.TotalSurface,
+                    BalconySurface = u.BalconySurface,
+                    TerraceSurface = u.TerraceSurface,
+                    GardenSurface = u.GardenSurface,
                     View = u.View ?? string.Empty,
                     Orientation = u.Orientation ?? string.Empty,
                     TypeBienId = typeBienId,
                     Status = UnitCommercialStatus.Available
                 };
+                ApplyPricing(unit, u);
                 _db.Add(unit);
                 existingUnits.Add(unit);
                 response.UnitsCreated++;
@@ -279,5 +286,24 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
         response.Status = batch.Status.ToString();
         response.Message = $"{response.BuildingsCreated} bâtiment(s), {response.FloorsCreated} étage(s) créé(s), {response.UnitsCreated} bien(s) créé(s), {response.UnitsUpdated} bien(s) mis à jour.";
         return response;
+    }
+
+    private static void ApplyPricing(UnitEntity unit, ImportWorkbookReader.UnitRow row)
+    {
+        var pricing = UnitPricingCalculator.Calculate(new UnitPricingInput(
+            unit.ApartmentSurface,
+            unit.BalconySurface,
+            unit.TerraceSurface,
+            unit.GardenSurface,
+            row.PriceSaleableValue,
+            row.PriceSaleableValue1,
+            row.LatestPrice));
+
+        unit.TotalSurface = pricing.TotalSurface;
+        unit.SaleableValue = pricing.SaleableValue;
+        unit.SaleableValue1 = pricing.SaleableValue1;
+        unit.PriceSaleableValue = pricing.PriceSaleableValue;
+        unit.PriceSaleableValue1 = pricing.PriceSaleableValue1;
+        unit.LatestPrice = pricing.LatestPrice;
     }
 }

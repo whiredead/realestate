@@ -1,6 +1,9 @@
 using System.Globalization;
 using System.Text.Json;
 using ClosedXML.Excel;
+using NPOI.HSSF.UserModel;
+using NPOI.SS.UserModel;
+using ProjectAPI.Api.Application.Units.Pricing;
 
 namespace ProjectAPI.Api.Application.Imports;
 
@@ -57,7 +60,15 @@ public static class ImportWorkbookReader
         public int? NumberOfBedrooms { get; set; }
         public int? NumberOfBathrooms { get; set; }
         public double? ApartmentSurface { get; set; }
+        public double? BalconySurface { get; set; }
+        public double? TerraceSurface { get; set; }
+        public double? GardenSurface { get; set; }
         public double? TotalSurface { get; set; }
+        public double? SaleableValue { get; set; }
+        public double? SaleableValue1 { get; set; }
+        public decimal? PriceSaleableValue { get; set; }
+        public decimal? PriceSaleableValue1 { get; set; }
+        public decimal? LatestPrice { get; set; }
         public string? View { get; set; }
         public string? Orientation { get; set; }
         /// <summary>Must match a TypeBien already linked to the target project (case-insensitive) — validated in ValidateImportBatchHandler. Blank falls back to the bedroom-count match every other unit-creation path already uses.</summary>
@@ -73,6 +84,14 @@ public static class ImportWorkbookReader
 
     public static ParsedWorkbook Parse(byte[] fileContent)
     {
+        // The real commercial source supplied by the business is a legacy
+        // .xls workbook. ClosedXML deliberately supports only .xlsx, so parse
+        // that format directly instead of asking an administrator to retype it.
+        if (IsLegacyXls(fileContent))
+        {
+            return ParseLegacyPricingWorkbook(fileContent);
+        }
+
         var result = new ParsedWorkbook();
 
         using var stream = new MemoryStream(fileContent);
@@ -110,6 +129,152 @@ public static class ImportWorkbookReader
 
         return result;
     }
+
+    private static bool IsLegacyXls(byte[] bytes) =>
+        bytes.Length >= 8 && bytes[0] == 0xD0 && bytes[1] == 0xCF && bytes[2] == 0x11 && bytes[3] == 0xE0;
+
+    /// <summary>Reads one legacy pricing sheet per building by matching its visible headers, not fixed column positions.</summary>
+    private static ParsedWorkbook ParseLegacyPricingWorkbook(byte[] fileContent)
+    {
+        var result = new ParsedWorkbook();
+        using var stream = new MemoryStream(fileContent);
+        IWorkbook workbook = new HSSFWorkbook(stream);
+        var totalRows = 0;
+
+        for (var s = 0; s < workbook.NumberOfSheets; s++)
+        {
+            var sheet = workbook.GetSheetAt(s);
+            var headers = FindPricingHeaders(sheet);
+            if (headers is null)
+            {
+                // Synthèse is calculated from all buildings and is deliberately
+                // not imported as stock. Non-building notes are skipped too.
+                continue;
+            }
+
+            var buildingName = sheet.SheetName.Trim();
+            result.Buildings.Add(new BuildingRow
+            {
+                RowNumber = headers.Value.rowIndex + 1,
+                Name = buildingName,
+                IsValid = !string.IsNullOrWhiteSpace(buildingName),
+                RawJson = JsonSerializer.Serialize(new { name = buildingName })
+            });
+
+            for (var r = headers.Value.rowIndex + 1; r <= sheet.LastRowNum; r++)
+            {
+                var row = sheet.GetRow(r);
+                if (row is null || IsBlank(row)) continue;
+                var unit = ParseLegacyUnitRow(row, buildingName, headers.Value.columns);
+                if (string.IsNullOrWhiteSpace(unit.UnitNumber)) continue; // totals / notes below the grid
+                result.Units.Add(unit);
+                totalRows++;
+                if (totalRows > MaxRows)
+                {
+                    result.StructuralError = $"Le fichier dépasse la limite de {MaxRows} lignes.";
+                    return result;
+                }
+            }
+        }
+
+        if (result.Buildings.Count == 0)
+        {
+            result.StructuralError = "Aucun onglet d'immeuble avec les colonnes ETG et N° APP n'a été trouvé.";
+        }
+        return result;
+    }
+
+    private static (int rowIndex, Dictionary<string, int> columns)? FindPricingHeaders(ISheet sheet)
+    {
+        for (var r = sheet.FirstRowNum; r <= Math.Min(sheet.LastRowNum, 20); r++)
+        {
+            var row = sheet.GetRow(r);
+            if (row is null) continue;
+            var columns = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            for (var c = row.FirstCellNum; c >= 0 && c < row.LastCellNum; c++)
+            {
+                var header = NormalizeHeader(CellText(row.GetCell(c)));
+                if (!string.IsNullOrWhiteSpace(header)) columns[header] = c;
+            }
+            if (FindColumn(columns, "ETG", "ETAGE") >= 0 && FindColumn(columns, "N APP", "NO APP", "N° APP") >= 0)
+                return (r, columns);
+        }
+        return null;
+    }
+
+    private static UnitRow ParseLegacyUnitRow(IRow row, string buildingName, Dictionary<string, int> columns)
+    {
+        string Read(params string[] aliases)
+        {
+            var index = FindColumn(columns, aliases);
+            return index < 0 ? string.Empty : CellText(row.GetCell(index)).Trim();
+        }
+
+        var apartment = TryParseDoubleOrNull(Read("SUP APP"));
+        var balcony = TryParseDoubleOrNull(Read("SUP BALCON"));
+        var terrace = TryParseDoubleOrNull(Read("SUP TERRASSE"));
+        var garden = TryParseDoubleOrNull(Read("SUP JARDIN PRIVE", "SUP JARDIN PRIVÉ"));
+        var priceSv = TryParseDecimalOrNull(Read("PRIX SV"));
+        var priceSv1 = TryParseDecimalOrNull(Read("PRIX SV1"));
+        // The business workbook uses several dated names for the final price.
+        var latestPrice = TryParseDecimalOrNull(Read("PRIX TOTAL 161124", "PRIX 161124", "PRIX 06 11", "PRIX"));
+        var calculated = UnitPricingCalculator.Calculate(new UnitPricingInput(apartment, balcony, terrace, garden, priceSv, priceSv1, latestPrice));
+
+        var floor = Read("ETG", "ETAGE");
+        var unitNumber = Read("N APP", "NO APP", "N° APP");
+        var result = new UnitRow
+        {
+            RowNumber = row.RowNum + 1,
+            BuildingName = buildingName,
+            Floor = floor,
+            UnitNumber = unitNumber,
+            NumberOfBedrooms = TryParseIntOrNull(Read("NBR CHB")),
+            NumberOfBathrooms = TryParseIntOrNull(Read("NBR SDB")),
+            ApartmentSurface = apartment,
+            BalconySurface = balcony,
+            TerraceSurface = terrace,
+            GardenSurface = garden,
+            TotalSurface = calculated.TotalSurface,
+            SaleableValue = calculated.SaleableValue,
+            SaleableValue1 = calculated.SaleableValue1,
+            PriceSaleableValue = calculated.PriceSaleableValue,
+            PriceSaleableValue1 = calculated.PriceSaleableValue1,
+            LatestPrice = calculated.LatestPrice,
+            View = EmptyToNull(Read("DONNE COTE", "DONNE CÔTÉ")),
+            Orientation = EmptyToNull(Read("ORIENTATION"))
+        };
+        result.RawJson = JsonSerializer.Serialize(result);
+        var errors = new List<string>();
+        if (string.IsNullOrWhiteSpace(floor)) errors.Add("L'étage est obligatoire.");
+        if (string.IsNullOrWhiteSpace(unitNumber)) errors.Add("Le numéro du bien est obligatoire.");
+        result.IsValid = errors.Count == 0;
+        result.Error = errors.Count == 0 ? null : string.Join(" ", errors);
+        return result;
+    }
+
+    private static int FindColumn(Dictionary<string, int> columns, params string[] aliases) =>
+        aliases.Select(NormalizeHeader).Where(columns.ContainsKey).Select(alias => columns[alias]).DefaultIfEmpty(-1).First();
+
+    private static string NormalizeHeader(string? value) => new string((value ?? string.Empty).Trim().ToUpperInvariant()
+        .Normalize(System.Text.NormalizationForm.FormD).Where(c => System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c) != UnicodeCategory.NonSpacingMark)
+        .Select(c => char.IsLetterOrDigit(c) ? c : ' ').ToArray()).Replace("  ", " ").Trim();
+
+    private static string CellText(ICell? cell)
+    {
+        if (cell is null) return string.Empty;
+        return cell.CellType switch
+        {
+            CellType.Numeric => cell.NumericCellValue.ToString(CultureInfo.InvariantCulture),
+            CellType.Boolean => cell.BooleanCellValue.ToString(),
+            CellType.Formula => cell.CachedFormulaResultType == CellType.Numeric
+                ? cell.NumericCellValue.ToString(CultureInfo.InvariantCulture)
+                : cell.StringCellValue,
+            _ => cell.ToString()
+        };
+    }
+
+    private static bool IsBlank(IRow row) => row.Cells.All(c => string.IsNullOrWhiteSpace(CellText(c)));
+    private static string? EmptyToNull(string value) => string.IsNullOrWhiteSpace(value) ? null : value;
 
     /// <summary>A malformed sheet fails just that one building row rather than the whole upload.</summary>
     private static BuildingRow SafeParseBuilding(IXLWorksheet sheet)
@@ -228,5 +393,10 @@ public static class ImportWorkbookReader
         int.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : null;
 
     private static double? TryParseDoubleOrNull(string raw) =>
-        double.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var v) ? v : null;
+        double.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var v)
+            || double.TryParse(raw, NumberStyles.Any, CultureInfo.GetCultureInfo("fr-FR"), out v) ? v : null;
+
+    private static decimal? TryParseDecimalOrNull(string raw) =>
+        decimal.TryParse(raw, NumberStyles.Any, CultureInfo.InvariantCulture, out var v)
+            || decimal.TryParse(raw, NumberStyles.Any, CultureInfo.GetCultureInfo("fr-FR"), out v) ? v : null;
 }

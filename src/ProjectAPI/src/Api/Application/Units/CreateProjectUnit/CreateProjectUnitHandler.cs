@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Api.Application.Units.Pricing;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
@@ -81,7 +82,17 @@ namespace ProjectAPI.Api.Application.Units.CreateProjectUnit
                 }
             }
 
-            // Create a new unit
+            var pricing = UnitPricingCalculator.Calculate(new UnitPricingInput(
+                request.ApartmentSurface,
+                request.BalconySurface,
+                request.TerraceSurface,
+                request.GardenSurface,
+                request.PriceSaleableValue,
+                request.PriceSaleableValue1,
+                request.LatestPrice));
+
+            // Create a new unit. The source columns stay editable, while all
+            // formula columns mirror the commercial workbook.
             var unit = new Domain.Immeubles.Entities.Unit
             {
                 Id = Guid.NewGuid(),
@@ -96,7 +107,12 @@ namespace ProjectAPI.Api.Application.Units.CreateProjectUnit
                 GardenSurface = request.GardenSurface,
                 View = request.View,
                 Orientation = request.Orientation,
-                TotalSurface = request.TotalSurface,
+                TotalSurface = pricing.TotalSurface,
+                SaleableValue = pricing.SaleableValue,
+                SaleableValue1 = pricing.SaleableValue1,
+                PriceSaleableValue = pricing.PriceSaleableValue,
+                PriceSaleableValue1 = pricing.PriceSaleableValue1,
+                LatestPrice = pricing.LatestPrice,
                 Images = request.Images,
                 TypeBienId = request.TypeBienId
             };
