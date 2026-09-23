@@ -379,6 +379,13 @@ public static class ImportWorkbookReader
         {
             errors.Add("Le numéro du bien est obligatoire.");
         }
+        else if (row.Cell(2).DataType == XLDataType.DateTime)
+        {
+            // Excel turns "8-1-1" into the date 01/08/2001 when the column is not
+            // text-formatted, and GetString() then yields "01/08/2001 00:00:00" —
+            // which used to be stored as the unit number.
+            errors.Add($"Le numéro du bien « {unitNumber} » a été converti en date par Excel : formatez la colonne N° APP en texte puis ressaisissez-le (ex. 8-1-1).");
+        }
 
         r.Floor = floor;
         r.UnitNumber = unitNumber;

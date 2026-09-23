@@ -72,10 +72,17 @@ public class UnitDetailsDto
     public int? NumberOfBedrooms { get; set; }
     public int? NumberOfBathrooms { get; set; }
     public double? ApartmentSurface { get; set; }
+    public double? BalconySurface { get; set; }
+    public double? TerraceSurface { get; set; }
+    public double? GardenSurface { get; set; }
     public double? TotalSurface { get; set; }
+    public double? SaleableValue { get; set; }
+    public double? SaleableValue1 { get; set; }
     public string? View { get; set; }
     public string? Orientation { get; set; }
     public decimal? LatestPrice { get; set; }
+    public decimal? PriceSaleableValue { get; set; }
+    public decimal? PriceSaleableValue1 { get; set; }
 }
 
 public static class UnitLocations
@@ -99,10 +106,17 @@ public static class UnitLocations
                 u.NumberOfBedrooms,
                 u.NumberOfBathrooms,
                 u.ApartmentSurface,
+                u.BalconySurface,
+                u.TerraceSurface,
+                u.GardenSurface,
                 u.TotalSurface,
+                u.SaleableValue,
+                u.SaleableValue1,
                 u.View,
                 u.Orientation,
                 u.LatestPrice,
+                u.PriceSaleableValue,
+                u.PriceSaleableValue1,
                 FloorId = (Guid?)u.Floor.Id,
                 FloorName = u.Floor.Name,
                 FloorSeq = (int?)u.Floor.SequenceNo,
@@ -142,10 +156,17 @@ public static class UnitLocations
                 NumberOfBedrooms = r.NumberOfBedrooms,
                 NumberOfBathrooms = r.NumberOfBathrooms,
                 ApartmentSurface = r.ApartmentSurface,
+                BalconySurface = r.BalconySurface,
+                TerraceSurface = r.TerraceSurface,
+                GardenSurface = r.GardenSurface,
                 TotalSurface = r.TotalSurface,
+                SaleableValue = r.SaleableValue,
+                SaleableValue1 = r.SaleableValue1,
                 View = r.View,
                 Orientation = r.Orientation,
-                LatestPrice = r.LatestPrice
+                LatestPrice = r.LatestPrice,
+                PriceSaleableValue = r.PriceSaleableValue,
+                PriceSaleableValue1 = r.PriceSaleableValue1
             }
         });
     }
