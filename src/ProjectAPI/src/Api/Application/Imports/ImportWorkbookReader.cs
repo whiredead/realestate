@@ -352,14 +352,20 @@ public static class ImportWorkbookReader
         var bedroomsRaw = row.Cell(4).GetString().Trim();
         var bathroomsRaw = row.Cell(5).GetString().Trim();
         var apartmentSurfaceRaw = row.Cell(6).GetString().Trim();
-        var totalSurfaceRaw = row.Cell(7).GetString().Trim();
-        var view = row.Cell(8).GetString().Trim();
-        var orientation = row.Cell(9).GetString().Trim();
+        var balconySurfaceRaw = row.Cell(7).GetString().Trim();
+        var terraceSurfaceRaw = row.Cell(8).GetString().Trim();
+        var gardenSurfaceRaw = row.Cell(9).GetString().Trim();
+        var view = row.Cell(10).GetString().Trim();
+        var orientation = row.Cell(11).GetString().Trim();
+        var latestPriceRaw = row.Cell(12).GetString().Trim();
+        var priceSaleableValueRaw = row.Cell(13).GetString().Trim();
+        var priceSaleableValue1Raw = row.Cell(14).GetString().Trim();
 
         r.RawJson = JsonSerializer.Serialize(new
         {
             buildingName, floor, unitNumber, typeBien, bedroomsRaw, bathroomsRaw,
-            apartmentSurfaceRaw, totalSurfaceRaw, view, orientation
+            apartmentSurfaceRaw, balconySurfaceRaw, terraceSurfaceRaw, gardenSurfaceRaw,
+            latestPriceRaw, priceSaleableValueRaw, priceSaleableValue1Raw, view, orientation
         });
 
         var errors = new List<string>();
@@ -379,7 +385,21 @@ public static class ImportWorkbookReader
         r.NumberOfBedrooms = TryParseIntOrNull(bedroomsRaw);
         r.NumberOfBathrooms = TryParseIntOrNull(bathroomsRaw);
         r.ApartmentSurface = TryParseDoubleOrNull(apartmentSurfaceRaw);
-        r.TotalSurface = TryParseDoubleOrNull(totalSurfaceRaw);
+        r.BalconySurface = TryParseDoubleOrNull(balconySurfaceRaw);
+        r.TerraceSurface = TryParseDoubleOrNull(terraceSurfaceRaw);
+        r.GardenSurface = TryParseDoubleOrNull(gardenSurfaceRaw);
+        r.LatestPrice = TryParseDecimalOrNull(latestPriceRaw);
+        r.PriceSaleableValue = TryParseDecimalOrNull(priceSaleableValueRaw);
+        r.PriceSaleableValue1 = TryParseDecimalOrNull(priceSaleableValue1Raw);
+        var calculated = UnitPricingCalculator.Calculate(new UnitPricingInput(
+            r.ApartmentSurface, r.BalconySurface, r.TerraceSurface, r.GardenSurface,
+            r.PriceSaleableValue, r.PriceSaleableValue1, r.LatestPrice));
+        r.TotalSurface = calculated.TotalSurface;
+        r.SaleableValue = calculated.SaleableValue;
+        r.SaleableValue1 = calculated.SaleableValue1;
+        r.PriceSaleableValue = calculated.PriceSaleableValue;
+        r.PriceSaleableValue1 = calculated.PriceSaleableValue1;
+        r.LatestPrice = calculated.LatestPrice;
         r.View = string.IsNullOrWhiteSpace(view) ? null : view;
         r.Orientation = string.IsNullOrWhiteSpace(orientation) ? null : orientation;
         r.TypeBien = string.IsNullOrWhiteSpace(typeBien) ? null : typeBien;

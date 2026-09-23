@@ -171,7 +171,9 @@ public class GenerateImportTemplateHandler : IRequestHandler<GenerateImportTempl
         var unitHeaders = new[]
         {
             "Étage", "Numéro d’unité", "Type de bien", "Chambres", "Salles de bain",
-            "Surface habitable (m²)", "Surface totale (m²)", "Vue", "Orientation"
+            "Surface appartement (m²)", "Surface balcon (m²)", "Surface terrasse (m²)", "Surface jardin privé (m²)",
+            "Vue", "Orientation", "Prix final (MAD)", "Prix / SV (MAD)", "Prix / SV1 (MAD)",
+            "Surface totale (calculée)", "SV (calculée)", "SV1 (calculée)"
         };
         var headerRow = ImportWorkbookReader.UnitHeaderRow;
         for (var i = 0; i < unitHeaders.Length; i++)
@@ -192,9 +194,22 @@ public class GenerateImportTemplateHandler : IRequestHandler<GenerateImportTempl
             sheet.Cell(firstDataRow, 4).Value = 2;
             sheet.Cell(firstDataRow, 5).Value = 1;
             sheet.Cell(firstDataRow, 6).Value = 65.5;
-            sheet.Cell(firstDataRow, 7).Value = 65.5;
-            sheet.Cell(firstDataRow, 8).Value = "Mer";
-            sheet.Cell(firstDataRow, 9).Value = "Sud";
+            sheet.Cell(firstDataRow, 7).Value = 8;
+            sheet.Cell(firstDataRow, 8).Value = 0;
+            sheet.Cell(firstDataRow, 9).Value = 0;
+            sheet.Cell(firstDataRow, 10).Value = "Mer";
+            sheet.Cell(firstDataRow, 11).Value = "Sud";
+            sheet.Cell(firstDataRow, 12).Value = 1200000;
+        }
+
+        // The workbook shows the same formulas as the commercial source.
+        // Only the input columns are imported; the server recalculates these
+        // values again before persisting the Unit.
+        for (var row = firstDataRow; row < firstDataRow + 1000; row++)
+        {
+            sheet.Cell(row, 15).FormulaA1 = $"=F{row}+G{row}+H{row}+I{row}";
+            sheet.Cell(row, 16).FormulaA1 = $"=F{row}+G{row}/2+H{row}/2+I{row}*30%";
+            sheet.Cell(row, 17).FormulaA1 = $"=F{row}+G{row}+H{row}/2+I{row}*30%";
         }
 
         if (typeBienRange is not null)

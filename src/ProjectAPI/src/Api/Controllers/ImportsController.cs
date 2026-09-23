@@ -55,7 +55,7 @@ public class ImportsController : ControllerBase
         {
             return BadRequest("Un fichier est requis.");
         }
-        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest("Le fichier doit être un classeur Excel (.xlsx).");
         }
@@ -85,7 +85,7 @@ public class ImportsController : ControllerBase
         {
             return BadRequest("Le fichier validé doit être renvoyé pour confirmer l'import.");
         }
-        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase))
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
         {
             return BadRequest("Le fichier doit être un classeur Excel (.xlsx).");
         }
