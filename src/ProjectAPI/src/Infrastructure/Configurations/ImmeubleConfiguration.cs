@@ -54,14 +54,6 @@ namespace ProjectAPI.Infrastructure.Configurations
             builder.Property(p => p.Description)
                 .HasMaxLength(1000);
 
-            // Configures the Latitude property to be required.
-            builder.Property(p => p.Latitude)
-                .IsRequired();
-
-            // Configures the Longitude property to be required.
-            builder.Property(p => p.Longitude)
-                .IsRequired();
-
             // Configures the NumberOfUnits property.
             builder.Property(p => p.NumberOfUnits)
                 .IsRequired();

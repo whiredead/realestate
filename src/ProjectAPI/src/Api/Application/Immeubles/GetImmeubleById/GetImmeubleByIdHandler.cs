@@ -82,8 +82,6 @@ public class GetImmeubleByIdHandler : IRequestHandler<GetImmeubleByIdQuery, Imme
                 : new List<string>(),
 
             Description = immeuble.Description,
-            Latitude = immeuble.Latitude,
-            Longitude = immeuble.Longitude,
             NumberOfUnits = totalUnits,
             MaxSellableSurfaceRange = immeuble.MaxSellableSurfaceRange,
             MinSellableSurfaceRange = immeuble.MinSellableSurfaceRange,

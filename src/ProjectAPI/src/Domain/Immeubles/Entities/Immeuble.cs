@@ -49,16 +49,6 @@ namespace ProjectAPI.Domain.Immeubles.Entities
         public string? Description { get; set; }
 
         /// <summary>
-        /// Gets or sets the latitude of the Immeuble's location.
-        /// </summary>
-        public double Latitude { get; set; }
-
-        /// <summary>
-        /// Gets or sets the longitude of the Immeuble's location.
-        /// </summary>
-        public double Longitude { get; set; }
-
-        /// <summary>
         /// Gets or sets the status of the Immeuble (e.g., ComingSoon, Available).
         /// </summary>
         public string Status { get; set; }

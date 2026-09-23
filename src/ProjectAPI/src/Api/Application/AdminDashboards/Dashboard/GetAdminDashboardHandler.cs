@@ -305,8 +305,94 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
         //    from the same scoped project/unit/sale data already resolved
         //    above, computed fresh (nothing here is a stored counter).
         await PopulateProjectLevelAggregatesAsync(response, scopedProjectIds, scopedUnitIds, periodStart, periodEnd, cancellationToken);
+        await PopulatePricingSynthesisAsync(response, scopedProjectIds, cancellationToken);
 
         return response;
+    }
+
+    private async Task PopulatePricingSynthesisAsync(
+        AdminDashboardResponse response,
+        List<Guid>? scopedProjectIds,
+        CancellationToken ct)
+    {
+        var unitsQuery =
+            from unit in _context.Set<UnitEntity>().AsNoTracking()
+            join immeuble in _context.Set<Immeuble>().AsNoTracking() on unit.ProjectId equals immeuble.Id
+            join project in _context.Projects.AsNoTracking() on immeuble.ProjectId equals project.Id
+            select new
+            {
+                unit.Id,
+                unit.Status,
+                Price = unit.LatestPrice ?? unit.PriceSaleableValue ?? unit.PriceSaleableValue1 ?? 0m,
+                ImmeubleId = immeuble.Id,
+                ImmeubleName = immeuble.Name,
+                ProjectId = project.Id,
+                ProjectName = project.Name,
+            };
+
+        if (scopedProjectIds is not null)
+        {
+            unitsQuery = unitsQuery.Where(unit => scopedProjectIds.Contains(unit.ProjectId));
+        }
+
+        var units = await unitsQuery.ToListAsync(ct);
+        var unitIds = units.Select(unit => unit.Id).ToList();
+        var saleValuesByUnit = await _context.Set<Sale>().AsNoTracking()
+            .Where(sale => unitIds.Contains(sale.UnitId))
+            .GroupBy(sale => sale.UnitId)
+            .Select(group => new { UnitId = group.Key, Value = group.Sum(sale => sale.TotalPrice) })
+            .ToDictionaryAsync(row => row.UnitId, row => row.Value, ct);
+
+        var remainingStatuses = new[]
+        {
+            UnitCommercialStatus.Available,
+            UnitCommercialStatus.HoldPendingApproval,
+            UnitCommercialStatus.Reserved,
+            UnitCommercialStatus.Contracted,
+        };
+        var engagedStatuses = new[]
+        {
+            UnitCommercialStatus.HoldPendingApproval,
+            UnitCommercialStatus.Reserved,
+            UnitCommercialStatus.Contracted,
+            UnitCommercialStatus.Sold,
+            UnitCommercialStatus.Delivered,
+        };
+
+        var pricing = response.PricingSynthesis;
+        pricing.TotalStock = units.Count;
+        pricing.RemainingStock = units.Count(unit => remainingStatuses.Contains(unit.Status));
+        pricing.EngagedStock = units.Count(unit => engagedStatuses.Contains(unit.Status));
+        pricing.PendingApprovalStock = units.Count(unit => unit.Status == UnitCommercialStatus.HoldPendingApproval);
+        pricing.RemainingStockValue = units
+            .Where(unit => remainingStatuses.Contains(unit.Status))
+            .Sum(unit => unit.Price);
+        pricing.ContractedSalesValue = saleValuesByUnit.Values.Sum();
+        pricing.TotalCommercialValue = pricing.RemainingStockValue + pricing.ContractedSalesValue;
+        pricing.EngagedStockPct = pricing.TotalStock == 0 ? 0 : Math.Round(pricing.EngagedStock * 100.0 / pricing.TotalStock, 1);
+        pricing.ContractedValuePct = pricing.TotalCommercialValue == 0 ? 0 : Math.Round((double)(pricing.ContractedSalesValue * 100m / pricing.TotalCommercialValue), 1);
+        pricing.PendingOfRemainingPct = pricing.RemainingStock == 0 ? 0 : Math.Round(pricing.PendingApprovalStock * 100.0 / pricing.RemainingStock, 1);
+        pricing.PendingOfTotalPct = pricing.TotalStock == 0 ? 0 : Math.Round(pricing.PendingApprovalStock * 100.0 / pricing.TotalStock, 1);
+        pricing.Buildings = units
+            .GroupBy(unit => new { unit.ImmeubleId, unit.ImmeubleName, unit.ProjectName })
+            .Select(group =>
+            {
+                var total = group.Count();
+                var remaining = group.Count(unit => remainingStatuses.Contains(unit.Status));
+                return new ImmeublePricingSynthesisDto
+                {
+                    ImmeubleId = group.Key.ImmeubleId,
+                    ImmeubleName = group.Key.ImmeubleName,
+                    ProjectName = group.Key.ProjectName,
+                    TotalUnits = total,
+                    EngagedOrSoldUnits = group.Count(unit => engagedStatuses.Contains(unit.Status)),
+                    RemainingUnits = remaining,
+                    RemainingPct = total == 0 ? 0 : Math.Round(remaining * 100.0 / total, 1),
+                    RemainingStockValue = group.Where(unit => remainingStatuses.Contains(unit.Status)).Sum(unit => unit.Price),
+                };
+            })
+            .OrderByDescending(building => building.RemainingStockValue)
+            .ToList();
     }
 
     private async Task PopulateStockAndProgressAsync(AdminDashboardResponse response, List<Guid>? scopedProjectIds, CancellationToken ct)

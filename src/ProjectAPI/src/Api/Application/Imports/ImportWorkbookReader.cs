@@ -27,8 +27,6 @@ public static class ImportWorkbookReader
         public string? ResidencyType { get; set; }
         public decimal MinPrice { get; set; }
         public decimal MaxPrice { get; set; }
-        public double Latitude { get; set; }
-        public double Longitude { get; set; }
         public string? Description { get; set; }
     }
 
@@ -111,13 +109,11 @@ public static class ImportWorkbookReader
         var residencyType = row.Cell(4).GetString().Trim();
         var minPriceRaw = row.Cell(5).GetString().Trim();
         var maxPriceRaw = row.Cell(6).GetString().Trim();
-        var latRaw = row.Cell(7).GetString().Trim();
-        var lonRaw = row.Cell(8).GetString().Trim();
-        var description = row.Cell(9).GetString().Trim();
+        var description = row.Cell(7).GetString().Trim();
 
         r.RawJson = JsonSerializer.Serialize(new
         {
-            name, location, type, residencyType, minPriceRaw, maxPriceRaw, latRaw, lonRaw, description
+            name, location, type, residencyType, minPriceRaw, maxPriceRaw, description
         });
 
         var errors = new List<string>();
@@ -141,17 +137,12 @@ public static class ImportWorkbookReader
             errors.Add("Le prix minimum doit être inférieur ou égal au prix maximum.");
         }
 
-        double.TryParse(latRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var lat);
-        double.TryParse(lonRaw, NumberStyles.Any, CultureInfo.InvariantCulture, out var lon);
-
         r.Name = name;
         r.Location = string.IsNullOrWhiteSpace(location) ? null : location;
         r.Type = string.IsNullOrWhiteSpace(type) ? null : type;
         r.ResidencyType = string.IsNullOrWhiteSpace(residencyType) ? null : residencyType;
         r.MinPrice = minPrice;
         r.MaxPrice = maxPrice;
-        r.Latitude = lat;
-        r.Longitude = lon;
         r.Description = string.IsNullOrWhiteSpace(description) ? null : description;
 
         r.IsValid = errors.Count == 0;

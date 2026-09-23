@@ -107,6 +107,40 @@ public class AdminDashboardResponse
 
     /// <summary>Global inventory snapshot broken down per project, for a visual (not just one number) sense of what's left.</summary>
     public List<ProjectInventoryDto> InventoryByProject { get; set; } = new();
+
+    /// <summary>
+    /// Current commercial value of the caller's stock perimeter. Values are
+    /// calculated from unit prices and confirmed sales at request time.
+    /// </summary>
+    public PricingSynthesisDto PricingSynthesis { get; set; } = new();
+}
+
+public class PricingSynthesisDto
+{
+    public decimal RemainingStockValue { get; set; }
+    public decimal ContractedSalesValue { get; set; }
+    public decimal TotalCommercialValue { get; set; }
+    public int TotalStock { get; set; }
+    public int EngagedStock { get; set; }
+    public int RemainingStock { get; set; }
+    public int PendingApprovalStock { get; set; }
+    public double EngagedStockPct { get; set; }
+    public double ContractedValuePct { get; set; }
+    public double PendingOfRemainingPct { get; set; }
+    public double PendingOfTotalPct { get; set; }
+    public List<ImmeublePricingSynthesisDto> Buildings { get; set; } = new();
+}
+
+public class ImmeublePricingSynthesisDto
+{
+    public Guid ImmeubleId { get; set; }
+    public string ImmeubleName { get; set; } = string.Empty;
+    public string ProjectName { get; set; } = string.Empty;
+    public int TotalUnits { get; set; }
+    public int EngagedOrSoldUnits { get; set; }
+    public int RemainingUnits { get; set; }
+    public double RemainingPct { get; set; }
+    public decimal RemainingStockValue { get; set; }
 }
 
 public class PeriodComparisonDto

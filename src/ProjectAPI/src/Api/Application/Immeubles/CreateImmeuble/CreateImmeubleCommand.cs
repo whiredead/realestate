@@ -27,16 +27,6 @@ public class CreateImmeubleCommand : IRequest<Guid>
     public string Description { get; set; }
 
     /// <summary>
-    /// Gets or sets the latitude of the immeuble location.
-    /// </summary>
-    public double Latitude { get; set; }
-
-    /// <summary>
-    /// Gets or sets the longitude of the immeuble location.
-    /// </summary>
-    public double Longitude { get; set; }
-
-    /// <summary>
     /// Unused: CreateImmeubleHandler always assigns "ComingSoon" regardless of
     /// this value (a new building's status is not a caller choice). Nullable
     /// because neither creation form sends it — an omitted non-nullable

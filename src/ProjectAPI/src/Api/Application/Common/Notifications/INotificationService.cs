@@ -1,3 +1,6 @@
+using Microsoft.AspNetCore.SignalR;
+using ProjectAPI.Api.Application.Notifications.GetMyNotifications;
+using ProjectAPI.Api.Hubs;
 using ProjectAPI.Domain.Notifications.Entities;
 using ProjectAPI.Infrastructure.Context;
 
@@ -24,10 +27,12 @@ public interface INotificationService
 public class NotificationService : INotificationService
 {
     private readonly ApplicationDbContext _db;
+    private readonly IHubContext<NotificationHub> _hub;
 
-    public NotificationService(ApplicationDbContext db)
+    public NotificationService(ApplicationDbContext db, IHubContext<NotificationHub> hub)
     {
         _db = db;
+        _hub = hub;
     }
 
     public async Task NotifyAsync(
@@ -41,7 +46,7 @@ public class NotificationService : INotificationService
     {
         if (string.IsNullOrWhiteSpace(userId)) return;
 
-        _db.Add(new Notification
+        var notification = new Notification
         {
             Id = Guid.NewGuid(),
             UserId = userId,
@@ -51,8 +56,21 @@ public class NotificationService : INotificationService
             RelatedEntityId = relatedEntityId,
             RelatedEntityType = relatedEntityType,
             CreatedAt = DateTime.UtcNow
-        });
+        };
+        _db.Add(notification);
 
         await _db.SaveChangesAsync(ct);
+
+        await _hub.Clients.User(userId).SendAsync("ReceiveNotification", new NotificationDto
+        {
+            Id = notification.Id,
+            Type = notification.Type,
+            Title = notification.TitleFr,
+            Body = notification.BodyFr,
+            RelatedEntityId = notification.RelatedEntityId,
+            RelatedEntityType = notification.RelatedEntityType,
+            IsRead = notification.IsRead,
+            CreatedAt = notification.CreatedAt,
+        }, ct);
     }
 }

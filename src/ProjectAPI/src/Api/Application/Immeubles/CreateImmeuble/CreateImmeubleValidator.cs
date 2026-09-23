@@ -33,9 +33,7 @@
             RuleFor(project => project.Images)
                 .NotEmpty().WithMessage("Project images are required.");
 
-            // Validation rule for Latitude
-            RuleFor(project => project.Latitude)
-                .NotEmpty().WithMessage("Latitude is required.");*/
+            */
 
             RuleFor(project => project.ProjectId)
                 .NotEmpty().WithMessage("Project Id must not be empty.");

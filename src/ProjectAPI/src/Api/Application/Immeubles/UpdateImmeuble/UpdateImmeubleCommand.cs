@@ -53,14 +53,5 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
         /// </summary>
         public string Description { get; set; }
 
-        /// <summary>
-        /// Gets or sets the latitude of the immeuble location.
-        /// </summary>
-        public double Latitude { get; set; }
-
-        /// <summary>
-        /// Gets or sets the longitude of the immeuble location.
-        /// </summary>
-        public double Longitude { get; set; }
     }
 }

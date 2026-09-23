@@ -109,8 +109,6 @@ public class GetAllImmeublesHandler : IRequestHandler<GetAllImmeublesQuery, Pagi
                     // same field.
                     Images = p.Images != null ? [.. p.Images.Split(',')] : [],
                     Description = p.Description,
-                    Latitude = p.Latitude,
-                    Longitude = p.Longitude,
                     NumberOfUnits = totalUnits,
                     MaxSellableSurfaceRange = p.MaxSellableSurfaceRange,
                     MinSellableSurfaceRange = p.MinSellableSurfaceRange,

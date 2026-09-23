@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
@@ -80,6 +81,19 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["JwtSettings:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JwtSettings:SecretKey"]))
         };
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                if (!string.IsNullOrEmpty(accessToken)
+                    && context.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
     });
 
 // There is no service-to-service API-key scheme any more: authentication and
@@ -157,6 +171,8 @@ builder.Services
         });
     });
 builder.Services.AddScoped<EndpointPermissionFilter>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IUserIdProvider, ProjectAPI.Api.Hubs.NotificationUserIdProvider>();
 
 
 // AddIdentity (in Infrastructure) registers cookie schemes and makes the cookie
@@ -211,5 +227,6 @@ app
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
+app.MapHub<ProjectAPI.Api.Hubs.NotificationHub>("/hubs/notifications").RequireAuthorization();
 
 app.Run();

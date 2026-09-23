@@ -61,8 +61,6 @@ namespace ProjectAPI.Api.Application.Immeubles.CreateImmeuble
                 Type = string.Empty,
                 Images = request.Images,
                 Description = request.Description,
-                Longitude = request.Longitude,
-                Latitude = request.Latitude,
                 // A new building starts with its project's status (SUR_PLAN / EN_LIVRAISON / FINALISE).
                 Status = ProjectStatusCodes.Normalize(project.StatusGlobal),
                 NumberOfUnits = request.NumberOfUnits,

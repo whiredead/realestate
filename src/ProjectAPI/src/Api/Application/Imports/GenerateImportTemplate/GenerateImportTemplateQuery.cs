@@ -21,8 +21,7 @@ public class GenerateImportTemplateHandler : IRequestHandler<GenerateImportTempl
         var buildings = workbook.Worksheets.Add("Buildings");
         var buildingHeaders = new[]
         {
-            "Name", "Location", "Type", "ResidencyType", "MinPrice", "MaxPrice",
-            "Latitude", "Longitude", "Description"
+            "Name", "Location", "Type", "ResidencyType", "MinPrice", "MaxPrice", "Description"
         };
         for (var i = 0; i < buildingHeaders.Length; i++)
         {
