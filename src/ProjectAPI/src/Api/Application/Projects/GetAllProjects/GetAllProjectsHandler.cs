@@ -80,7 +80,6 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
                 Module3DLink = project.Module3DLink,
                 Type = project.Type,
                 StatusGlobal = project.StatusGlobal,
-                StatusReferenceCode = project.StatusReferenceCode,
                 OverAllProgress = project.OverAllProgress,
                 NumberLikes = project.NumberLikes,
                 WarrantyMonths = project.WarrantyMonths,

@@ -20,7 +20,6 @@ public class ProjectDrillDownResponse
     public string Address { get; set; } = string.Empty;
     public string? Type { get; set; }
     public string StatusGlobal { get; set; } = string.Empty;
-    public string? StatusReferenceCode { get; set; }
     public decimal OverAllProgress { get; set; }
     public List<string> Images { get; set; } = new();
 

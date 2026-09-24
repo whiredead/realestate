@@ -103,7 +103,6 @@ public class GetProjectByIdHandler : IRequestHandler<GetProjectByIdQuery, Projec
             Address = project.Address,
             Type = project.Type,
             StatusGlobal = project.StatusGlobal,
-            StatusReferenceCode = project.StatusReferenceCode,
             OverAllProgress = project.OverAllProgress,
             Images = project.Images ?? new List<string>(),
             TotalUnits = allUnitsTotal,

@@ -79,49 +79,8 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
         project.Images = request.Images ?? project.Images;
         project.Type = request.Type ?? project.Type;
 
-        // Statut (StatusReferenceCode) is a label an admin picks from the referential; it never
-        // forces a phase transition — phase only ever advances
-        // through the construction panel's dedicated complete/finalize actions
-        // (ConstructionPanel.tsx -> constructionApi.completeProject/
-        // finalizeProject), which is the one-way SUR_PLAN -> EN_LIVRAISON ->
-        // FINALISE guard this comment used to describe. A project already
-        // FINALISE never reaches this point either way: ProjectReadOnlyGuard
-        // refuses every write on it (409 PROJECT_READ_ONLY).
-        if (request.StatusReferenceCode != null)
-        {
-            var selectedStatusCode = request.StatusReferenceCode.Trim().ToUpperInvariant();
-            var status = await _db.ProjectStatusReferences.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Code == selectedStatusCode && (x.IsActive || x.Code == project.StatusReferenceCode), cancellationToken);
-            if (status is null)
-            {
-                throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
-                {
-                    new FluentValidation.Results.ValidationFailure(nameof(request.StatusReferenceCode), "Le statut sélectionné n'est pas disponible.")
-                });
-            }
-            // The two must not drift apart: a project in phase "Sur plan" that is labelled "En livraison"
-            // showed one word in the admin list and another on the public site and the buildings. Keeping
-            // the current statut is always allowed (an unrelated edit re-sends it).
-            var targetPhase = ProjectStatusCodes.Normalize(status.BusinessPhase);
-            var currentPhase = ProjectStatusCodes.Normalize(project.StatusGlobal);
-            if (status.Code != project.StatusReferenceCode && targetPhase != currentPhase)
-            {
-                string Label(string phase) => phase switch
-                {
-                    ProjectStatusCodes.EnLivraison => "En livraison",
-                    ProjectStatusCodes.Finalise => "Finalisé",
-                    _ => "Sur plan"
-                };
-                throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
-                {
-                    new FluentValidation.Results.ValidationFailure(nameof(request.StatusReferenceCode),
-                        $"Ce statut correspond à la phase « {Label(targetPhase)} », alors que le projet est en phase « {Label(currentPhase)} ». " +
-                        "Le projet ne change de phase que par l'action « Terminer le projet » du panneau Construction.")
-                });
-            }
-
-            project.StatusReferenceCode = status.Code;
-        }
+        // The status (StatusGlobal) is deliberately not editable here: it only moves forward through the
+        // Construction panel's "Terminer le projet" then "Finaliser le projet" actions (audited, one-way).
 
         project.OverAllProgress = request.OverallProgress ?? project.OverAllProgress;
 
@@ -151,7 +110,6 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
             Module3DLink = project.Module3DLink,
             QuartierId = project.QuartierId,
             StatusGlobal = project.StatusGlobal,
-            StatusReferenceCode = project.StatusReferenceCode,
             WarrantyMonths = project.WarrantyMonths,
         };
     }

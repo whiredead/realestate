@@ -50,16 +50,9 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
 
         await ProjectTypeBienLinks.EnsureQuartierExistsAsync(_db, request.QuartierId, cancellationToken);
 
-        var selectedStatusCode = (request.StatusReferenceCode ?? request.StatusGlobal ?? ProjectStatusCodes.SurPlan).Trim().ToUpperInvariant();
-        var status = await _db.ProjectStatusReferences.AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Code == selectedStatusCode && x.IsActive, cancellationToken);
-        if (status is null)
-        {
-            throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
-            {
-                new FluentValidation.Results.ValidationFailure(nameof(request.StatusGlobal), "Le statut sélectionné n'est pas disponible.")
-            });
-        }
+        // A project has ONE status: sur plan, en livraison or finalisé (StatusGlobal). Unknown values fall back
+        // to sur plan; the chosen value is stored as is.
+        var statusGlobal = ProjectStatusCodes.Normalize(request.StatusGlobal);
 
         // Step 1: Resolve or create Quartier
         Guid? quartierId = null;
@@ -101,8 +94,7 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
             // §3 / FR-CMS-001 — a project is created in DRAFT. Normalised so the
             // column only ever holds canonical codes, never the legacy (and
             // misspelled) "CommingSoon" spellings.
-            StatusGlobal = ProjectStatusCodes.Normalize(status.BusinessPhase),
-            StatusReferenceCode = status.Code,
+            StatusGlobal = statusGlobal,
             // §8 — omitted takes the entity default (12 months).
             WarrantyMonths = request.WarrantyMonths ?? 12
         };
