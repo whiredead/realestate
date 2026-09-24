@@ -79,6 +79,13 @@ public class LoginHandler : IRequestHandler<LoginCommand, LoginResponse>
                     return response;
                 }
 
+                // A deactivated account: only tell someone who knows the password, so the
+                // message cannot be used to discover which e-mails are registered or disabled.
+                if (result.IsLockedOut && await _signInManager.UserManager.CheckPasswordAsync(user, request.Password))
+                {
+                    return new LoginResponse { AccessToken = null, IsAutheticated = false, Message = "Account deactivated" };
+                }
+
             }        
             // Return invalid credential if the login is unsuccessful
             return new LoginResponse { AccessToken = null, IsAutheticated = false, Message = "Invalid username or password" };
