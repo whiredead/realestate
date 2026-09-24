@@ -40,6 +40,7 @@ namespace ProjectAPI.Api.Application.Quartiers.GetQuartiers
                     Id = q.Id,
                     Name = q.Name,
                     Description = q.Description,
+                    City = q.City,
                     Images = q.Images
                 })
                 .ToList();

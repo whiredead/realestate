@@ -35,6 +35,7 @@ public class CreateQuartierHandler : IRequestHandler<CreateQuartierCommand, Crea
             Id = Guid.NewGuid(),
             Name = name,
             Description = request.Description,
+            City = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim(),
             Images = request.Images
         };
 

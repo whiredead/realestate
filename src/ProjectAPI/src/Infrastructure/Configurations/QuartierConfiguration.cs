@@ -19,6 +19,10 @@ namespace ProjectAPI.Infrastructure.Configurations
                 .IsRequired()
                 .HasMaxLength(200);
 
+            builder.Property(q => q.City)
+                .HasMaxLength(100)
+                .IsRequired(false);
+
             builder.Property(q => q.Description)
                 .HasMaxLength(2000)
                 .IsRequired(false);

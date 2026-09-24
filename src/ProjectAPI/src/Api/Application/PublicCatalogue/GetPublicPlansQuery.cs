@@ -25,6 +25,9 @@ public class GetPublicPlansQuery : IRequest<PublicPlanPage>
     public Guid? ProjectId { get; set; }
     public string? Quartier { get; set; }
 
+    /// <summary>City (ville) of the project's quartier.</summary>
+    public string? City { get; set; }
+
     /// <summary>Commercial category: Studio, Appartement, Bureau, Commerce.</summary>
     public string? PropertyType { get; set; }
 
@@ -85,6 +88,9 @@ public class GetPublicPlansHandler : IRequestHandler<GetPublicPlansQuery, Public
         if (!string.IsNullOrWhiteSpace(q.Quartier) &&
             !string.Equals(plan.QuartierName, q.Quartier, StringComparison.OrdinalIgnoreCase)) return false;
 
+        if (!string.IsNullOrWhiteSpace(q.City) &&
+            !string.Equals(plan.QuartierCity, q.City, StringComparison.OrdinalIgnoreCase)) return false;
+
         if (!string.IsNullOrWhiteSpace(q.PropertyType) &&
             !string.Equals(plan.PropertyType, q.PropertyType, StringComparison.OrdinalIgnoreCase)) return false;
 
@@ -108,7 +114,7 @@ public class GetPublicPlansHandler : IRequestHandler<GetPublicPlansQuery, Public
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
             var needle = q.Search.Trim();
-            var haystack = $"{plan.PlanName} {plan.ProjectName} {plan.QuartierName} {plan.Location}";
+            var haystack = $"{plan.PlanName} {plan.ProjectName} {plan.QuartierName} {plan.QuartierCity} {plan.Location}";
             if (!haystack.Contains(needle, StringComparison.OrdinalIgnoreCase)) return false;
         }
 
@@ -220,6 +226,7 @@ public static class PublicCatalogueProjection
                     PropertyType = type.Name,
                     ProjectName = project.Name,
                     QuartierName = project.Quartier?.Name,
+                    QuartierCity = project.Quartier?.City,
                     Location = project.Location,
                     Phase = phase,
                     StartingPrice = startingPrice > 0 ? startingPrice : null,
@@ -229,7 +236,10 @@ public static class PublicCatalogueProjection
                     Bathrooms = type.NbrSalleDeBain,
                     Showers = type.NbrDouche,
                     Parking = type.NbrParking,
-                    CoverImage = FirstImage(type.Image) ?? project.Images.FirstOrDefault(),
+                    // The card represents the PROJECT, so its main picture (first image) leads; the plan's
+                    // own picture is kept apart in PlanImage and used on the plan page.
+                    CoverImage = project.Images.FirstOrDefault() ?? FirstImage(type.Image),
+                    PlanImage = FirstImage(type.Image),
                     Latitude = project.Latitude,
                     Longitude = project.Longitude,
                     Availability = PublicAvailability.FromCount(availableUnits.Count),

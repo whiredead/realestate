@@ -11,6 +11,8 @@ public class QuartierListItem
     /// <summary>Shown in the referential table; the list used to carry only id and name.</summary>
     public string? Description { get; set; }
 
+    public string? City { get; set; }
+
     /// <summary>Comma-separated image URLs, as stored.</summary>
     public string? Images { get; set; }
 }

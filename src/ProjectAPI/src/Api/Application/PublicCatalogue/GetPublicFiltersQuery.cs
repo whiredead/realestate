@@ -30,6 +30,7 @@ public class PublicFilterOption
 
     /// <summary>Lets the UI group or subtitle a project by its neighbourhood.</summary>
     public string? QuartierName { get; set; }
+    public string? QuartierCity { get; set; }
 }
 
 /// <summary>One row of the TypeBien referential, as the public site shows it.</summary>
@@ -44,6 +45,9 @@ public class PublicFilterOptions
 {
     public List<PublicFilterOption> Projects { get; set; } = new();
     public List<string> Quartiers { get; set; } = new();
+
+    /// <summary>Distinct cities (villes) of the quartiers that host a project.</summary>
+    public List<string> Cities { get; set; } = new();
 
     /// <summary>TypeBien names, the values the plans' PropertyType filter accepts.</summary>
     public List<string> PropertyTypes { get; set; } = new();
@@ -70,7 +74,8 @@ public class GetPublicFiltersHandler : IRequestHandler<GetPublicFiltersQuery, Pu
             {
                 Id = p.Id,
                 Name = p.Name,
-                QuartierName = p.Quartier != null ? p.Quartier.Name : null
+                QuartierName = p.Quartier != null ? p.Quartier.Name : null,
+                QuartierCity = p.Quartier != null ? p.Quartier.City : null
             })
             .ToListAsync(ct);
 
@@ -80,6 +85,14 @@ public class GetPublicFiltersHandler : IRequestHandler<GetPublicFiltersQuery, Pu
             .Select(q => q!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(q => q, StringComparer.CurrentCultureIgnoreCase)
+            .ToList();
+
+        var cities = projects
+            .Select(p => p.QuartierCity)
+            .Where(c => !string.IsNullOrWhiteSpace(c))
+            .Select(c => c!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(c => c, StringComparer.CurrentCultureIgnoreCase)
             .ToList();
 
         // The property types are the TypeBien referential itself: a type an admin
@@ -97,6 +110,7 @@ public class GetPublicFiltersHandler : IRequestHandler<GetPublicFiltersQuery, Pu
         {
             Projects = projects,
             Quartiers = quartiers,
+            Cities = cities,
             PropertyTypes = typeBiens.Select(t => t.Name).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
             TypeBiens = typeBiens
         };

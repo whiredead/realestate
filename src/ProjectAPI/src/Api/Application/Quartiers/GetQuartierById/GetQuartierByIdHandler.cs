@@ -28,6 +28,7 @@ public class GetQuartierByIdHandler : IRequestHandler<GetQuartierByIdQuery, GetQ
             Id = quartier.Id,
             Name = quartier.Name,
             Description = quartier.Description,
+            City = quartier.City,
             Images = quartier.Images
         };
     }

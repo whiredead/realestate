@@ -27,6 +27,9 @@ public class UpdateQuartierCommand : IRequest<QuartierResponse>
     public string? Name { get; set; }
     public string? Description { get; set; }
 
+    /// <summary>City (ville). Null keeps the current value; an empty string clears it.</summary>
+    public string? City { get; set; }
+
     /// <summary>Comma-separated image URLs, matching how the column is stored.</summary>
     public string? Images { get; set; }
 }
@@ -36,6 +39,7 @@ public class QuartierResponse
     public Guid Id { get; set; }
     public string Name { get; set; } = string.Empty;
     public string? Description { get; set; }
+    public string? City { get; set; }
     public string? Images { get; set; }
 
     /// <summary>How many projects sit in this quartier — the console shows the blast radius of a rename.</summary>
@@ -49,6 +53,7 @@ public class UpdateQuartierValidator : AbstractValidator<UpdateQuartierCommand>
         RuleFor(x => x.Id).NotEmpty();
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200).When(x => x.Name is not null);
         RuleFor(x => x.Description).MaximumLength(4000).When(x => x.Description is not null);
+        RuleFor(x => x.City).MaximumLength(100).When(x => x.City is not null);
     }
 }
 
@@ -80,6 +85,7 @@ public class UpdateQuartierHandler : IRequestHandler<UpdateQuartierCommand, Quar
 
         quartier.Name = request.Name ?? quartier.Name;
         quartier.Description = request.Description ?? quartier.Description;
+        if (request.City is not null) quartier.City = string.IsNullOrWhiteSpace(request.City) ? null : request.City.Trim();
 
         await _db.SaveChangesAsync(ct);
 
@@ -88,6 +94,7 @@ public class UpdateQuartierHandler : IRequestHandler<UpdateQuartierCommand, Quar
             Id = quartier.Id,
             Name = quartier.Name,
             Description = quartier.Description,
+            City = quartier.City,
             Images = quartier.Images,
             ProjectCount = await _db.Set<Project>().CountAsync(p => p.QuartierId == quartier.Id, ct)
         };

@@ -20,6 +20,9 @@ public class Quartier
     /// </summary>
     public string Description { get; set; }
 
+    /// <summary>City (ville) the quartier is in, e.g. Casablanca. Optional; used to filter the public catalogue.</summary>
+    public string? City { get; set; }
+
     /// <summary>
     /// An optional string containing images or links to images of the quartier.
     /// This could be JSON or comma-separated URLs.

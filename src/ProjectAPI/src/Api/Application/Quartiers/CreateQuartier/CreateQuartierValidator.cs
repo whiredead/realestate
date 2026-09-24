@@ -7,6 +7,7 @@ public class CreateQuartierValidator : AbstractValidator<CreateQuartierCommand>
     {
         RuleFor(c => c.Name).NotEmpty().WithMessage("Le nom du quartier est obligatoire.")
             .MaximumLength(200).WithMessage("Le nom ne doit pas dépasser 200 caractères.");
+        RuleFor(c => c.City).MaximumLength(100).WithMessage("La ville ne doit pas dépasser 100 caractères.");
         RuleFor(c => c.Description).MaximumLength(2000).WithMessage("La description ne doit pas dépasser 2000 caractères.");
         RuleFor(c => c.Images).MaximumLength(20000).WithMessage("La liste d'images est trop longue.");
     }

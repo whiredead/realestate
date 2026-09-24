@@ -101,6 +101,7 @@ public class GetPublicProjectHandler : IRequestHandler<GetPublicProjectQuery, Pu
             Longitude = project.Longitude,
 
             QuartierName = project.Quartier?.Name,
+            QuartierCity = project.Quartier?.City,
             QuartierDescription = project.Quartier?.Description,
             QuartierImages = SplitImages(project.Quartier?.Images),
 

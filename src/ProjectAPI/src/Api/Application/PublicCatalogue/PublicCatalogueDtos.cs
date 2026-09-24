@@ -55,6 +55,7 @@ public class PublicPlanSummary
 
     public string ProjectName { get; set; } = string.Empty;
     public string? QuartierName { get; set; }
+    public string? QuartierCity { get; set; }
     public string? Location { get; set; }
 
     /// <summary>Friendly phase: SUR_PLAN | EN_LIVRAISON | FINALISE | SUSPENDED.</summary>
@@ -73,7 +74,11 @@ public class PublicPlanSummary
     /// <summary>Parking spaces included. Null = not recorded; the card omits it rather than claiming zero.</summary>
     public int? Parking { get; set; }
 
+    /// <summary>The project's main picture (first project image), falling back to the plan's own picture.</summary>
     public string? CoverImage { get; set; }
+
+    /// <summary>The type de bien's own picture (the plan itself), for the plan detail page.</summary>
+    public string? PlanImage { get; set; }
 
     /// <summary>The parent project's coordinates (not the plan's own — a plan has no address of its own). Null when the project has none set.</summary>
     public double? Latitude { get; set; }
@@ -137,6 +142,7 @@ public class PublicProjectDetail
     public double? Longitude { get; set; }
 
     public string? QuartierName { get; set; }
+    public string? QuartierCity { get; set; }
     public string? QuartierDescription { get; set; }
     public List<string> QuartierImages { get; set; } = new();
 
