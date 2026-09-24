@@ -125,7 +125,7 @@ public class CommitImportBatchHandler : IRequestHandler<CommitImportBatchCommand
                     Name = b.Name,
                     Location = b.Location,
                     Description = b.Description,
-                    Status = ProjectAPI.Domain.Construction.Entities.ProjectStatusCodes.SurPlan
+                    Status = ProjectAPI.Domain.Construction.Entities.ImmeubleStatusCodes.UnderConstruction
                 };
                 _db.Add(immeuble);
                 existingBuildings[b.Name] = immeuble;

@@ -62,7 +62,7 @@ namespace ProjectAPI.Api.Application.Immeubles.CreateImmeuble
                 Images = request.Images,
                 Description = request.Description,
                 // A new building starts with its project's status (SUR_PLAN / EN_LIVRAISON / FINALISE).
-                Status = ProjectStatusCodes.Normalize(project.StatusGlobal),
+                Status = ImmeubleStatusCodes.ForNewBuilding(project.StatusGlobal),
                 NumberOfUnits = request.NumberOfUnits,
                 MinSellableSurfaceRange = request.MinSellableSurfaceRange,
                 MaxSellableSurfaceRange = request.MaxSellableSurfaceRange,

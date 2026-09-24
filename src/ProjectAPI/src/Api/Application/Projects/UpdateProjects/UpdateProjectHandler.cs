@@ -79,10 +79,8 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
         project.Images = request.Images ?? project.Images;
         project.Type = request.Type ?? project.Type;
 
-        // Statut (StatusReferenceCode) and phase (StatusGlobal) are independent:
-        // the business-facing statut is a free label an admin picks from the
-        // referential, and no longer forces a phase transition just because its
-        // BusinessPhase happens to point at one — phase only ever advances
+        // Statut (StatusReferenceCode) is a label an admin picks from the referential; it never
+        // forces a phase transition — phase only ever advances
         // through the construction panel's dedicated complete/finalize actions
         // (ConstructionPanel.tsx -> constructionApi.completeProject/
         // finalizeProject), which is the one-way SUR_PLAN -> EN_LIVRAISON ->
@@ -101,6 +99,27 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
                     new FluentValidation.Results.ValidationFailure(nameof(request.StatusReferenceCode), "Le statut sélectionné n'est pas disponible.")
                 });
             }
+            // The two must not drift apart: a project in phase "Sur plan" that is labelled "En livraison"
+            // showed one word in the admin list and another on the public site and the buildings. Keeping
+            // the current statut is always allowed (an unrelated edit re-sends it).
+            var targetPhase = ProjectStatusCodes.Normalize(status.BusinessPhase);
+            var currentPhase = ProjectStatusCodes.Normalize(project.StatusGlobal);
+            if (status.Code != project.StatusReferenceCode && targetPhase != currentPhase)
+            {
+                string Label(string phase) => phase switch
+                {
+                    ProjectStatusCodes.EnLivraison => "En livraison",
+                    ProjectStatusCodes.Finalise => "Finalisé",
+                    _ => "Sur plan"
+                };
+                throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
+                {
+                    new FluentValidation.Results.ValidationFailure(nameof(request.StatusReferenceCode),
+                        $"Ce statut correspond à la phase « {Label(targetPhase)} », alors que le projet est en phase « {Label(currentPhase)} ». " +
+                        "Le projet ne change de phase que par l'action « Terminer le projet » du panneau Construction.")
+                });
+            }
+
             project.StatusReferenceCode = status.Code;
         }
 

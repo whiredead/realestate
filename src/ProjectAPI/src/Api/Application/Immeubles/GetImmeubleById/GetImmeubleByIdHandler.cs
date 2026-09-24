@@ -73,7 +73,7 @@ public class GetImmeubleByIdHandler : IRequestHandler<GetImmeubleByIdQuery, Imme
             Location = immeuble.Location,
             Type = immeuble.Type,
 
-            Status = ProjectStatusCodes.Normalize(immeuble.Status),
+            Status = ImmeubleStatusCodes.Normalize(immeuble.Status),
 
             // If immeuble.Images is a comma-separated string
             // e.g., "img1.jpg,img2.jpg"
