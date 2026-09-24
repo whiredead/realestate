@@ -15,14 +15,17 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
     private readonly ProjectScopeService _projectScope;
     private readonly MediaUrlPolicy _media;
     private readonly Infrastructure.Context.ApplicationDbContext _db;
+    private readonly ICurrentUser? _currentUser;
 
     public UpdateProjectHandler(
         IProjectRepository projectRepository,
         IQuartierRepository quartierRepository,
         ProjectScopeService projectScope,
         MediaUrlPolicy media,
-        Infrastructure.Context.ApplicationDbContext db)
+        Infrastructure.Context.ApplicationDbContext db,
+        ICurrentUser? currentUser = null)
     {
+        _currentUser = currentUser;
         _projectRepository = projectRepository;
         _quartierRepository = quartierRepository;
         _projectScope = projectScope;
@@ -79,8 +82,36 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
         project.Images = request.Images ?? project.Images;
         project.Type = request.Type ?? project.Type;
 
-        // The status (StatusGlobal) is deliberately not editable here: it only moves forward through the
-        // Construction panel's "Terminer le projet" then "Finaliser le projet" actions (audited, one-way).
+        // The project's ONE status (sur plan / en livraison / finalisé) can be changed from the edit form.
+        // The Construction panel's "Terminer le projet" stays the guided route (it checks 100% progress);
+        // changing it here skips that check, so every change leaves an internal audit entry (who, from,
+        // to, when). A finalised project never gets here: the read-only guard refuses every write on it.
+        if (!string.IsNullOrWhiteSpace(request.StatusGlobal))
+        {
+            var targetStatus = ProjectStatusCodes.Normalize(request.StatusGlobal);
+            var currentStatus = ProjectStatusCodes.Normalize(project.StatusGlobal);
+            if (targetStatus != currentStatus)
+            {
+                var decidedAt = DateTime.UtcNow;
+                var actorUserId = _currentUser?.UserId;
+                project.StatusGlobal = targetStatus;
+                _db.Add(new ConstructionUpdate
+                {
+                    Id = Guid.NewGuid(),
+                    ProjectId = project.Id,
+                    VersionNo = 1,
+                    ProgressPercent = project.OverAllProgress,
+                    TitleFr = "Changement de statut",
+                    TitleEn = "Status change",
+                    DescriptionFr = $"Statut modifié de {currentStatus} à {targetStatus} depuis la fiche projet " +
+                                    $"par {actorUserId ?? "?"} le {decidedAt:yyyy-MM-dd HH:mm} UTC.",
+                    Visibility = UpdateVisibility.Internal,
+                    AuthorUserId = actorUserId,
+                    PublishedAt = decidedAt,
+                    CreatedAt = decidedAt
+                });
+            }
+        }
 
         project.OverAllProgress = request.OverallProgress ?? project.OverAllProgress;
 
