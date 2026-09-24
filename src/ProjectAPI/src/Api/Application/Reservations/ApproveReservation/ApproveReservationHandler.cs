@@ -318,6 +318,15 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
     /// table that does not exist yet (audit B10). Until it does, a buyer with no
     /// account is recorded only as loose text on the reservation.
     /// </summary>
+    /// <summary>The prospect has become a buyer: the account no longer carries the PROSPECT role.</summary>
+    private async Task DropProspectRoleAsync(User buyer)
+    {
+        if (await _userManager.IsInRoleAsync(buyer, RoleCodes.Prospect))
+        {
+            await _userManager.RemoveFromRoleAsync(buyer, RoleCodes.Prospect);
+        }
+    }
+
     private async Task GrantBuyerRoleAsync(string buyerUserId, Guid reservationId)
     {
         try
@@ -333,12 +342,14 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
 
             if (await _userManager.IsInRoleAsync(buyer, RoleCodes.Buyer))
             {
+                await DropProspectRoleAsync(buyer);
                 return;
             }
 
             var result = await _userManager.AddToRoleAsync(buyer, RoleCodes.Buyer);
             if (result.Succeeded)
             {
+                await DropProspectRoleAsync(buyer);
                 _logger.LogInformation(
                     "[ApproveReservation] Granted BUYER to {BuyerId} following approval of {ReservationId}.",
                     buyerUserId, reservationId);
@@ -368,6 +379,19 @@ public class ApproveReservationHandler : IRequestHandler<ApproveReservationComma
     {
         try
         {
+            // A live link was already issued when the reservation was created: issuing another would revoke the
+            // one the buyer may be holding. Only issue when none is usable.
+            var now = DateTime.UtcNow;
+            var hasLiveInvitation = await _db.Set<ProjectAPI.Domain.Crm.Entities.AccountInvitation>()
+                .AnyAsync(i => i.CrmContactId == crmContactId && i.AcceptedAt == null && i.RevokedAt == null && i.ExpiresAt > now, ct);
+            if (hasLiveInvitation)
+            {
+                _logger.LogInformation(
+                    "[ApproveReservation] Contact {ContactId} already has a live activation link; not issuing another for {ReservationId}.",
+                    crmContactId, reservationId);
+                return;
+            }
+
             var invitation = await _accountInvitations.IssueAsync(crmContactId, ct);
             if (invitation is null)
             {

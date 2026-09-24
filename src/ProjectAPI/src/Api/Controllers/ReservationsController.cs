@@ -172,6 +172,21 @@ public class ReservationsController : ControllerBase
         return Ok(await _mediator.Send(body));
     }
 
+    /// <summary>
+    /// A (new) link the buyer uses to choose their own password, for a reservation whose buyer has no account yet.
+    /// The agent shares it; earlier links for the same person stop working.
+    /// </summary>
+    [HttpPost("{id:guid}/activation-link")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    public async Task<IActionResult> IssueActivationLink(Guid id)
+        => Ok(await _mediator.Send(new ProjectAPI.Api.Application.Reservations.IssueActivationLink.IssueActivationLinkCommand { ReservationId = id }));
+
+    /// <summary>Prospects already in the database, for the reservation form ("pick an existing prospect").</summary>
+    [HttpGet("prospects")]
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    public async Task<IActionResult> GetProspects([FromQuery] string? search, [FromQuery] Guid? projectId)
+        => Ok(await _mediator.Send(new ProjectAPI.Api.Application.Reservations.GetProspects.GetProspectsQuery { Search = search, ProjectId = projectId }));
+
     [HttpPost("{id:guid}/reject")]
     [Authorize(Roles = RoleGroups.Admins)] // §6.3 "V périmètre".
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectReservationCommand body)

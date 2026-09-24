@@ -60,6 +60,13 @@ public class AcceptInvitationHandler : IRequestHandler<AcceptInvitationCommand, 
 
         var contact = invitation.CrmContact;
 
+        // BUYER is a consequence of approval (§6.2). Someone activating before any reservation of theirs is
+        // approved starts as PROSPECT; approving the reservation later grants BUYER on the linked account.
+        var hasApprovedReservation = await _db.Reservations.AnyAsync(r =>
+            r.PrimaryContactId == contact.Id &&
+            (r.Status == Domain.Reservations.Entities.ReservationStatus.Approved ||
+             r.Status == Domain.Reservations.Entities.ReservationStatus.Sold), ct);
+
         var provisioned = await _sender.Send(new ProvisionInternalUserCommand
         {
             Email = invitation.Email,
@@ -67,7 +74,7 @@ public class AcceptInvitationHandler : IRequestHandler<AcceptInvitationCommand, 
             LastName = contact.LastName,
             Password = request.Password,
             PhoneNumber = contact.Phone,
-            RoleCode = RoleCodes.Buyer
+            RoleCode = hasApprovedReservation ? RoleCodes.Buyer : RoleCodes.Prospect
         }, ct);
 
         // §1.1 — one account maps to at most one contact (filtered unique

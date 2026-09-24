@@ -7,6 +7,12 @@ public class CreateReservationCommand : IRequest<CreateReservationResponse>, IId
 {
     public string? IdempotencyKey { get; set; }
     public string? BuyerId { get; set; }
+
+    /// <summary>
+    /// An existing prospect (CRM contact) chosen from the list instead of typing a new person. When given, that
+    /// contact is used as is, so the same human is never duplicated; their account (if any) is linked as the buyer.
+    /// </summary>
+    public Guid? ProspectContactId { get; set; }
     public string? Name { get; set; }
     public string? LastName { get; set; }
     public string? CIN { get; set; }

@@ -32,6 +32,8 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
         private readonly IContactResolver _contacts;
         private readonly ProjectScopeService _projectScope;
         private readonly Common.Reservations.ReservationDocumentChecklist _documents;
+        private readonly Common.Crm.IAccountInvitationService _accountInvitations;
+        private readonly ILogger<CreateReservationHandler> _logger;
 
         public CreateReservationHandler(
             IReservationRepository reservationRepository,
@@ -41,8 +43,12 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
             ApplicationDbContext db,
             IContactResolver contacts,
             ProjectScopeService projectScope,
-            Common.Reservations.ReservationDocumentChecklist documents)
+            Common.Reservations.ReservationDocumentChecklist documents,
+            Common.Crm.IAccountInvitationService accountInvitations,
+            ILogger<CreateReservationHandler> logger)
         {
+            _accountInvitations = accountInvitations;
+            _logger = logger;
             _reservationRepository = reservationRepository;
             _unitRepository = unitRepository;
             _userManager = userManager;
@@ -124,9 +130,16 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                 // (or create) the one CrmContact they are, so the same human is
                 // recognisable across reservations instead of being duplicated
                 // inline on each one. An account is optional and stays optional.
-                var contact = await _contacts.ResolveAsync(
-                    request.Name, request.LastName, request.Email, request.PhoneNumber,
-                    request.CIN, request.BuyerId, cancellationToken);
+                var contact = request.ProspectContactId is Guid prospectId
+                    ? await _db.CrmContacts.FirstOrDefaultAsync(c => c.Id == prospectId && c.ArchivedAt == null, cancellationToken)
+                        ?? throw new NotFoundException($"Prospect {prospectId} not found.")
+                    : await _contacts.ResolveAsync(
+                        request.Name, request.LastName, request.Email, request.PhoneNumber,
+                        request.CIN, request.BuyerId, cancellationToken);
+
+                // A prospect who already has an account is linked to it, so approving the reservation upgrades that
+                // account; someone without one gets an activation link below.
+                var effectiveBuyerId = string.IsNullOrEmpty(request.BuyerId) ? contact.UserId : request.BuyerId;
 
                 // §5.3 — final_price = catalog_price - discount, frozen at submit
                 // and never recomputed even if the unit's catalogue price moves
@@ -140,7 +153,7 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                 {
                     Id = Guid.NewGuid(),
                     PrimaryContact = contact,
-                    BuyerId = request.BuyerId,
+                    BuyerId = effectiveBuyerId,
                     Name = request.Name ?? string.Empty,
                     LastName = request.LastName ?? string.Empty,
                     CIN = request.CIN,
@@ -267,12 +280,42 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                     referencedEntities.Add($"NotaireId: {request.NotaireId}");
                 }
 
+                // The buyer chooses their own password: when the person has no account yet, issue the activation
+                // link now, so the agent can hand it over as soon as the reservation exists. The account itself is
+                // created when the buyer sets the password (nothing is ever stored without one). Never fails the
+                // reservation: a missing e-mail or a failed invitation just means no link is returned.
+                string? activationToken = null;
+                DateTime? activationExpiresAt = null;
+                if (string.IsNullOrEmpty(effectiveBuyerId) && reservation.PrimaryContactId is Guid primaryContactId)
+                {
+                    try
+                    {
+                        var buyerContact = reservation.PrimaryContact
+                            ?? await _db.CrmContacts.FirstOrDefaultAsync(c => c.Id == primaryContactId, cancellationToken);
+                        if (buyerContact is not null
+                            && !string.IsNullOrWhiteSpace(buyerContact.Email)
+                            && buyerContact.UserId is null
+                            && await _userManager.FindByEmailAsync(buyerContact.Email) is null)
+                        {
+                            var invitation = await _accountInvitations.IssueAsync(primaryContactId, cancellationToken);
+                            activationToken = invitation?.Token;
+                            activationExpiresAt = invitation?.ExpiresAt;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "[CreateReservation] Activation link for reservation {ReservationId} could not be issued; the reservation stands.", reservation.Id);
+                    }
+                }
+
                 return new CreateReservationResponse
                 {
                     ReservationId = reservation.Id,
                     Message = "Reservation created successfully (Pending validation).",
                     Success = true,
-                    Details = $"Created for Unit ID {request.UnitId} by Agent {agent.Email}"
+                    Details = $"Created for Unit ID {request.UnitId} by Agent {agent.Email}",
+                    ActivationToken = activationToken,
+                    ActivationExpiresAt = activationExpiresAt
                 };
             }
             catch (ProjectAPI.Api.Application.Common.Exceptions.ValidationException ve)
