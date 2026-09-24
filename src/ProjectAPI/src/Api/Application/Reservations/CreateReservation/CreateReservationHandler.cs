@@ -77,10 +77,8 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                     .FirstOrDefaultAsync(cancellationToken);
                 await _projectScope.EnsureProjectAccessAsync(immeubleProjectId, cancellationToken);
 
-                // §5.2 — a reservation opens a commercial file on a project that
-                // is still selling off-plan. Once the project reaches delivery
-                // (EN_LIVRAISON) the remaining stock is sold, not reserved; a
-                // finalised or suspended project accepts nothing at all.
+                // A reservation opens a commercial file on a project still on the market: sold off-plan
+                // (SUR_PLAN) or in delivery (EN_LIVRAISON). A finalised project accepts nothing at all.
                 var projectStatus = await _db.Set<Project>()
                     .Where(p => p.Id == immeubleProjectId)
                     .Select(p => p.StatusGlobal)

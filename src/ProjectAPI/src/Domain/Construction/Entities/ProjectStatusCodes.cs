@@ -57,8 +57,11 @@ public static class ProjectStatusCodes
     /// <summary>The business phase is the status (the three values are the phases).</summary>
     public static string GetBusinessPhase(string? status) => Normalize(status);
 
-    /// <summary>New reservations only while the project is sold off-plan.</summary>
-    public static bool AllowsNewReservation(string? status) => Normalize(status) == SurPlan;
+    /// <summary>
+    /// New reservations while the project is sold off-plan or in delivery: units still in stock can be reserved until the
+    /// project is finalised (read-only).
+    /// </summary>
+    public static bool AllowsNewReservation(string? status) => Normalize(status) is SurPlan or EnLivraison;
 
     /// <summary>A final visit is only requested once the project is in delivery (§17.1 FR-FVI-001).</summary>
     public static bool AllowsFinalVisit(string? status) => Normalize(status) == EnLivraison;

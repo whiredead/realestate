@@ -258,16 +258,15 @@ public class ReservationSubmissionRulesTests
 
     [Theory]
     [InlineData(ProjectStatusCodes.SurPlan, true)]
-    [InlineData(ProjectStatusCodes.EnLivraison, false)]
+    [InlineData(ProjectStatusCodes.EnLivraison, true)]
     [InlineData(ProjectStatusCodes.Finalise, false)]
     [InlineData("IN_PROGRESS", true)]
-    [InlineData("COMPLETED", false)]
+    [InlineData("COMPLETED", true)]
     [InlineData("ARCHIVED", false)]
-    public void New_reservations_are_allowed_only_while_the_project_sells_off_plan(string status, bool allowed)
+    public void New_reservations_are_allowed_until_the_project_is_finalised(string status, bool allowed)
     {
-        // A reservation opens a commercial file on a project still selling
-        // off-plan (SUR_PLAN). At EN_LIVRAISON the remaining stock is sold
-        // rather than reserved; FINALISE accepts nothing.
+        // A reservation opens a commercial file on a project still on the market: sold off-plan (SUR_PLAN)
+        // or in delivery (EN_LIVRAISON). FINALISE accepts nothing.
         ProjectStatusCodes.AllowsNewReservation(status).Should().Be(allowed);
     }
 }
