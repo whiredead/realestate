@@ -265,7 +265,12 @@ public static class PublicCatalogueProjection
                     PlanImage = FirstImage(type.Image),
                     Latitude = project.Latitude,
                     Longitude = project.Longitude,
-                    Availability = PublicAvailability.FromCount(availableUnits.Count),
+                    // "Disponible" means reservations AND sales are open. New reservations are only accepted while the
+                    // project is sold off-plan, so once it is en livraison (or finalisé) nothing is available to a
+                    // visitor, whatever units are left in stock.
+                    Availability = phase == ProjectStatusCodes.Phase.SurPlan
+                        ? PublicAvailability.FromCount(availableUnits.Count)
+                        : PublicAvailability.SoldOut,
                     Module3DLink = string.IsNullOrWhiteSpace(type.Module3DLink) ? null : type.Module3DLink
                 });
             }
