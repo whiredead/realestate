@@ -58,6 +58,12 @@ public class PublicPlanSummary
     public string? QuartierCity { get; set; }
     public string? Location { get; set; }
 
+    /// <summary>The PROJECT's own description (rich text). Cards describe the programme, not the type de bien.</summary>
+    public string? ProjectDescription { get; set; }
+
+    /// <summary>The project's atouts (features), in the order the admin arranged them; capped for card payloads.</summary>
+    public List<PublicFeature> ProjectFeatures { get; set; } = new();
+
     /// <summary>Friendly phase: SUR_PLAN | EN_LIVRAISON | FINALISE | SUSPENDED.</summary>
     public string Phase { get; set; } = string.Empty;
 

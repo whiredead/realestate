@@ -169,6 +169,16 @@ public static class PublicCatalogueProjection
                 u.Status
             }).ToListAsync(ct);
 
+        // The project's atouts, one query for every project in scope. Cards show at most a handful.
+        var featuresByProject = (await db.Set<ProjectFeature>()
+                .AsNoTracking()
+                .Where(f => projectIds.Contains(f.ProjectId))
+                .OrderBy(f => f.SequenceNo).ThenBy(f => f.CreatedAt)
+                .Select(f => new { f.ProjectId, Feature = new PublicFeature { Name = f.Name, Icon = f.Icon, Description = f.Description } })
+                .ToListAsync(ct))
+            .GroupBy(x => x.ProjectId)
+            .ToDictionary(g => g.Key, g => g.Select(x => x.Feature).Take(8).ToList());
+
         var unitsByProject = units.GroupBy(u => u.RealProjectId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -227,6 +237,8 @@ public static class PublicCatalogueProjection
                     ProjectName = project.Name,
                     QuartierName = project.Quartier?.Name,
                     QuartierCity = project.Quartier?.City,
+                    ProjectDescription = project.Description,
+                    ProjectFeatures = featuresByProject.TryGetValue(project.Id, out var projectFeatures) ? projectFeatures : new List<PublicFeature>(),
                     Location = project.Location,
                     Phase = phase,
                     StartingPrice = startingPrice > 0 ? startingPrice : null,
