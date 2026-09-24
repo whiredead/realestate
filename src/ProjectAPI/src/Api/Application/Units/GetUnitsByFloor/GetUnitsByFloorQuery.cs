@@ -19,10 +19,17 @@ public class UnitDrillDownDto
     public int? NumberOfBedrooms { get; set; }
     public int? NumberOfBathrooms { get; set; }
     public double? ApartmentSurface { get; set; }
+    public double? BalconySurface { get; set; }
+    public double? TerraceSurface { get; set; }
+    public double? GardenSurface { get; set; }
     public double? TotalSurface { get; set; }
+    public double? SaleableValue { get; set; }
+    public double? SaleableValue1 { get; set; }
     public string? View { get; set; }
     public string? Orientation { get; set; }
     public decimal? LatestPrice { get; set; }
+    public decimal? PriceSaleableValue { get; set; }
+    public decimal? PriceSaleableValue1 { get; set; }
     public string Status { get; set; } = string.Empty;
     public string? Images { get; set; }
 

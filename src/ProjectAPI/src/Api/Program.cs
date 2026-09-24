@@ -172,6 +172,24 @@ builder.Services
                    .AllowAnyMethod()
                    .AllowAnyHeader();
         });
+
+        // The SignalR client sends credentials on /hubs/notifications/negotiate, and
+        // browsers reject a "*" Access-Control-Allow-Origin for credentialed
+        // requests — so the hub gets its own policy that echoes back only known
+        // origins: explicit entries of AllowedOrigins, plus localhost in Development.
+        var hubOrigins = (builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? Array.Empty<string>())
+            .Where(o => o != "*")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var isDevelopment = builder.Environment.IsDevelopment();
+        options.AddPolicy("NotificationHub", builder =>
+        {
+            builder.SetIsOriginAllowed(origin =>
+                       hubOrigins.Contains(origin) ||
+                       (isDevelopment && Uri.TryCreate(origin, UriKind.Absolute, out var uri) && uri.IsLoopback))
+                   .AllowAnyMethod()
+                   .AllowAnyHeader()
+                   .AllowCredentials();
+        });
     });
 builder.Services.AddScoped<EndpointPermissionFilter>();
 builder.Services.AddSignalR();
@@ -230,6 +248,6 @@ app
 
 app.MapHealthChecks("/health").AllowAnonymous();
 app.MapControllers();
-app.MapHub<ProjectAPI.Api.Hubs.NotificationHub>("/hubs/notifications").RequireAuthorization();
+app.MapHub<ProjectAPI.Api.Hubs.NotificationHub>("/hubs/notifications").RequireCors("NotificationHub");
 
 app.Run();
