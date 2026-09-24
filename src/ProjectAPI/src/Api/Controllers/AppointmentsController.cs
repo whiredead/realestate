@@ -72,18 +72,8 @@ public class AppointmentsController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetAppointments([FromQuery] GetAppointmentsQuery query)
     {
-        // Was unconditionally forcing AgentId to the caller's own UserId for
-        // EVERY caller — so an admin's "show all appointments" silently became
-        // "show appointments where AgentId = <admin's own id>", which matches
-        // nothing (an admin isn't an agent and owns no appointments). Only a
-        // SALES_AGENT should be scoped to their own agenda; an admin sees
-        // whatever the query actually asked for (usually none = all).
-        var rolesClaim = User?.FindFirst("Roles")?.Value;
-        var roles = rolesClaim?.Split(',').Select(r => r.Trim()) ?? Enumerable.Empty<string>();
-        if (roles.Contains(RoleCodes.SalesAgent) || roles.Contains("Agent"))
-        {
-            query.AgentId = User.FindFirst("UserId")?.Value;
-        }
+        // No agent pin here: the handler scopes by project perimeter. A sales agent sees every appointment of the
+        // projects assigned to them (acting on a colleague's stays restricted); AgentId is an optional filter only.
         var response = await _mediator.Send(query);
         return Ok(response);
     }
@@ -147,9 +137,8 @@ public class AppointmentsController : ControllerBase
         var res = await _mediator.Send(new GetAppointmentAssignmentHistoryQuery
         {
             AppointmentId = appointmentId,
-            // A SALES_AGENT only sees history for appointments they were
-            // actually involved in — not another agent's book of business.
-            RestrictToAgentId = (roles.Contains(RoleCodes.SalesAgent) || roles.Contains("Agent")) ? callerId : null
+            // Reading follows the project perimeter enforced in the handler.
+            RestrictToAgentId = null
         });
         return Ok(res);
     }
