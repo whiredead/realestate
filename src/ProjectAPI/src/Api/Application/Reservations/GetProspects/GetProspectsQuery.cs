@@ -64,6 +64,11 @@ public class GetProspectsHandler : IRequestHandler<GetProspectsQuery, List<Prosp
         var needle = request.Search?.Trim().ToLower();
         var isAdmin = _currentUser.IsGlobalAdmin || _currentUser.IsInRole(RoleCodes.ProjectAdmin);
 
+        if (request.ProjectId is Guid forProject)
+        {
+            return await ForProjectAsync(forProject, needle, isAdmin, ct);
+        }
+
         var contactsQuery = _db.CrmContacts.AsNoTracking()
             .Where(c => c.LifecycleStatus == ContactLifecycleStatus.Prospect && c.ArchivedAt == null);
 
@@ -72,14 +77,6 @@ public class GetProspectsHandler : IRequestHandler<GetProspectsQuery, List<Prosp
         {
             var me = _currentUser.UserId;
             contactsQuery = contactsQuery.Where(c => c.OwnerSalesAgentId == null || c.OwnerSalesAgentId == me);
-        }
-
-        if (request.ProjectId is Guid projectId)
-        {
-            contactsQuery = contactsQuery.Where(c => _db.Set<ProjectAPI.Domain.Appointments.Entities.Appointment>().Any(a =>
-                a.CrmContactId == c.Id &&
-                a.ProjectId == projectId &&
-                ConfirmedAppointmentStatuses.Contains(a.Status)));
         }
 
         if (!string.IsNullOrEmpty(needle))
@@ -116,12 +113,11 @@ public class GetProspectsHandler : IRequestHandler<GetProspectsQuery, List<Prosp
             .Where(c => c.UserId != null).Select(c => c.UserId!).ToListAsync(ct);
         var contacted = contactedUserIds.ToHashSet();
 
-        // With a project selected only people with a confirmed appointment there qualify, and those all have a contact.
-        var accountOnly = request.ProjectId is null
-            ? await _userManager.GetUsersInRoleAsync(RoleCodes.Prospect)
-            : new List<User>();
-        foreach (var user in accountOnly)
+        var now = DateTimeOffset.UtcNow;
+        foreach (var user in await _userManager.GetUsersInRoleAsync(RoleCodes.Prospect))
         {
+            // A deactivated account (locked out) is not a live prospect.
+            if (user.LockoutEnd is DateTimeOffset lockedUntil && lockedUntil > now) continue;
             if (result.Count >= MaxResults) break;
             if (knownUserIds.Contains(user.Id) || contacted.Contains(user.Id)) continue;
             if (user.Email != null && knownEmails.Contains(user.Email.ToLowerInvariant())) continue;
@@ -142,5 +138,66 @@ public class GetProspectsHandler : IRequestHandler<GetProspectsQuery, List<Prosp
         }
 
         return result;
+    }
+
+    /// <summary>
+    /// The people the agent has a confirmed appointment with on this project. Built from the appointments, not
+    /// only from CRM contacts: appointments made before contacts existed have none, and those people still count.
+    /// A person who already has a contact is listed through it (so choosing them reuses that contact); a person
+    /// without one is listed from the appointment's own details and gets their contact when the reservation is created.
+    /// </summary>
+    private async Task<List<ProspectItem>> ForProjectAsync(Guid projectId, string? needle, bool isAdmin, CancellationToken ct)
+    {
+        var me = _currentUser.UserId;
+        var appointments = await _db.Set<ProjectAPI.Domain.Appointments.Entities.Appointment>().AsNoTracking()
+            .Where(a => a.ProjectId == projectId && ConfirmedAppointmentStatuses.Contains(a.Status))
+            .Where(a => isAdmin || a.SalesAgentId == me)
+            .Select(a => new { a.CrmContactId, a.UserId, a.Name, a.LastName, a.Email, a.PhoneNumber, a.AppointmentDate })
+            .ToListAsync(ct);
+
+        var contactIds = appointments.Where(a => a.CrmContactId != null).Select(a => a.CrmContactId!.Value).Distinct().ToList();
+        var emails = appointments.Where(a => !string.IsNullOrWhiteSpace(a.Email))
+            .Select(a => CrmContact.NormalizeEmail(a.Email)!).Distinct().ToList();
+
+        var contacts = await _db.CrmContacts.AsNoTracking()
+            .Where(c => c.ArchivedAt == null && (contactIds.Contains(c.Id) || (c.EmailNormalized != null && emails.Contains(c.EmailNormalized))))
+            .ToListAsync(ct);
+
+        var result = new Dictionary<string, ProspectItem>();
+
+        foreach (var appointment in appointments.OrderByDescending(a => a.AppointmentDate))
+        {
+            var emailKey = CrmContact.NormalizeEmail(appointment.Email);
+            var contact = contacts.FirstOrDefault(c => c.Id == appointment.CrmContactId)
+                          ?? (emailKey is null ? null : contacts.FirstOrDefault(c => c.EmailNormalized == emailKey));
+
+            // Someone who already bought is a buyer, not a prospect.
+            if (contact is not null && contact.LifecycleStatus != ContactLifecycleStatus.Prospect) continue;
+
+            var item = contact is not null
+                ? new ProspectItem
+                {
+                    ContactId = contact.Id, UserId = contact.UserId, FirstName = contact.FirstName, LastName = contact.LastName,
+                    Cin = contact.Cin, Email = contact.Email, Phone = contact.Phone, HasAccount = !string.IsNullOrEmpty(contact.UserId)
+                }
+                : new ProspectItem
+                {
+                    UserId = appointment.UserId, FirstName = appointment.Name, LastName = appointment.LastName,
+                    Email = appointment.Email, Phone = appointment.PhoneNumber, HasAccount = !string.IsNullOrEmpty(appointment.UserId)
+                };
+
+            var key = contact is not null ? $"c:{contact.Id}" : emailKey is not null ? $"e:{emailKey}" : $"n:{item.LastName}|{item.FirstName}".ToLowerInvariant();
+            if (result.ContainsKey(key)) continue;
+
+            if (!string.IsNullOrEmpty(needle) &&
+                !($"{item.FirstName} {item.LastName}".ToLower().Contains(needle) ||
+                  (item.Email?.ToLower().Contains(needle) ?? false) ||
+                  (item.Phone?.Contains(needle) ?? false) ||
+                  (item.Cin?.ToLower().Contains(needle) ?? false))) continue;
+
+            result[key] = item;
+        }
+
+        return result.Values.OrderBy(r => r.LastName).ThenBy(r => r.FirstName).Take(MaxResults).ToList();
     }
 }

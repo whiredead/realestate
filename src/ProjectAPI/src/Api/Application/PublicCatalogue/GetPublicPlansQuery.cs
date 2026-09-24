@@ -265,10 +265,10 @@ public static class PublicCatalogueProjection
                     PlanImage = FirstImage(type.Image),
                     Latitude = project.Latitude,
                     Longitude = project.Longitude,
-                    // "Disponible" means reservations AND sales are open. New reservations are only accepted while the
-                    // project is sold off-plan, so once it is en livraison (or finalisé) nothing is available to a
-                    // visitor, whatever units are left in stock.
-                    Availability = phase == ProjectStatusCodes.Phase.SurPlan
+                    // "Disponible" means a visitor can still buy: reservations are open while the project is sold
+                    // off-plan (sur plan) and sales are open once it is in delivery (en livraison). Only a finalised
+                    // project (both closed) is unavailable, whatever stock is left; otherwise it depends on the stock.
+                    Availability = phase == ProjectStatusCodes.Phase.SurPlan || phase == ProjectStatusCodes.Phase.EnLivraison
                         ? PublicAvailability.FromCount(availableUnits.Count)
                         : PublicAvailability.SoldOut,
                     Module3DLink = string.IsNullOrWhiteSpace(type.Module3DLink) ? null : type.Module3DLink
