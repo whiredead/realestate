@@ -433,66 +433,6 @@ public class GetAdminDashboardHandler : IRequestHandler<AdminDashboardQuery, Adm
         response.DeliveredUnits = Count(UnitCommercialStatus.Delivered);
     }
 
-    private async Task PopulatePricingSynthesisAsync(AdminDashboardResponse response, List<Guid>? scopedProjectIds, CancellationToken ct)
-    {
-        var unitsQuery =
-            from unit in _context.Set<UnitEntity>().AsNoTracking()
-            join building in _context.Set<Immeuble>().AsNoTracking() on unit.ProjectId equals building.Id
-            join project in _context.Projects.AsNoTracking() on building.ProjectId equals project.Id
-            select new { UnitId = unit.Id, unit.Status, unit.LatestPrice, ImmeubleId = building.Id, ImmeubleName = building.Name, ProjectId = project.Id, ProjectName = project.Name };
-        if (scopedProjectIds is not null)
-            unitsQuery = unitsQuery.Where(x => scopedProjectIds.Contains(x.ProjectId));
-
-        var units = await unitsQuery.ToListAsync(ct);
-        var unitIds = units.Select(x => x.UnitId).ToList();
-        var salesByUnit = await _context.Set<Sale>().AsNoTracking()
-            .Where(s => unitIds.Contains(s.UnitId))
-            .GroupBy(s => s.UnitId)
-            .Select(g => new { UnitId = g.Key, Value = g.Sum(s => s.TotalPrice) })
-            .ToDictionaryAsync(x => x.UnitId, x => x.Value, ct);
-
-        var soldStates = new[] { UnitCommercialStatus.Sold, UnitCommercialStatus.Delivered };
-        var engagedStates = new[] { UnitCommercialStatus.HoldPendingApproval, UnitCommercialStatus.Reserved, UnitCommercialStatus.Contracted };
-        var nonSold = units.Where(u => !soldStates.Contains(u.Status)).ToList();
-        var remainingValue = nonSold.Sum(u => u.LatestPrice ?? 0m);
-        var contractedValue = salesByUnit.Values.Sum();
-        var totalStock = units.Count;
-        var engagedStock = units.Count(u => engagedStates.Contains(u.Status));
-        var remainingStock = nonSold.Count;
-        var pendingStock = units.Count(u => u.Status == UnitCommercialStatus.HoldPendingApproval);
-
-        response.PricingSynthesis = new PricingSynthesisDto
-        {
-            RemainingStockValue = remainingValue,
-            ContractedSalesValue = contractedValue,
-            TotalCommercialValue = remainingValue + contractedValue,
-            TotalStock = totalStock,
-            EngagedStock = engagedStock,
-            RemainingStock = remainingStock,
-            PendingApprovalStock = pendingStock,
-            EngagedStockPct = Percentage(engagedStock, totalStock),
-            ContractedValuePct = Percentage(contractedValue, remainingValue + contractedValue),
-            PendingOfRemainingPct = Percentage(pendingStock, remainingStock),
-            PendingOfTotalPct = Percentage(pendingStock, totalStock),
-            Buildings = units.GroupBy(u => new { u.ImmeubleId, u.ImmeubleName, u.ProjectName })
-                .Select(group => new ImmeublePricingSynthesisDto
-                {
-                    ImmeubleId = group.Key.ImmeubleId,
-                    ImmeubleName = group.Key.ImmeubleName,
-                    ProjectName = group.Key.ProjectName,
-                    TotalUnits = group.Count(),
-                    EngagedOrSoldUnits = group.Count(u => engagedStates.Contains(u.Status) || soldStates.Contains(u.Status)),
-                    RemainingUnits = group.Count(u => !soldStates.Contains(u.Status)),
-                    RemainingPct = Percentage(group.Count(u => !soldStates.Contains(u.Status)), group.Count()),
-                    RemainingStockValue = group.Where(u => !soldStates.Contains(u.Status)).Sum(u => u.LatestPrice ?? 0m)
-                })
-                .OrderBy(x => x.ProjectName).ThenBy(x => x.ImmeubleName).ToList()
-        };
-    }
-
-    private static double Percentage(decimal numerator, decimal denominator) => denominator == 0 ? 0 : Math.Round((double)(numerator * 100m / denominator), 1);
-    private static double Percentage(int numerator, int denominator) => denominator == 0 ? 0 : Math.Round(numerator * 100.0 / denominator, 1);
-
     private IQueryable<Sale> SalesQuery(List<Guid>? scopedUnitIds, DateTime start, DateTime end)
     {
         var query = _context.Set<Sale>().Where(s => s.SaleDate >= start && s.SaleDate < end);
