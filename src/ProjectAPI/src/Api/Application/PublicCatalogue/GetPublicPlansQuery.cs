@@ -179,6 +179,13 @@ public static class PublicCatalogueProjection
             .GroupBy(x => x.ProjectId)
             .ToDictionary(g => g.Key, g => g.Select(x => x.Feature).Take(8).ToList());
 
+        var buildingsByProject = await db.Set<Immeuble>()
+            .AsNoTracking()
+            .Where(im => projectIds.Contains(im.ProjectId))
+            .GroupBy(im => im.ProjectId)
+            .Select(g => new { ProjectId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(x => x.ProjectId, x => x.Count, ct);
+
         var unitsByProject = units.GroupBy(u => u.RealProjectId)
             .ToDictionary(g => g.Key, g => g.ToList());
 
@@ -239,6 +246,10 @@ public static class PublicCatalogueProjection
                     QuartierCity = project.Quartier?.City,
                     ProjectDescription = project.Description,
                     ProjectFeatures = featuresByProject.TryGetValue(project.Id, out var projectFeatures) ? projectFeatures : new List<PublicFeature>(),
+                    ProjectBuildingCount = buildingsByProject.TryGetValue(project.Id, out var buildingCount) ? buildingCount : 0,
+                    ProjectUnitCount = projectUnits.Count,
+                    ProjectAvailableUnitCount = projectUnits.Count(u => u.Status == UnitCommercialStatus.Available),
+                    ProjectProgress = phase == ProjectStatusCodes.Phase.SurPlan ? project.OverAllProgress : null,
                     Location = project.Location,
                     Phase = phase,
                     StartingPrice = startingPrice > 0 ? startingPrice : null,

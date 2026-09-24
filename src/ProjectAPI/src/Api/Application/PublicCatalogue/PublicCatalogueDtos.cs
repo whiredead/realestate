@@ -64,6 +64,16 @@ public class PublicPlanSummary
     /// <summary>The project's atouts (features), in the order the admin arranged them; capped for card payloads.</summary>
     public List<PublicFeature> ProjectFeatures { get; set; } = new();
 
+    /// <summary>How many buildings the project has.</summary>
+    public int ProjectBuildingCount { get; set; }
+
+    /// <summary>Units in the project, and how many are still available: facts about the programme, not one plan.</summary>
+    public int ProjectUnitCount { get; set; }
+    public int ProjectAvailableUnitCount { get; set; }
+
+    /// <summary>Construction progress in percent; only while the project is still being built (sur plan), like the project page.</summary>
+    public decimal? ProjectProgress { get; set; }
+
     /// <summary>Friendly phase: SUR_PLAN | EN_LIVRAISON | FINALISE | SUSPENDED.</summary>
     public string Phase { get; set; } = string.Empty;
 
