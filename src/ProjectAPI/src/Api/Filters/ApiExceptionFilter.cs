@@ -160,6 +160,16 @@ public class ApiExceptionFilter : IExceptionFilter
         return false;
     }
 
+    /// <summary>SQL Server 2628 / 8152: a string or binary value exceeds its column length.</summary>
+    private static bool IsTruncationFailure(Exception? exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is SqlException sql && (sql.Number == 2628 || sql.Number == 8152)) return true;
+        }
+        return false;
+    }
+
     private void HandleException(ExceptionContext context)
     {
         // A timeout or a dropped connection to the database is not a bug in the
@@ -194,6 +204,26 @@ public class ApiExceptionFilter : IExceptionFilter
             Enrich(inUse, context, BusinessErrorCodes.ResourceInUse, StatusCodes.Status409Conflict);
             context.Result = new ObjectResult(inUse) { StatusCode = StatusCodes.Status409Conflict };
             _logger.LogInformation("[Conflict] RESOURCE_IN_USE on {Path}", context.HttpContext.Request.Path);
+            context.ExceptionHandled = true;
+            return;
+        }
+
+        // A value longer than its column ("String or binary data would be
+        // truncated") is a bad input, not a server fault: answer 422 with a
+        // message the user can act on instead of a bare 500.
+        if (IsTruncationFailure(context.Exception))
+        {
+            var tooLong = new ValidationProblemDetails(new Dictionary<string, string[]>
+            {
+                ["body"] = new[] { "Une valeur saisie est trop longue pour son champ. Raccourcissez-la puis réessayez." }
+            })
+            {
+                Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1",
+                Title = "Données invalides."
+            };
+            Enrich(tooLong, context, BusinessErrorCodes.ValidationFailed, StatusCodes.Status422UnprocessableEntity);
+            context.Result = new ObjectResult(tooLong) { StatusCode = StatusCodes.Status422UnprocessableEntity };
+            _logger.LogInformation("[Validation] value too long on {Path}", context.HttpContext.Request.Path);
             context.ExceptionHandled = true;
             return;
         }

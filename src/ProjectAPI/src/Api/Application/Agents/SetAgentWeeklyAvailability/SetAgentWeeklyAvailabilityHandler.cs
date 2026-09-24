@@ -1,4 +1,4 @@
-using ProjectAPI.Api.Application.Common.Security;
+﻿using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Domain.Users.Interfaces;
 
@@ -25,7 +25,10 @@ public class SetAgentWeeklyAvailabilityHandler
         foreach (var slot in req.Slots)
         {
             if (slot.EndTime <= slot.StartTime)
-                throw new ArgumentException($"EndTime must be after StartTime for {slot.DayOfWeek}.");
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new ValidationFailure(nameof(req.Slots), $"L'heure de fin doit être postérieure à l'heure de début ({slot.DayOfWeek}).")
+                });
         }
 
         // Replace-all: this endpoint sets the whole week at once rather than

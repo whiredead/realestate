@@ -1,4 +1,5 @@
-using ProjectAPI.Api.Application.Common.Models;
+﻿using ProjectAPI.Api.Application.Common.Models;
+using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Api.Application.Identity.Roles.GetAllRoles;
 using ProjectAPI.Api.Application.Identity.Users.AdminChangePassword;
 using ProjectAPI.Api.Application.Identity.Users.ConfirmEmail;
@@ -51,16 +52,11 @@ public class UserController : ControllerBase
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Login([FromBody] LoginCommand command)
     {
-        try
-        {
-            var result = await _mediator.Send(command);
-            return Ok(result);
-        }catch(Exception ex)
-        {
-            Console.WriteLine(ex.StackTrace);
-            return BadRequest(ex.Message);
-        }
-
+        // No blanket catch: ApiExceptionFilter turns validation failures into a
+        // structured 422 and logs unexpected ones. The old catch returned the raw
+        // exception message as a plain-text 400.
+        var result = await _mediator.Send(command);
+        return Ok(result);
     }
 
     /// <summary>
@@ -138,7 +134,11 @@ public class UserController : ControllerBase
     /// <param name="role">The role of the users to retrieve.</param>
     /// <returns>Returns users based on the specified role and assigned BCH ID.</returns>
     [HttpGet("by-role/{role}")]
+    // Returns name/e-mail/phone for a whole role: staff pickers only. A buyer or
+    // prospect must never be able to enumerate the admin/notary/agent accounts.
+    [Authorize(Roles = RoleGroups.InternalStaff)]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetUsersByRole([FromRoute] string role)
     {
         var query = new GetUsersByRoleQuery(role);
@@ -152,7 +152,9 @@ public class UserController : ControllerBase
     /// <param name="Ids">The Ids of the users to retrieve.</param>
     /// <returns>Returns users based on the specified Ids.</returns>
     [HttpGet("multiple")]
+    [Authorize(Roles = RoleGroups.InternalStaff)] // same PII as by-role: staff only.
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<IActionResult> GetUsersByIds([FromQuery] string[] Ids)
     {
         var query = new GetUsersByIdsQuery(Ids);

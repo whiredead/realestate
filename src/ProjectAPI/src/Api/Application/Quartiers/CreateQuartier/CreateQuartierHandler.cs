@@ -17,11 +17,23 @@ public class CreateQuartierHandler : IRequestHandler<CreateQuartierCommand, Crea
 
     public async Task<CreateQuartierResponse> Handle(CreateQuartierCommand request, CancellationToken cancellationToken)
     {
+        // A second quartier with the same name is indistinguishable in every
+        // picker and on the public site.
+        var name = request.Name.Trim();
+        var duplicate = (await _quartierRepository.Find(q => q.Name.ToLower() == name.ToLower())).Any();
+        if (duplicate)
+        {
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new ValidationFailure(nameof(request.Name), "Un quartier porte déjà ce nom.")
+            });
+        }
+
         // Create the Quartier entity
         var quartier = new Quartier
         {
             Id = Guid.NewGuid(),
-            Name = request.Name,
+            Name = name,
             Description = request.Description,
             Images = request.Images
         };

@@ -192,6 +192,8 @@ builder.Services
         });
     });
 builder.Services.AddScoped<EndpointPermissionFilter>();
+// Model-binding failures use the same RFC 9457 shape (French, code, requestId) as every other error.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.InvalidModelStateResponseFactory = ProjectAPI.Api.Filters.ModelStateProblemFactory.Create);
 builder.Services.AddSignalR();
 builder.Services.AddSingleton<IUserIdProvider, ProjectAPI.Api.Hubs.NotificationUserIdProvider>();
 

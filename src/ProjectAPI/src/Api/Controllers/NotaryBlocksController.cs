@@ -5,6 +5,9 @@ using ProjectAPI.Api.Application.Notary.GetNotaryWeeklyAvailability;
 using ProjectAPI.Api.Application.Notary.SetNotaryWeeklyAvailability;
 using ProjectAPI.Api.Application.Common.Security;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
+using ProjectAPI.Api.Application.Common.Exceptions;
+using ProjectAPI.Domain.Users.Entities;
 
 namespace ProjectAPI.Api.Controllers;
 [ApiController]
@@ -13,7 +16,12 @@ namespace ProjectAPI.Api.Controllers;
 public class NotaryBlocksController : ControllerBase
 {
     private readonly IMediator _mediator;
-    public NotaryBlocksController(IMediator mediator) => _mediator = mediator;
+    private readonly UserManager<User> _userManager;
+    public NotaryBlocksController(IMediator mediator, UserManager<User> userManager)
+    {
+        _mediator = mediator;
+        _userManager = userManager;
+    }
 
     [HttpPost("blocks")]
     public async Task<IActionResult> Create([FromBody] CreateNotaryBlockCommand body)
@@ -40,6 +48,9 @@ public class NotaryBlocksController : ControllerBase
     [HttpPut("weekly-availability")]
     public async Task<IActionResult> SetWeeklyAvailability(string notaryId, [FromBody] SetNotaryWeeklyAvailabilityCommand body)
     {
+        // An unknown id used to "succeed" (200) and leave orphan availability rows.
+        if (await _userManager.FindByIdAsync(notaryId) is null)
+            throw new NotFoundException("Notaire", notaryId);
         body.NotaryId = notaryId;
         var res = await _mediator.Send(body);
         return Ok(res);

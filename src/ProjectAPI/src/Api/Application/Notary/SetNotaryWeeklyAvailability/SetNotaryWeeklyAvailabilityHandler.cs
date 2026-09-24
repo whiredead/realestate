@@ -1,4 +1,4 @@
-using ProjectAPI.Api.Application.Common.Exceptions;
+﻿using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
 using ProjectAPI.Domain.Users.Entities;
 using ProjectAPI.Domain.Users.Interfaces;
@@ -30,7 +30,10 @@ public class SetNotaryWeeklyAvailabilityHandler
         foreach (var slot in req.Slots)
         {
             if (slot.EndTime <= slot.StartTime)
-                throw new ArgumentException($"EndTime must be after StartTime for {slot.DayOfWeek}.");
+                throw new Common.Exceptions.ValidationException(new[]
+                {
+                    new ValidationFailure(nameof(req.Slots), $"L'heure de fin doit être postérieure à l'heure de début ({slot.DayOfWeek}).")
+                });
         }
 
         // Replace-all, same convention as SetAgentWeeklyAvailabilityHandler.
