@@ -61,14 +61,23 @@ public class CreateProjectUnitCommand : IRequest<CreateProjectUnitResponse>
     public string Orientation { get; set; }
 
     /// <summary>
-    /// Gets or sets the total surface area of the unit in square meters.
+    /// Commercial price per SV. If supplied, final price and price per SV1 are
+    /// calculated from the editable surfaces.
     /// </summary>
-    public double TotalSurface { get; set; }
+    public decimal? PriceSaleableValue { get; set; }
 
     /// <summary>
-    /// Gets or sets the price of the unit, if applicable.
+    /// Commercial price per SV1. If supplied, final price and price per SV are
+    /// calculated from the editable surfaces.
     /// </summary>
-    public decimal? Price { get; set; }
+    public decimal? PriceSaleableValue1 { get; set; }
+
+    /// <summary>
+    /// Final advertised price. If supplied, both price-per-surface figures are
+    /// calculated from it. This is the preferred input when the workbook has a
+    /// final price column.
+    /// </summary>
+    public decimal? LatestPrice { get; set; }
 
     /// <summary>
     /// Gets or sets this unit's own photo URLs (comma-delimited), if any —

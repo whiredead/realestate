@@ -86,15 +86,18 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             OnMessageReceived = context =>
             {
                 var accessToken = context.Request.Query["access_token"];
-                if (!string.IsNullOrEmpty(accessToken)
+                if (!string.IsNullOrWhiteSpace(accessToken)
                     && context.HttpContext.Request.Path.StartsWithSegments("/hubs/notifications"))
                 {
                     context.Token = accessToken;
                 }
+
                 return Task.CompletedTask;
             }
         };
     });
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, ProjectAPI.Api.Hubs.NotificationUserIdProvider>();
 
 // There is no service-to-service API-key scheme any more: authentication and
 // project management run in one process, so what used to be an authenticated

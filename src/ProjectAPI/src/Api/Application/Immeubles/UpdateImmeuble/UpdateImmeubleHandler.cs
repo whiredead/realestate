@@ -54,7 +54,10 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
                 { () => !string.IsNullOrWhiteSpace(request.Location), () => immeuble.Location = request.Location },
                 { () => !string.IsNullOrWhiteSpace(request.Type), () => immeuble.Type = request.Type },
                 { () => !string.IsNullOrWhiteSpace(request.Status), () => immeuble.Status = ProjectStatusCodes.Normalize(request.Status) },
-                { () => request.Images != null && request.Images.Any(), () => immeuble.Images = request.Images },
+                // An empty string is a deliberate update: it removes the last
+                // photo from a building. Previously this ignored an empty
+                // value, making the final image impossible to delete.
+                { () => request.Images is not null, () => immeuble.Images = request.Images },
                 { () => !string.IsNullOrWhiteSpace(request.Description), () => immeuble.Description = request.Description },
                 { () => request.MaxSellableSurfaceRange > 0, () => immeuble.MaxSellableSurfaceRange = request.MaxSellableSurfaceRange },
                 { () => request.MinSellableSurfaceRange > 0, () => immeuble.MinSellableSurfaceRange = request.MinSellableSurfaceRange }

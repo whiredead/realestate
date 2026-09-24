@@ -37,8 +37,6 @@ public class User : IdentityUser
     /// <summary>Arabic family name. Optional — see <see cref="FirstNameAr"/>.</summary>
     public string LastNameAr { get; set; } = string.Empty;
 
-    public ICollection<LikedProject> LikedProjects { get; set; }
-
     /// <summary>
     /// Explicit join navigation to roles. Identity's own UserManager APIs remain
     /// the way to ASK whether a user holds a role; this exists so a query can

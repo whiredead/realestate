@@ -52,6 +52,5 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
         /// Gets or sets the description of the immeuble.
         /// </summary>
         public string Description { get; set; }
-
     }
 }

@@ -79,22 +79,28 @@ public class UpdateProjectHandler : IRequestHandler<UpdateProjectCommand, Projec
         project.Images = request.Images ?? project.Images;
         project.Type = request.Type ?? project.Type;
 
-        // The admin may set any of the three statuses from the edit form. A project
-        // already FINALISE never reaches this point: ProjectReadOnlyGuard refuses
-        // every write on it (409 PROJECT_READ_ONLY), so finalising stays one-way.
-        if (request.StatusReferenceCode != null || request.StatusGlobal != null)
+        // Statut (StatusReferenceCode) and phase (StatusGlobal) are independent:
+        // the business-facing statut is a free label an admin picks from the
+        // referential, and no longer forces a phase transition just because its
+        // BusinessPhase happens to point at one — phase only ever advances
+        // through the construction panel's dedicated complete/finalize actions
+        // (ConstructionPanel.tsx -> constructionApi.completeProject/
+        // finalizeProject), which is the one-way SUR_PLAN -> EN_LIVRAISON ->
+        // FINALISE guard this comment used to describe. A project already
+        // FINALISE never reaches this point either way: ProjectReadOnlyGuard
+        // refuses every write on it (409 PROJECT_READ_ONLY).
+        if (request.StatusReferenceCode != null)
         {
-            var selectedStatusCode = (request.StatusReferenceCode ?? request.StatusGlobal)!.Trim().ToUpperInvariant();
+            var selectedStatusCode = request.StatusReferenceCode.Trim().ToUpperInvariant();
             var status = await _db.ProjectStatusReferences.AsNoTracking()
                 .FirstOrDefaultAsync(x => x.Code == selectedStatusCode && (x.IsActive || x.Code == project.StatusReferenceCode), cancellationToken);
             if (status is null)
             {
                 throw new ProjectAPI.Api.Application.Common.Exceptions.ValidationException(new[]
                 {
-                    new FluentValidation.Results.ValidationFailure(nameof(request.StatusGlobal), "Le statut sélectionné n'est pas disponible.")
+                    new FluentValidation.Results.ValidationFailure(nameof(request.StatusReferenceCode), "Le statut sélectionné n'est pas disponible.")
                 });
             }
-            project.StatusGlobal = ProjectStatusCodes.Normalize(status.BusinessPhase);
             project.StatusReferenceCode = status.Code;
         }
 

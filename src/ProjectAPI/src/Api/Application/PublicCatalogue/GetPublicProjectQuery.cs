@@ -108,7 +108,8 @@ public class GetPublicProjectHandler : IRequestHandler<GetPublicProjectQuery, Pu
             QuartierFeatures = quartierFeatures,
             Plans = plans.OrderBy(p => p.StartingPrice ?? decimal.MaxValue).ThenBy(p => p.PlanName).ToList(),
             PropertyTypes = plans.Select(p => p.PropertyType).Distinct().OrderBy(t => t).ToList(),
-            AgentFirstName = string.IsNullOrWhiteSpace(agentFirstName) ? null : agentFirstName
+            AgentFirstName = string.IsNullOrWhiteSpace(agentFirstName) ? null : agentFirstName,
+            InterestCount = (int)project.NumberLikes
         };
     }
 

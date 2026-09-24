@@ -24,12 +24,22 @@ public class ImportsController : ControllerBase
         _mediator = mediator;
     }
 
-    /// <summary>Downloads the Buildings/Units template (§5.11).</summary>
-    [HttpGet("template")]
+    /// <summary>
+    /// Downloads the template for this project (§5.11) — its TypeBien
+    /// dropdown is scoped to the project's own linked types. With
+    /// <paramref name="buildingNames"/> (repeat the query param, e.g.
+    /// <c>?buildingNames=Bâtiment%20A&amp;buildingNames=Bâtiment%20B</c>), the
+    /// workbook ships with one already-named sheet per name; omitted, it
+    /// ships a single generic "Exemple" sheet to duplicate by hand.
+    /// </summary>
+    [HttpGet("projects/{projectId:guid}/template")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public async Task<IActionResult> GetTemplate()
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetTemplate(Guid projectId, [FromQuery] List<string>? buildingNames, CancellationToken ct)
     {
-        var bytes = await _mediator.Send(new GenerateImportTemplateQuery());
+        var bytes = await _mediator.Send(
+            new GenerateImportTemplateQuery { ProjectId = projectId, BuildingNames = buildingNames ?? new List<string>() },
+            ct);
         return File(bytes,
             "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             "gpia-stock-import-template.xlsx");
@@ -44,6 +54,10 @@ public class ImportsController : ControllerBase
         if (file is null || file.Length == 0)
         {
             return BadRequest("Un fichier est requis.");
+        }
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("Le fichier doit être un classeur Excel (.xlsx).");
         }
 
         using var stream = new MemoryStream();
@@ -70,6 +84,10 @@ public class ImportsController : ControllerBase
         if (file is null || file.Length == 0)
         {
             return BadRequest("Le fichier validé doit être renvoyé pour confirmer l'import.");
+        }
+        if (!file.FileName.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) && !file.FileName.EndsWith(".xls", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest("Le fichier doit être un classeur Excel (.xlsx).");
         }
 
         using var stream = new MemoryStream();

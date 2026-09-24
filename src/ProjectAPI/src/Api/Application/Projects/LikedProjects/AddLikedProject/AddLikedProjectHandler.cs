@@ -88,14 +88,22 @@ namespace ProjectAPI.Api.Application.Projects.LikedProjects.AddLikedProject
             project.NumberLikes++;
             await _projectRepository.Update(project);
 
-            foreach (var immeuble in immeubles)
+            // One lead per distinct agent (a shared null counts as one "no
+            // agent yet" lead too) — not one per immeuble. Two immeubles on
+            // the same agent used to insert two Lead rows for the same
+            // like; RemoveLikedProjectHandler's un-favourite then queried
+            // and tried to delete that pair twice each, and the second
+            // delete of an already-gone row read as a stale write (409
+            // RESOURCE_VERSION_CONFLICT) on every un-favourite of such a
+            // project.
+            foreach (var agentId in immeubles.Select(i => i.AgentId).Distinct())
             {
                 var lead = new Lead
                 {
                     Id = Guid.NewGuid(),
                     ProjectId = request.ProjectId,
                     UserId = request.UserId,
-                    AgentId = immeuble.AgentId,
+                    AgentId = agentId,
                     CreatedAt = DateTime.UtcNow
                 };
 

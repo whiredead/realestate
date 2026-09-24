@@ -23,6 +23,7 @@ public class CommitImportBatchResponse
     public Guid BatchId { get; set; }
     public string Status { get; set; } = string.Empty;
     public int BuildingsCreated { get; set; }
+    public int FloorsCreated { get; set; }
     public int UnitsCreated { get; set; }
     public int UnitsUpdated { get; set; }
     public string Message { get; set; } = string.Empty;

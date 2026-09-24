@@ -68,6 +68,9 @@ public static class DependencyInjection
 
         // §6.2/§7 — shared writer for per-user transactional notifications.
         services.AddScoped<Common.Notifications.INotificationService, Common.Notifications.NotificationService>();
+        services.AddScoped<Common.Notifications.INotificationRecipientResolver, Common.Notifications.NotificationRecipientResolver>();
+        services.AddScoped<Common.Notifications.INotificationFilter, Common.Notifications.AllowAllNotificationFilter>();
+        services.AddScoped<Common.Notifications.INotificationRealtimePublisher, Common.Notifications.SignalRNotificationPublisher>();
 
         // §7.2 — every client-supplied media link (project images, site videos,
         // 3D tours) passes through here before it is stored.

@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Api.Application.Common.Security;
+using ProjectAPI.Api.Application.Units.Pricing;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Projects.Entities;
 using ProjectAPI.Domain.Immeubles.Interfaces;
@@ -75,7 +76,7 @@ public class UpdateUnitHandler : IRequestHandler<UpdateUnitCommand, UpdateUnitRe
             }
         }
 
-        // Dictionary of updates to apply only if the field is filled
+        // Non-commercial fields may be patched independently.
         var updateActions = new Dictionary<Func<bool>, Action>
         {
             { () => request.FloorId.HasValue, () => unit.FloorId = request.FloorId!.Value },
@@ -88,12 +89,6 @@ public class UpdateUnitHandler : IRequestHandler<UpdateUnitCommand, UpdateUnitRe
             { () => request.GardenSurface.HasValue, () => unit.GardenSurface = request.GardenSurface },
             { () => request.View != null, () => unit.View = request.View },
             { () => request.Orientation != null, () => unit.Orientation = request.Orientation },
-            { () => request.TotalSurface.HasValue, () => unit.TotalSurface = request.TotalSurface },
-            { () => request.SaleableValue.HasValue, () => unit.SaleableValue = request.SaleableValue },
-            { () => request.SaleableValue1.HasValue, () => unit.SaleableValue1 = request.SaleableValue1 },
-            { () => request.PriceSaleableValue.HasValue, () => unit.PriceSaleableValue = request.PriceSaleableValue },
-            { () => request.PriceSaleableValue1.HasValue, () => unit.PriceSaleableValue1 = request.PriceSaleableValue1 },
-            { () => request.LatestPrice.HasValue, () => unit.LatestPrice = request.LatestPrice },
             { () => request.Images != null, () => unit.Images = request.Images },
             // 0 means "clear the type"; any other value sets it. Null, like
             // every other field here, leaves the current value untouched.
@@ -110,6 +105,27 @@ public class UpdateUnitHandler : IRequestHandler<UpdateUnitCommand, UpdateUnitRe
                 updateAction.Value.Invoke();
             }
         }
+
+        // TotalSurface, SV, SV1 and the two derived price rates are never
+        // patched independently. They are formula columns, recalculated from
+        // the same editable values used by the Excel workbook. A price supplied
+        // in this request wins; otherwise keep the existing final price while
+        // recalculating it against any changed surfaces.
+        var pricing = UnitPricingCalculator.Calculate(new UnitPricingInput(
+            unit.ApartmentSurface,
+            unit.BalconySurface,
+            unit.TerraceSurface,
+            unit.GardenSurface,
+            request.LatestPrice.HasValue ? null : request.PriceSaleableValue ?? unit.PriceSaleableValue,
+            request.LatestPrice.HasValue || request.PriceSaleableValue.HasValue ? null : request.PriceSaleableValue1 ?? unit.PriceSaleableValue1,
+            request.LatestPrice ?? (request.PriceSaleableValue.HasValue || request.PriceSaleableValue1.HasValue ? null : unit.LatestPrice)));
+
+        unit.TotalSurface = pricing.TotalSurface;
+        unit.SaleableValue = pricing.SaleableValue;
+        unit.SaleableValue1 = pricing.SaleableValue1;
+        unit.PriceSaleableValue = pricing.PriceSaleableValue;
+        unit.PriceSaleableValue1 = pricing.PriceSaleableValue1;
+        unit.LatestPrice = pricing.LatestPrice;
 
         await _repository.Update(unit);
         await _repository.SaveAsync();

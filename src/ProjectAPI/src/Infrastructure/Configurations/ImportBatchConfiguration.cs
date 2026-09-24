@@ -11,6 +11,7 @@ public class ImportBatchConfiguration : IEntityTypeConfiguration<ImportBatch>
         builder.ToTable("ImportBatches");
         builder.HasKey(b => b.Id);
 
+        builder.Property(b => b.ProjectName).HasMaxLength(200);
         builder.Property(b => b.FileName).IsRequired().HasMaxLength(260);
         builder.Property(b => b.FileHash).IsRequired().HasMaxLength(64);
         builder.Property(b => b.CreatedBy).HasMaxLength(450);

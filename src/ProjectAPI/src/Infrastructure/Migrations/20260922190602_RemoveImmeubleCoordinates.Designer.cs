@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProjectAPI.Infrastructure.Context;
 
@@ -11,9 +12,11 @@ using ProjectAPI.Infrastructure.Context;
 namespace ProjectAPI.Infrastructure.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260922190602_RemoveImmeubleCoordinates")]
+    partial class RemoveImmeubleCoordinates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -2099,12 +2102,8 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasMaxLength(260)
                         .HasColumnType("nvarchar(260)");
 
-                    b.Property<Guid?>("ProjectId")
+                    b.Property<Guid>("ProjectId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<string>("ProjectName")
-                        .HasMaxLength(200)
-                        .HasColumnType("nvarchar(200)");
 
                     b.Property<int>("Status")
                         .HasColumnType("int");
@@ -2595,7 +2594,6 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.Property<string>("UserId")
                         .IsRequired()
-                        .HasMaxLength(450)
                         .HasColumnType("nvarchar(450)");
 
                     b.HasKey("Id");
@@ -4450,7 +4448,15 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("ProjectAPI.Domain.Users.Entities.User", "User")
+                        .WithMany("LikedProjects")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
                     b.Navigation("Project");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.Project", b =>
@@ -4947,6 +4953,8 @@ namespace ProjectAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("ProjectAPI.Domain.Users.Entities.User", b =>
                 {
+                    b.Navigation("LikedProjects");
+
                     b.Navigation("UserRoles");
                 });
 

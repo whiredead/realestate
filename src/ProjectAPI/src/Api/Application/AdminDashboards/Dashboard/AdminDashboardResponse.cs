@@ -109,7 +109,7 @@ public class AdminDashboardResponse
     public List<ProjectInventoryDto> InventoryByProject { get; set; } = new();
 
     /// <summary>
-    /// Current commercial value of the caller's stock perimeter. Values are
+    /// Live equivalent of the commercial workbook's Synthèse tab. Values are
     /// calculated from unit prices and confirmed sales at request time.
     /// </summary>
     public PricingSynthesisDto PricingSynthesis { get; set; } = new();

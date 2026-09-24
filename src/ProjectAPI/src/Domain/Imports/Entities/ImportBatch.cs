@@ -14,21 +14,25 @@ public enum ImportBatchStatus
 }
 
 /// <summary>
-/// One Excel stock-import attempt (Buildings + Units tabs — still no Floors
-/// tab; a Unit row's free-text Floor column is resolved/created as a Floor
-/// row per building at commit time, same name-matched pattern as Buildings).
+/// One Excel stock-import attempt, scoped to a project the caller chose up
+/// front (each sheet in the workbook is one building of that project; see
+/// ImportWorkbookReader). <see cref="ProjectId"/> is set from validate
+/// onward — import never creates a project.
 ///
-/// The <see cref="FileHash"/> + <see cref="ProjectId"/>/row-count fingerprint
-/// is what enforces §5.11's "commit refused if file/project/rows changed
-/// since validation": commit re-validates the fingerprint before writing
-/// anything, and a mismatch throws IMPORT_SOURCE_CHANGED rather than trusting
-/// a stale validation result.
+/// The <see cref="FileHash"/> + row-count fingerprint is what enforces
+/// §5.11's "commit refused if file/project/rows changed since validation":
+/// commit re-validates the fingerprint before writing anything, and a
+/// mismatch throws IMPORT_SOURCE_CHANGED rather than trusting a stale
+/// validation result.
 /// </summary>
 public class ImportBatch
 {
     public Guid Id { get; set; }
 
-    public Guid ProjectId { get; set; }
+    public Guid? ProjectId { get; set; }
+
+    /// <summary>The project's name at validate time, for display without a join.</summary>
+    public string ProjectName { get; set; } = string.Empty;
 
     public string FileName { get; set; } = string.Empty;
 
@@ -52,9 +56,10 @@ public class ImportBatch
 }
 
 /// <summary>
-/// One row from either tab, with its validation outcome. Errors are recorded
-/// per row rather than aborting the whole file on the first bad row, so the
-/// admin sees the complete error report in one pass (§5.11).
+/// One row (a building's own info row, or one of its units), with its
+/// validation outcome. Errors are recorded per row rather than aborting the
+/// whole file on the first bad row, so the admin sees the complete error
+/// report in one pass (§5.11).
 /// </summary>
 public class ImportRow
 {
@@ -63,7 +68,7 @@ public class ImportRow
     public Guid BatchId { get; set; }
     public ImportBatch Batch { get; set; } = null!;
 
-    /// <summary>"Buildings" or "Units" — which tab this row came from.</summary>
+    /// <summary>The building/sheet name this row came from — one sheet per building.</summary>
     public string Sheet { get; set; } = string.Empty;
 
     /// <summary>1-based row number in that sheet, for error messages the admin can act on.</summary>

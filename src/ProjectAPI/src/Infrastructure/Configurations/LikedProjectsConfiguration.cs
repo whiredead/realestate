@@ -17,5 +17,12 @@ public class LikedProjectsConfiguration : IEntityTypeConfiguration<LikedProject>
             .WithMany()
             .HasForeignKey(lp=>lp.ProjectId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        // No relationship to User on purpose: UserId holds either a real
+        // AspNetUsers.Id or an anonymous guest id (signed-out visitors can
+        // favourite too), and a guest id never has a matching Users row —
+        // a required FK here would reject every anonymous like.
+        builder.Property(lp => lp.UserId).IsRequired().HasMaxLength(450);
+        builder.HasIndex(lp => lp.UserId);
     }
 }
