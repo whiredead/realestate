@@ -113,6 +113,18 @@ public class ConstructionController : ControllerBase
     }
 
     /// <summary>EN_LIVRAISON → FINALISE: closes the project, which becomes read-only.</summary>
+    /// <summary>Corrects a finalisation done by mistake: FINALISE back to EN_LIVRAISON. Global admin only, reason required, audited.</summary>
+    [Authorize(Roles = RoleGroups.GlobalOnly)]
+    [HttpPost("projects/{projectId:guid}/reopen")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> ReopenProject(Guid projectId, [FromBody] ProjectAPI.Api.Application.Construction.ReopenProject.ReopenProjectCommand body)
+    {
+        body.ProjectId = projectId;
+        return Ok(await _mediator.Send(body));
+    }
+
     [Authorize(Roles = RoleGroups.Admins)]
     [HttpPost("projects/{projectId:guid}/finalize")]
     [ProducesResponseType(StatusCodes.Status200OK)]
