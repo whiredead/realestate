@@ -232,14 +232,16 @@ public class AppointmentsAndClaimsScopeTests
     }
 
     [Fact]
-    public async Task GetAppointments_SalesAgent_NeverSeesColleaguesAppointments()
+    public async Task GetAppointments_SalesAgent_SeesEveryAppointmentOfAssignedProjects_ButNoOtherProject()
     {
         RequireDatabase();
-        var project = await SeedProjectAsync("Appt-List-shared");
-        await SeedMembershipAsync(project, "appt-agent-own", RoleCodes.SalesAgent);
-        await SeedMembershipAsync(project, "appt-agent-colleague", RoleCodes.SalesAgent);
-        await SeedAppointmentAsync(project, "appt-agent-own", "mine");
-        var colleagueApptId = await SeedAppointmentAsync(project, "appt-agent-colleague", "colleague");
+        var shared = await SeedProjectAsync("Appt-List-shared");
+        var elsewhere = await SeedProjectAsync("Appt-List-elsewhere");
+        await SeedMembershipAsync(shared, "appt-agent-own", RoleCodes.SalesAgent);
+        await SeedMembershipAsync(shared, "appt-agent-colleague", RoleCodes.SalesAgent);
+        var ownApptId = await SeedAppointmentAsync(shared, "appt-agent-own", "mine");
+        var colleagueApptId = await SeedAppointmentAsync(shared, "appt-agent-colleague", "colleague");
+        var otherProjectApptId = await SeedAppointmentAsync(elsewhere, "appt-agent-colleague", "other-project");
 
         var agent = new FakeCurrentUser { UserId = "appt-agent-own", Roles = new[] { RoleCodes.SalesAgent } };
         var db = _fixture.CreateContext();
@@ -248,8 +250,11 @@ public class AppointmentsAndClaimsScopeTests
 
         var result = await handler.Handle(new GetAppointmentsQuery { PageSize = 100 }, CancellationToken.None);
 
-        result.Data.Should().NotContain(a => a.Id == colleagueApptId,
-            "a SALES_AGENT must never see a colleague's appointment, even within the same project, and even if a different AgentId is requested");
+        result.Data.Should().Contain(a => a.Id == ownApptId);
+        result.Data.Should().Contain(a => a.Id == colleagueApptId,
+            "a SALES_AGENT sees all the appointments of the projects assigned to them, including a colleague's");
+        result.Data.Should().NotContain(a => a.Id == otherProjectApptId,
+            "but never an appointment of a project they are not assigned to");
     }
 
     [Fact]

@@ -33,9 +33,8 @@ public class GetLeadsHandler : IRequestHandler<GetLeadsQuery, PaginatedResponse<
 
         // A SALES_AGENT sees only their own leads — same convention as
         // GetAppointmentsHandler/GetReservationsHandler.
-        var effectiveAgentId = _currentUser.IsInRole(RoleCodes.SalesAgent)
-            ? _currentUser.UserId
-            : request.AgentId;
+        // A SALES_AGENT sees every lead of the projects assigned to them; AgentId is only an optional filter.
+        var effectiveAgentId = request.AgentId;
 
         var query = _context.Set<Lead>()
             .Where(l => scopedProjectIds == null || scopedProjectIds.Contains(l.ProjectId))

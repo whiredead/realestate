@@ -34,13 +34,7 @@ public class GetAppointmentVisitReportHandler : IRequestHandler<GetAppointmentVi
 
         await _projectScope.EnsureProjectAccessAsync(appointment.ProjectId, ct);
 
-        if (_currentUser.IsInRole(RoleCodes.SalesAgent) && appointment.SalesAgentId != _currentUser.UserId)
-        {
-            throw new BusinessRuleException(
-                BusinessErrorCodes.Unauthorized,
-                "Ce rendez-vous n'est pas affecté à votre compte.",
-                StatusCodes.Status403Forbidden);
-        }
+        // Reading follows the project perimeter checked above.
 
         var report = await _db.Set<AppointmentVisitReport>()
             .Where(r => r.AppointmentId == request.AppointmentId)

@@ -41,13 +41,7 @@ public class GetAppointmentByIdHandler : IRequestHandler<GetAppointmentByIdQuery
 
         // Same ownership rule as UpdateAppointmentStatusHandler: a
         // SALES_AGENT only sees their own appointments, never a colleague's.
-        if (_currentUser.IsInRole(RoleCodes.SalesAgent) && appointment.SalesAgentId != _currentUser.UserId)
-        {
-            throw new BusinessRuleException(
-                BusinessErrorCodes.Unauthorized,
-                "Ce rendez-vous n'est pas affecté à votre compte.",
-                StatusCodes.Status403Forbidden);
-        }
+        // Reading follows the project perimeter checked above; changing an appointment stays limited to its own agent.
 
         return new AppointmentResponse
         {

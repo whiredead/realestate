@@ -67,9 +67,8 @@ public class GetAppointmentsHandler : IRequestHandler<GetAppointmentsQuery, Pagi
 
         // A SALES_AGENT sees only their own appointments — a supplied AgentId
         // is ignored for them, same as GetReservationsHandler's convention.
-        var effectiveAgentId = _currentUser.IsInRole(RoleCodes.SalesAgent)
-            ? _currentUser.UserId
-            : request.AgentId;
+        // A SALES_AGENT sees every appointment of the projects assigned to them; AgentId is only an optional filter.
+        var effectiveAgentId = request.AgentId;
 
         var appointments = await _appointmentRepository.Find(a =>
                   (scopedProjectIds == null || scopedProjectIds.Contains(a.ProjectId)) &&

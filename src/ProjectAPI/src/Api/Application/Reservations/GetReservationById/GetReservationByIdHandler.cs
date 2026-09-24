@@ -42,13 +42,9 @@ public class GetReservationByIdHandler : IRequestHandler<GetReservationByIdQuery
         // at all, unlike Appointments. Same non-disclosure posture as
         // ProjectScopeDenied: refuse rather than reveal whether the file
         // exists to an agent it doesn't belong to.
-        if (_currentUser.IsInRole(RoleCodes.SalesAgent) && reservation.AgentId != _currentUser.UserId)
-        {
-            throw new Common.Exceptions.BusinessRuleException(
-                Common.Exceptions.BusinessErrorCodes.Unauthorized,
-                "Ce dossier n'est pas accessible.",
-                StatusCodes.Status403Forbidden);
-        }
+        // Reading is by project: an agent may open any reservation of their assigned projects (the project
+        // perimeter is already enforced above). Acting on a colleague's file stays restricted in the handlers
+        // that change it.
 
         var location = (await Common.Units.UnitLocations.ForUnitsAsync(_db, new[] { reservation.UnitId }, cancellationToken)).GetValueOrDefault(reservation.UnitId);
 

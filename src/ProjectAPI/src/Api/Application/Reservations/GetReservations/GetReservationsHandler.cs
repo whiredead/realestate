@@ -44,11 +44,9 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
             // request.AgentId for a different agent is ignored rather than
             // honoured, so an agent cannot widen their own query by asking for
             // someone else's id. Admins are unaffected.
+            // A SALES_AGENT sees every reservation of the projects assigned to them (the project scope above),
+            // not only the ones they created: an explicit AgentId is just an optional "only this agent" filter.
             var effectiveAgentId = request.AgentId;
-            if (_currentUser.IsInRole(RoleCodes.SalesAgent))
-            {
-                effectiveAgentId = _currentUser.UserId;
-            }
             // Lists, not HashSets: EF Core parameterizes List.Contains but inlines a
             // HashSet as a literal IN (...) — a freshly compiled plan per call.
             List<Guid>? scopedUnitIds = null;
