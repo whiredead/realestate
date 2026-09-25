@@ -169,18 +169,19 @@ public class MediaUrlPolicyTests
     /// The 3D hosts the product actually ships with, read from appsettings.json
     /// rather than restated here.
     ///
-    /// Allowed3DHosts was an empty list while the frontend already embedded
-    /// Matterport, Kuula and Momento360 (see Visit3DSection's EMBEDDABLE_HOSTS),
-    /// so every real tour link was refused on save with "le domaine n'est pas
-    /// autorisé" — the policy was fail-closed exactly as designed, against a
-    /// list nobody had filled in. This pins the two sides together: emptying the
-    /// config, or adding a host the frontend cannot frame, fails here.
+    /// Allowed3DHosts is now the explicit wildcard ("*"): any host is accepted
+    /// for a 3D-tour link (the structural checks — https, no embedded
+    /// credentials, no javascript:/data: scheme — still apply). This was a
+    /// deliberate choice to stop rejecting legitimate tour providers outside the
+    /// small curated list (Matterport/Kuula/Momento360/Viewin360); see
+    /// MediaSettings.AnyHost.
     /// </summary>
     [Theory]
     [InlineData("https://my.matterport.com/show/?m=SxQL3iGyoDo")]
     [InlineData("https://matterport.com/show/?m=SxQL3iGyoDo")]
     [InlineData("https://kuula.co/share/collection/7lrZP?logo=1&fs=1")]
     [InlineData("https://momento360.com/e/u/7b0e5b1d5f3c4a8e9d2f1a6c8b4e7d90")]
+    [InlineData("https://evil.test/tour")]
     public void Shipped_config_accepts_the_3D_hosts_the_frontend_embeds(string url)
     {
         Policy(ShippedSettings()).Invoking(p => p.Ensure3DLink(url, "Module3DLink"))
@@ -188,15 +189,14 @@ public class MediaUrlPolicyTests
     }
 
     /// <summary>
-    /// Opening the list to real providers must not open it to everything: the
-    /// entries are specific hosts, never "*".
+    /// The wildcard only disables the host allow-list — it does not relax the
+    /// structural checks (scheme, credentials) that run before host matching.
     /// </summary>
     [Fact]
-    public void Shipped_config_still_refuses_an_unknown_3D_host()
+    public void Shipped_config_still_refuses_a_non_https_3D_link()
     {
-        Policy(ShippedSettings()).Invoking(p => p.Ensure3DLink("https://evil.test/tour", "Module3DLink"))
-            .Should().Throw<BusinessRuleException>()
-            .WithMessage("*evil.test*");
+        Policy(ShippedSettings()).Invoking(p => p.Ensure3DLink("javascript:alert(1)", "Module3DLink"))
+            .Should().Throw<BusinessRuleException>();
     }
 
     /// <summary>
