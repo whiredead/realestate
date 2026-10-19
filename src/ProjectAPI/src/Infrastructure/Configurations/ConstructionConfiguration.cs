@@ -183,3 +183,26 @@ public class SnagHistoryConfiguration : IEntityTypeConfiguration<SnagHistory>
                .HasDatabaseName("IX_SnagHistories_SnagDate");
     }
 }
+
+/// <summary>Final-visit files (photos, repair proofs, signed PV) — kept for the delivery trail.</summary>
+public class FinalVisitDocumentConfiguration : IEntityTypeConfiguration<FinalVisitDocument>
+{
+    public void Configure(EntityTypeBuilder<FinalVisitDocument> builder)
+    {
+        builder.ToTable("FinalVisitDocuments");
+        builder.HasKey(d => d.Id);
+
+        builder.Property(d => d.Kind).HasMaxLength(30).IsRequired();
+        builder.Property(d => d.BlobName).HasMaxLength(500).IsRequired();
+        builder.Property(d => d.FileName).HasMaxLength(255).IsRequired();
+        builder.Property(d => d.ContentType).HasMaxLength(150).IsRequired();
+        builder.Property(d => d.UploadedBy).HasMaxLength(450);
+
+        builder.HasOne<FinalVisitCase>().WithMany().HasForeignKey(d => d.CaseId).OnDelete(DeleteBehavior.NoAction);
+        builder.HasOne<FinalVisitReport>().WithMany().HasForeignKey(d => d.ReportId).OnDelete(DeleteBehavior.NoAction);
+        builder.HasOne<Snag>().WithMany().HasForeignKey(d => d.SnagId).OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasIndex(d => new { d.CaseId, d.Kind }).HasDatabaseName("IX_FinalVisitDocuments_CaseKind");
+        builder.HasIndex(d => d.SnagId).HasDatabaseName("IX_FinalVisitDocuments_Snag");
+    }
+}

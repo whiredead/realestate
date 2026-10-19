@@ -86,6 +86,16 @@ public class TransitionSnagHandler : IRequestHandler<TransitionSnagCommand, Tran
                 "Une description de la résolution est obligatoire pour passer la réserve à RESOLVED.");
         }
 
+        // A major or blocking snag is resolved on evidence: a photo of the repair
+        // (SNAG_PROOF) must be on file before it can be declared RESOLVED.
+        if (request.TargetStatus == SnagStatus.Resolved && snag.Severity is SnagSeverity.Major or SnagSeverity.Blocking
+            && !await _db.Set<FinalVisitDocument>().AnyAsync(d => d.SnagId == snag.Id && d.Kind == FinalVisitDocumentKinds.SnagProof, ct))
+        {
+            throw new BusinessRuleException(
+                BusinessErrorCodes.ValidationFailed,
+                "Joignez une photo de la réparation : elle est obligatoire pour résoudre une réserve majeure ou bloquante.");
+        }
+
         var previous = snag.Status;
         snag.Status = request.TargetStatus;
 

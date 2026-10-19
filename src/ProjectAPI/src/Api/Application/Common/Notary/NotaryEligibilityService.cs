@@ -134,9 +134,15 @@ public class NotaryEligibilityService
             reasons.Add("Les rendez-vous notaire ne sont pas encore ouverts sur ce projet.");
         }
 
-        return new NotaryDossierGates(contractSigned, projectOpen, reasons);
+        var signedPv = await FinalVisits.Documents.FinalVisitDocumentStorage.HasSignedPvAsync(_db, reservationId, ct);
+        if (!signedPv)
+        {
+            reasons.Add("Le PV de visite finale signé par l’acquéreur doit être déposé.");
+        }
+
+        return new NotaryDossierGates(contractSigned, projectOpen, signedPv, reasons);
     }
 }
 
 /// <summary>Result of <see cref="NotaryEligibilityService.DossierGatesAsync"/>.</summary>
-public sealed record NotaryDossierGates(bool ContractSigned, bool ProjectAppointmentsOpen, List<string> Reasons);
+public sealed record NotaryDossierGates(bool ContractSigned, bool ProjectAppointmentsOpen, bool SignedPvOnFile, List<string> Reasons);

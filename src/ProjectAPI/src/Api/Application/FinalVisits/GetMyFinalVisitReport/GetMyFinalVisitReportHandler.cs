@@ -75,7 +75,8 @@ public class GetMyFinalVisitReportHandler : IRequestHandler<GetMyFinalVisitRepor
                 Location = s.Location,
                 TargetResolutionDate = s.TargetResolutionDate,
                 Status = (int)s.Status
-            }).ToList()
+            }).ToList(),
+            Documents = await Documents.FinalVisitDocumentStorage.ListAsync(_db, visitCase.Id, ct)
         };
     }
 }

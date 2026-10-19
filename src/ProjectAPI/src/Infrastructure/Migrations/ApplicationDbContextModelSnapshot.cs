@@ -1086,6 +1086,64 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.ToTable("FinalVisitCases", (string)null);
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<Guid>("CaseId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<Guid?>("ReportId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid?>("SnagId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportId");
+
+                    b.HasIndex("SnagId")
+                        .HasDatabaseName("IX_FinalVisitDocuments_Snag");
+
+                    b.HasIndex("CaseId", "Kind")
+                        .HasDatabaseName("IX_FinalVisitDocuments_CaseKind");
+
+                    b.ToTable("FinalVisitDocuments", (string)null);
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitReport", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4231,6 +4289,25 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Case");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitDocument", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitCase", null)
+                        .WithMany()
+                        .HasForeignKey("CaseId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitReport", null)
+                        .WithMany()
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("ProjectAPI.Domain.FinalVisits.Entities.Snag", null)
+                        .WithMany()
+                        .HasForeignKey("SnagId")
+                        .OnDelete(DeleteBehavior.NoAction);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.Snag", b =>

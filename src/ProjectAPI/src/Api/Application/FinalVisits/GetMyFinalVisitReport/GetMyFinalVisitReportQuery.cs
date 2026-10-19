@@ -33,6 +33,9 @@ public class MyFinalVisitReportDto
     public DateTime? AcknowledgedAt { get; set; }
     public string? DisputeReason { get; set; }
     public List<MySnagDto> Snags { get; set; } = new();
+
+    /// <summary>Photos, repair proofs and the signed PV of the visit, newest first.</summary>
+    public List<Documents.FinalVisitDocumentDto> Documents { get; set; } = new();
 }
 
 public class MySnagDto

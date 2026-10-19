@@ -44,6 +44,9 @@ public class FinalVisitCaseDto : Common.Units.IHasUnitLocation
 
     /// <summary>The latest report version for the current appointment, if one was submitted.</summary>
     public FinalVisitReportDto? CurrentReport { get; set; }
+
+    /// <summary>Photos, repair proofs and the signed PV attached to the case, newest first.</summary>
+    public List<Documents.FinalVisitDocumentDto> Documents { get; set; } = new();
 }
 
 public class FinalVisitAppointmentDto

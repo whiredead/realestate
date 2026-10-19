@@ -40,6 +40,9 @@ public class NotaryEligibilityResponse
     /// <summary>The project admin has opened notary appointments on the project.</summary>
     public bool ProjectNotaryAppointmentsOpen { get; set; }
 
+    /// <summary>The final-visit PV signed by the buyer is on file.</summary>
+    public bool SignedPvOnFile { get; set; }
+
     public DateTime CalculatedAt { get; set; }
 }
 
@@ -128,6 +131,7 @@ public class GetNotaryEligibilityHandler
         var gates = await _eligibility.DossierGatesAsync(reservation.Id, reservation.UnitId, ct);
         response.ContractSigned = gates.ContractSigned;
         response.ProjectNotaryAppointmentsOpen = gates.ProjectAppointmentsOpen;
+        response.SignedPvOnFile = gates.SignedPvOnFile;
         response.Reasons.AddRange(gates.Reasons);
         response.CanRequestAppointment = response.CanRequestAppointment && gates.Reasons.Count == 0;
 

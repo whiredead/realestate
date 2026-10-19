@@ -101,6 +101,34 @@ public class FinalVisitsController : ControllerBase
     /// write endpoint above is keyed by one of these ids; this is how an
     /// internal caller learns them without being told to type a GUID (N11).
     /// </summary>
+    /// <summary>
+    /// Attaches a file to the final visit (multipart: file, kind, reportId?, snagId?).
+    /// kind = REPORT_PHOTO | SNAG_PHOTO | SNAG_PROOF | SIGNED_PV.
+    /// </summary>
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [HttpPost("reservations/{reservationId:guid}/documents")]
+    [RequestSizeLimit(25 * 1024 * 1024)]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UploadDocument(Guid reservationId, IFormFile? file, [FromForm] string? kind, [FromForm] Guid? reportId, [FromForm] Guid? snagId)
+        => Ok(await _mediator.Send(new Application.FinalVisits.Documents.UploadFinalVisitDocumentCommand
+        {
+            ReservationId = reservationId, File = file, Kind = kind, ReportId = reportId, SnagId = snagId
+        }));
+
+    /// <summary>Streams a final-visit document (staff of the project, or the buyer of the file).</summary>
+    [HttpGet("documents/{documentId:guid}/content")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadDocument(Guid documentId)
+    {
+        var file = await _mediator.Send(new Application.FinalVisits.Documents.DownloadFinalVisitDocumentQuery { DocumentId = documentId });
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
     /// <summary>Final-visit worklist across the caller's projects (latest attempt, report, active snags).</summary>
     [Authorize(Roles = RoleGroups.AdminsAgents)]
     [HttpGet]

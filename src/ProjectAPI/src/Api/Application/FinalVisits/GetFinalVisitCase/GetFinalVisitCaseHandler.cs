@@ -103,7 +103,8 @@ public class GetFinalVisitCaseHandler : IRequestHandler<GetFinalVisitCaseQuery, 
                 CauseDescription = currentAppointment.CauseDescription,
                 Status = (int)currentAppointment.Status
             },
-            CurrentReport = currentReportDto
+            CurrentReport = currentReportDto,
+            Documents = await Documents.FinalVisitDocumentStorage.ListAsync(_db, visitCase.Id, ct)
         }.WithLocation(location);
     }
 }

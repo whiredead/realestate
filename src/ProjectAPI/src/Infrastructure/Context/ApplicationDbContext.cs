@@ -106,6 +106,7 @@ public class ApplicationDbContext : IdentityDbContext<
     public DbSet<FinalVisitAppointment> FinalVisitAppointments { get; set; }
     public DbSet<FinalVisitReport> FinalVisitReports { get; set; }
     public DbSet<Snag> Snags { get; set; }
+    public DbSet<FinalVisitDocument> FinalVisitDocuments { get; set; }
     public DbSet<SnagHistory> SnagHistories { get; set; }
 
     // Handover and warranty (spec §5.8, §19, §48.9)
@@ -187,6 +188,7 @@ public class ApplicationDbContext : IdentityDbContext<
         builder.ApplyConfiguration(new FinalVisitReportConfiguration());
         builder.ApplyConfiguration(new SnagConfiguration());
         builder.ApplyConfiguration(new SnagHistoryConfiguration());
+        builder.ApplyConfiguration(new FinalVisitDocumentConfiguration());
         builder.ApplyConfiguration(new ProjectConfiguration());
         builder.ApplyConfiguration(new ProjectStatusReferenceConfiguration());
         builder.ApplyConfiguration(new FeatureReferenceConfiguration());
