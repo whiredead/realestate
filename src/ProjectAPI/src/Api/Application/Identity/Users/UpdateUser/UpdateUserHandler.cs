@@ -17,7 +17,7 @@ public class UpdateUserHandler : IRequestHandler<UpdateUserCommand, UpdateUserRe
 
     public async Task<UpdateUserResponse> Handle(UpdateUserCommand request, CancellationToken cancellationToken)
     {
-        var user = await _userManager.FindByIdAsync(request.UserId);
+        var user = await _userManager.FindByIdAsync(request.UserId!);
         if (user == null)
             throw new NotFoundException($"User with ID {request.UserId} not found.");
 
@@ -94,12 +94,13 @@ public class UpdateUserHandler : IRequestHandler<UpdateUserCommand, UpdateUserRe
             };
         }
 
+        // Saving an unchanged form is not an error: nothing to write, same outcome.
         if (!hasChanges)
         {
             return new UpdateUserResponse
             {
-                Success = false,
-                Message = "No changes provided."
+                Success = true,
+                Message = "Aucune modification à enregistrer."
             };
         }
 
