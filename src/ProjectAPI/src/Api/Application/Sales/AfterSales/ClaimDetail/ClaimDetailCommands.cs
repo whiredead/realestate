@@ -223,15 +223,27 @@ public class AddClaimCommentCommand : IRequest<ClaimCommentDto>
 
 public class AddClaimCommentHandler : IRequestHandler<AddClaimCommentCommand, ClaimCommentDto>
 {
+    /// <summary>Notification type; the claim screen reloads its messages when one arrives for the open claim.</summary>
+    public const string NotificationType = "CLAIM_MESSAGE";
+
     private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _scope;
     private readonly ICurrentUser _user;
+    private readonly Common.Notifications.INotificationService _notifications;
+    private readonly ILogger<AddClaimCommentHandler> _logger;
 
-    public AddClaimCommentHandler(ApplicationDbContext db, ProjectScopeService scope, ICurrentUser user)
+    public AddClaimCommentHandler(
+        ApplicationDbContext db,
+        ProjectScopeService scope,
+        ICurrentUser user,
+        Common.Notifications.INotificationService notifications,
+        ILogger<AddClaimCommentHandler> logger)
     {
         _db = db;
         _scope = scope;
         _user = user;
+        _notifications = notifications;
+        _logger = logger;
     }
 
     public async Task<ClaimCommentDto> Handle(AddClaimCommentCommand request, CancellationToken ct)
@@ -274,7 +286,53 @@ public class AddClaimCommentHandler : IRequestHandler<AddClaimCommentCommand, Cl
         claim.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(ct);
 
+        await NotifyOtherPartiesAsync(claim, isStaff, ct);
+
         return new ClaimCommentDto { Id = comment.Id, Kind = kind, Message = comment.Message, AuthorUserId = comment.AuthorUserId, CreatedAt = comment.CreatedAt };
+    }
+
+    /// <summary>
+    /// Staff message → the buyer and the assigned technician. Buyer message →
+    /// the assigned technician, or the project's technical leads while nobody
+    /// is assigned. The author is never notified. Never fails the message:
+    /// it is already saved.
+    /// </summary>
+    private async Task NotifyOtherPartiesAsync(AfterSaleClaim claim, bool authorIsStaff, CancellationToken ct)
+    {
+        try
+        {
+            var recipients = new HashSet<string>(StringComparer.Ordinal);
+            if (authorIsStaff && !string.IsNullOrEmpty(claim.BuyerId)) recipients.Add(claim.BuyerId);
+            if (!string.IsNullOrEmpty(claim.AssignedAgentId)) recipients.Add(claim.AssignedAgentId);
+
+            if (!authorIsStaff && string.IsNullOrEmpty(claim.AssignedAgentId))
+            {
+                var projectId = (await UnitLocations.ForUnitsAsync(_db, new[] { claim.UnitId }, ct))
+                    .GetValueOrDefault(claim.UnitId)?.Project.Id;
+                if (projectId is Guid pid)
+                {
+                    var now = DateTime.UtcNow;
+                    var leads = await _db.Set<Domain.Projects.Entities.ProjectMembership>()
+                        .Where(m => m.ProjectId == pid && m.RoleCode == RoleCodes.TechLead && m.IsActive
+                                 && m.ValidFrom <= now && (m.ValidUntil == null || m.ValidUntil > now))
+                        .Select(m => m.UserId)
+                        .ToListAsync(ct);
+                    recipients.UnionWith(leads);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(_user.UserId)) recipients.Remove(_user.UserId);
+
+            var title = authorIsStaff ? "Nouveau message sur votre réclamation" : "Nouveau message de l’acquéreur";
+            foreach (var userId in recipients)
+            {
+                await _notifications.NotifyAsync(userId, NotificationType, title, $"Réclamation « {claim.Title} »", claim.Id, "Claim", ct);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Claim {ClaimId}: message saved but its notification failed.", claim.Id);
+        }
     }
 }
 
