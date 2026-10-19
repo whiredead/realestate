@@ -101,6 +101,14 @@ public class FinalVisitsController : ControllerBase
     /// write endpoint above is keyed by one of these ids; this is how an
     /// internal caller learns them without being told to type a GUID (N11).
     /// </summary>
+    /// <summary>Final-visit worklist across the caller's projects (latest attempt, report, active snags).</summary>
+    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [HttpGet]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetFinalVisitCases(
+        [FromQuery] Application.FinalVisits.GetFinalVisitCases.GetFinalVisitCasesQuery query)
+        => Ok(await _mediator.Send(query));
+
     [Authorize(Roles = RoleGroups.AdminsAgents)]
     [HttpGet("reservations/{reservationId:guid}/case")]
     [ProducesResponseType(StatusCodes.Status200OK)]
