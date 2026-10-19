@@ -33,7 +33,7 @@ public class AddImmeubleTrackingHandler : IRequestHandler<AddImmeubleTrackingCom
             Id = Guid.NewGuid(),
             ImmeubleId = request.ImmeubleId,
             StatusUpdate = request.StatusUpdate,
-            DateUpdated = DateTime.Now
+            DateUpdated = DateTime.UtcNow
         };
 
         await _repository.InsertAsync(tracking);

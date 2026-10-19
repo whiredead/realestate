@@ -6,7 +6,7 @@ public class CreateAppointmentValidator : AbstractValidator<CreateAppointmentCom
         RuleFor(x => x.ProjectId).NotEmpty().WithMessage("Le projet est obligatoire.");
         RuleFor(x => x.Notes).MaximumLength(2000).WithMessage("Le message ne peut pas dépasser 2000 caractères.");
         //RuleFor(x => x.AgentId).NotEmpty().WithMessage("AgentId is required.");
-        RuleFor(x => x.AppointmentDate).GreaterThan(DateTime.Now).WithMessage("La date et l'heure du rendez-vous doivent être dans le futur.");
+        RuleFor(x => x.AppointmentDate).GreaterThan(DateTime.UtcNow).WithMessage("La date et l'heure du rendez-vous doivent être dans le futur.");
 
         // Validation for guests (unauthenticated users)
         When(x => string.IsNullOrEmpty(x.UserId), () =>

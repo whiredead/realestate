@@ -46,7 +46,7 @@ namespace ProjectAPI.Api.Application.EspacesTempsReel.CreateEspaceTempsReel
                 Id = Guid.NewGuid(),
                 ProjectId = request.ProjectId,
                 VideoLink = request.VideoLink,
-                InsertedAt = request.InsertedAt ?? DateTime.Now
+                InsertedAt = request.InsertedAt ?? DateTime.UtcNow
             };
 
             await _repository.InsertAsync(entity);

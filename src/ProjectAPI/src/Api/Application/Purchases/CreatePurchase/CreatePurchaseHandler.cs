@@ -27,7 +27,7 @@ namespace ProjectAPI.Api.Application.Purchases.CreatePurchase
                 TotalPrice = request.TotalPrice,
                 PaidAmount = request.PaidAmount,
                 RemainingAmount = request.RemainingAmount,
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow
             };
 
             await _purchaseRepository.InsertAsync(purchase);

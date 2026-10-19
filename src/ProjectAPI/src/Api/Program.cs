@@ -192,6 +192,10 @@ builder.Services
         });
     });
 builder.Services.AddScoped<EndpointPermissionFilter>();
+// Dates go out as explicit UTC ("…Z"): EF returns Kind=Unspecified, which browsers read as local time.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.JsonOptions>(o => o.JsonSerializerOptions.Converters.Add(new ProjectAPI.Api.Json.UtcDateTimeConverter()));
+builder.Services.Configure<Microsoft.AspNetCore.SignalR.JsonHubProtocolOptions>(o => o.PayloadSerializerOptions.Converters.Add(new ProjectAPI.Api.Json.UtcDateTimeConverter()));
+
 // Model-binding failures use the same RFC 9457 shape (French, code, requestId) as every other error.
 builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(o => o.InvalidModelStateResponseFactory = ProjectAPI.Api.Filters.ModelStateProblemFactory.Create);
 builder.Services.AddSignalR();

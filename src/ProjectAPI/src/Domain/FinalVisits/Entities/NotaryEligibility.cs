@@ -109,7 +109,7 @@ public static class NotaryEligibilityCalculator
         }
 
         result.Status = NotaryEligibilityStatus.Eligible;
-        result.Reasons.Add("Aucune réserve active.");
+        // No reason added: "Reasons" lists what still blocks the notary, and nothing does here.
         return result;
     }
 }

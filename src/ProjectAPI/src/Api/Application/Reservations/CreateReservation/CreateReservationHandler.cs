@@ -167,7 +167,7 @@ namespace ProjectAPI.Api.Application.Reservations.CreateReservation
                     CatalogPrice = catalogPrice,
                     Discount = request.Discount,
                     FinalPrice = finalPrice,
-                    ReservationDate = DateTime.Now,
+                    ReservationDate = DateTime.UtcNow,
                     IsUnderConstruction = request.IsUnderConstruction,
                     UnitDetails = $"{unit.UnitNumber} - {unit.TotalSurface}m²",
                     Status = request.CreateAsDraft ? ReservationStatus.Draft : ReservationStatus.Pending,

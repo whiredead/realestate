@@ -47,7 +47,7 @@ public class SubmitFeedbackHandler : IRequestHandler<SubmitFeedbackCommand, stri
                 Rating = request.Rating,
                 Comments = request.Comments,
                 Attachments = request.Attachements,
-                CreatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow
             };
 
             await _feedbackRepository.InsertAsync(feedback);

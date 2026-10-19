@@ -80,7 +80,7 @@ namespace ProjectAPI.Api.Application.Immeubles.UpdateImmeuble
                     Id = Guid.NewGuid(),
                     ImmeubleId = immeuble.Id,
                     StatusUpdate = immeuble.Status,
-                    DateUpdated = DateTime.Now
+                    DateUpdated = DateTime.UtcNow
                 };
 
                 await _trackingRepository.InsertAsync(trackingEntry);

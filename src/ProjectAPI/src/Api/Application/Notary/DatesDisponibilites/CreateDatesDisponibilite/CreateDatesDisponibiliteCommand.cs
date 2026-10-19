@@ -5,5 +5,5 @@ public class CreateDatesDisponibiliteCommand : IRequest<CreateDatesDisponibilite
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public string Status { get; set; } = "Available"; // "Available" or "Unavailable"
-    public DateTime DateCreation { get; set; } = DateTime.Now;
+    public DateTime DateCreation { get; set; } = DateTime.UtcNow;
 }
