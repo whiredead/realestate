@@ -38,4 +38,7 @@ public class MyReservationSummary : IHasUnitLocation
     public decimal? FinalPrice { get; set; }
     public DateTime ReservationDate { get; set; }
     public DateTime? ValidatedAt { get; set; }
+
+    /// <summary>Numeric ReservationContractStatus: 0 none, 1 awaiting signature, 2 signed.</summary>
+    public int ContractStatus { get; set; }
 }

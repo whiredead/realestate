@@ -82,6 +82,16 @@ namespace ProjectAPI.Domain.Reservations.Entities
         /// </summary>
         public DateTime? ExpiresAt { get; set; }
 
+        /// <summary>
+        /// Contract step after approval: filed by the sales administrator, signed
+        /// on paper by the client, scan filed back. Only meaningful while Approved.
+        /// </summary>
+        public ReservationContractStatus ContractStatus { get; set; } = ReservationContractStatus.None;
+        public DateTime? ContractIssuedAt { get; set; }
+        public string? ContractIssuedBy { get; set; }
+        public DateTime? ContractSignedAt { get; set; }
+        public string? ContractSignedBy { get; set; }
+
         // NEW: uploaded docs after validation
         public ICollection<ReservationDocument> Documents { get; set; } = new List<ReservationDocument>();
 

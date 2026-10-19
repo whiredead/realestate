@@ -34,7 +34,8 @@ public class GetMyReservationsHandler : IRequestHandler<GetMyReservationsQuery, 
                 TotalPropertyPrice = r.TotalPropertyPrice,
                 FinalPrice = r.FinalPrice,
                 ReservationDate = r.ReservationDate,
-                ValidatedAt = r.ValidatedAt
+                ValidatedAt = r.ValidatedAt,
+                ContractStatus = (int)r.ContractStatus
             })
             .ToListAsync(ct);
 

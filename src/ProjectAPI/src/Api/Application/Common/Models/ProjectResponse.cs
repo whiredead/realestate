@@ -20,6 +20,9 @@ public class ProjectResponse
     /// <summary>§8 — warranty granted on this project's units, in months.</summary>
     public int WarrantyMonths { get; set; }
 
+    /// <summary>Notary appointments opened on this project by its admin.</summary>
+    public bool NotaryAppointmentsOpen { get; set; }
+
     /// <summary>Needed by the console to edit the quartier itself, not just show its name.</summary>
     public Guid? QuartierId { get; set; }
     public string? QuartierName { get; set; }

@@ -35,6 +35,10 @@ public class GetReservationByIdResponse : Common.Units.IHasUnitLocation
     public DateTime? ValidatedAt { get; set; }
     public string? ValidatedBy { get; set; }
     public string? AdminNote { get; set; }
+    /// <summary>Contract step while Approved (0 none, 1 issued — awaiting signature, 2 signed).</summary>
+    public ReservationContractStatus ContractStatus { get; set; }
+    public DateTime? ContractIssuedAt { get; set; }
+    public DateTime? ContractSignedAt { get; set; }
     public List<ReservationDocumentResponse> Documents { get; set; } = new();
 
     /// <summary>§5.3 — the catalogue price at submit time, before any discount.</summary>

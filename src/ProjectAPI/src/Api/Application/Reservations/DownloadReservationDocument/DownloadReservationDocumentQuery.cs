@@ -49,7 +49,7 @@ public class DownloadReservationDocumentHandler
     /// </summary>
     private static readonly string[] FileReaderRoles =
     {
-        RoleCodes.GlobalAdmin, RoleCodes.ProjectAdmin, RoleCodes.SalesAgent, RoleCodes.Notary
+        RoleCodes.GlobalAdmin, RoleCodes.ProjectAdmin, RoleCodes.SalesAdmin, RoleCodes.SalesAgent, RoleCodes.Notary
     };
 
     public DownloadReservationDocumentHandler(

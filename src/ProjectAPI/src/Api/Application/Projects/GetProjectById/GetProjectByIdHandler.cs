@@ -104,6 +104,7 @@ public class GetProjectByIdHandler : IRequestHandler<GetProjectByIdQuery, Projec
             Type = project.Type,
             StatusGlobal = project.StatusGlobal,
             OverAllProgress = project.OverAllProgress,
+            NotaryAppointmentsOpen = project.NotaryAppointmentsOpen,
             Images = project.Images ?? new List<string>(),
             TotalUnits = allUnitsTotal,
             AvailableUnits = allUnitsAvailable,

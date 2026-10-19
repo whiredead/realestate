@@ -31,6 +31,12 @@ public class RecordPaymentCommand : IRequest<RecordPaymentResponse>, IIdempotent
 
     public string? Comment { get; set; }
 
+    /// <summary>
+    /// Required: id returned by <c>POST /api/payments/reservations/{id}/proofs</c>.
+    /// The proof must belong to this reservation and back no other payment.
+    /// </summary>
+    public Guid? ProofId { get; set; }
+
     /// <summary>User recording the entry.</summary>
     public string? CreatedBy { get; set; }
 

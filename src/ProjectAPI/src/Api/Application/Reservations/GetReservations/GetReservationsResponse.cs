@@ -41,6 +41,10 @@ public class GetReservationsResponse
     public DateTime? ValidatedAt { get; set; }
     public string? ValidatedBy { get; set; }
     public string? AdminNote { get; set; }
+    /// <summary>Contract step while Approved (0 none, 1 issued — awaiting signature, 2 signed).</summary>
+    public ReservationContractStatus ContractStatus { get; set; }
+    public DateTime? ContractIssuedAt { get; set; }
+    public DateTime? ContractSignedAt { get; set; }
 
     // New: documents
     public List<ReservationDocumentResponse> Documents { get; set; } = new();

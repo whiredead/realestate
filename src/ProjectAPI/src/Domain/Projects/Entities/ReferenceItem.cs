@@ -10,4 +10,7 @@ public class ReferenceItem
     public string? Description { get; set; }
     public int SortOrder { get; set; }
     public bool IsActive { get; set; } = true;
+
+    /// <summary>Badge tone for STATUS.* items (success, warning, info, danger, critical, neutral); null keeps the default.</summary>
+    public string? Tone { get; set; }
 }

@@ -275,6 +275,20 @@ public class ProjectsController : ControllerBase
         return Ok(await _mediator.Send(command));
     }
 
+    /// <summary>Opens or closes notary appointments on this project ({ "open": true|false }).</summary>
+    [HttpPut("{projectId:guid}/notary-appointments")]
+    [Authorize(Roles = RoleGroups.Admins)]
+    [ProducesResponseType(typeof(Application.Projects.NotaryAppointments.SetProjectNotaryAppointmentsResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> SetNotaryAppointments(
+        Guid projectId,
+        [FromBody] Application.Projects.NotaryAppointments.SetProjectNotaryAppointmentsCommand command)
+    {
+        command.ProjectId = projectId;
+        return Ok(await _mediator.Send(command));
+    }
+
     /// <summary>Removes a document requirement (§12.1 configuration, not business data).</summary>
     [HttpDelete("document-requirements/{id:guid}")]
     [Authorize(Roles = RoleGroups.Admins)]

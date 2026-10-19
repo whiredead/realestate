@@ -32,6 +32,12 @@ namespace ProjectAPI.Infrastructure.Configurations
 
             builder.Property(r => r.AdminNote).HasMaxLength(2000);
 
+            builder.Property(r => r.ContractStatus)
+             .HasConversion<int>()
+             .IsRequired();
+            builder.Property(r => r.ContractIssuedBy).HasMaxLength(450);
+            builder.Property(r => r.ContractSignedBy).HasMaxLength(450);
+
             // §3 / §6.3 — at most ONE active reservation per unit. A filtered
             // unique index is SQL Server's equivalent of a partial index, the same
             // device already used for IX_PaymentSchedules_ActivePerReservation.

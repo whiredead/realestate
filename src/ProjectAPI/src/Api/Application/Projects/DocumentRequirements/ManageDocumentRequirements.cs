@@ -72,7 +72,9 @@ public class UpsertProjectDocumentRequirementValidator : AbstractValidator<Upser
     public UpsertProjectDocumentRequirementValidator()
     {
         RuleFor(x => x.ProjectId).NotEmpty();
-        RuleFor(x => x.DocumentType).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.DocumentType).NotEmpty().MaximumLength(100)
+            .Must(type => !Domain.Reservations.Entities.ReservationContractDocumentTypes.IsReserved(type))
+            .WithMessage("Ce code est réservé à l'étape « Contrat » de l'admin des ventes.");
         RuleFor(x => x.LabelFr).NotEmpty().MaximumLength(200);
         RuleFor(x => x.SequenceNo).GreaterThanOrEqualTo(0);
     }

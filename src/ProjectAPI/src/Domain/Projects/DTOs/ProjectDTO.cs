@@ -14,6 +14,9 @@ public class ProjectDTO
     public decimal OverAllProgress { get; set; }
     public long NumberLikes { get; set; }
     public int WarrantyMonths { get; set; }
+
+    /// <summary>Notary appointments opened on this project by its admin.</summary>
+    public bool NotaryAppointmentsOpen { get; set; }
     public Guid? QuartierId { get; set; }
     public string? QuartierName { get; set; }
     public string? QuartierDescription { get; set; }

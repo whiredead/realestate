@@ -46,6 +46,14 @@ public class UploadReservationDocumentHandler : IRequestHandler<UploadReservatio
 
         Common.Reservations.ReservationDocumentPolicy.EnsureCanAdd(status);
 
+        // The contract step has its own endpoints; a "signed contract" filed here would skip it.
+        if (ReservationContractDocumentTypes.IsReserved(request.DocumentType))
+        {
+            throw new Common.Exceptions.BusinessRuleException(
+                Common.Exceptions.BusinessErrorCodes.ValidationFailed,
+                "Le contrat se dépose depuis l'étape « Contrat » de la réservation, pas comme pièce libre.");
+        }
+
         var blobName = $"{request.ReservationId}/{Guid.NewGuid()}_{Path.GetFileName(request.File.FileName)}";
         var contentType = request.File.ContentType ?? "application/octet-stream";
 

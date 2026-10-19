@@ -28,6 +28,19 @@ public static class RoleGroups
     /// <summary>Admins plus the commercial agent (CRM, reservations, visits).</summary>
     public const string AdminsAgents = Admins + "," + RoleCodes.SalesAgent;
 
+    /// <summary>
+    /// Who decides on a submitted reservation (approve / reject / request
+    /// changes) and files its contract: the sales administrator, with the
+    /// project admin as fallback. GLOBAL_ADMIN is deliberately absent.
+    /// </summary>
+    public const string ReservationDeciders = RoleCodes.SalesAdmin + "," + RoleCodes.ProjectAdmin;
+
+    /// <summary>Who reads reservation files and their documents: the commercial side plus the sales administrator.</summary>
+    public const string ReservationReaders = AdminsAgents + "," + RoleCodes.SalesAdmin;
+
+    /// <summary>Who keeps the payment ledger (record, validate, reject, reverse, proofs): admins and the sales administrator.</summary>
+    public const string PaymentManagers = Admins + "," + RoleCodes.SalesAdmin;
+
     /// <summary>Admins, agent and notary (delivery, construction reads, notary appts).</summary>
     public const string AdminsAgentsNotary = AdminsAgents + "," + RoleCodes.Notary;
 
@@ -40,7 +53,7 @@ public static class RoleGroups
     public const string AdminsTechnicians = Admins + "," + RoleCodes.TechLead + "," + RoleCodes.Technician;
 
     /// <summary>Every internal role (no buyer / prospect) — project-scoped reads shared by all staff screens.</summary>
-    public const string InternalStaff = AdminsAgentsNotary + "," + RoleCodes.TechLead + "," + RoleCodes.Technician;
+    public const string InternalStaff = AdminsAgentsNotary + "," + RoleCodes.SalesAdmin + "," + RoleCodes.TechLead + "," + RoleCodes.Technician;
 
     /// <summary>Who qualifies, assigns and validates the closure of a claim: admins and the technical lead.</summary>
     public const string ClaimSupervisors = Admins + "," + RoleCodes.TechLead;

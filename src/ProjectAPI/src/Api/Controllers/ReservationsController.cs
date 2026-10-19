@@ -9,6 +9,7 @@ using ProjectAPI.Api.Application.Reservations.GetReservations;
 using ProjectAPI.Api.Application.Reservations.RejectReservation;
 using ProjectAPI.Api.Application.Reservations.RequestChanges;
 using ProjectAPI.Api.Application.Reservations.ResubmitReservation;
+using ProjectAPI.Api.Application.Reservations.UploadReservationContract;
 using ProjectAPI.Api.Application.Reservations.UploadReservationDocument;
 using ProjectAPI.Api.Application.Common.Idempotency;
 using ProjectAPI.Api.Application.Common.Security;
@@ -62,7 +63,7 @@ public class ReservationsController : ControllerBase
     /// declares no requirements.
     /// </summary>
     [HttpGet("{id:guid}/document-checklist")]
-    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [Authorize(Roles = RoleGroups.ReservationReaders)]
     [ProducesResponseType(typeof(Application.Reservations.GetDocumentChecklist.ReservationChecklistResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -73,7 +74,7 @@ public class ReservationsController : ControllerBase
     }
 
     [HttpGet("{id}")]
-    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [Authorize(Roles = RoleGroups.ReservationReaders)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<IActionResult> GetReservationById(Guid id)
@@ -91,7 +92,7 @@ public class ReservationsController : ControllerBase
     }
 
     [HttpGet("list")]
-    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [Authorize(Roles = RoleGroups.ReservationReaders)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> GetReservations([FromQuery] GetReservationsQuery query)
@@ -107,7 +108,7 @@ public class ReservationsController : ControllerBase
     /// write path anywhere until now.
     /// </summary>
     [HttpPost("{id:guid}/documents")]
-    [Authorize(Roles = RoleGroups.AdminsAgents)]
+    [Authorize(Roles = RoleGroups.ReservationReaders)]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> UploadDocument(Guid id, [FromForm] UploadReservationDocumentCommand command)
@@ -160,17 +161,43 @@ public class ReservationsController : ControllerBase
         var response = await _mediator.Send(new DeleteReservationDocumentCommand { DocumentId = documentId });
         return response.IsSuccess ? Ok(response.Message) : BadRequest(response.Message);
     }
-    // §6.3 "V périmètre" — validation by the project administrator. §6.4 also
+    // Decided by the sales administrator, the project admin as fallback. §6.4 also
     // forbids the owning agent from approving their own reservation; that check
     // is enforced in ApproveReservationHandler (the caller id isn't visible here).
     [HttpPost("{id:guid}/approve")]
-    [Authorize(Roles = RoleGroups.Admins)]
+    [Authorize(Roles = RoleGroups.ReservationDeciders)]
     public async Task<IActionResult> Approve(Guid id, [FromBody] ApproveReservationCommand body)
     {
         body.ReservationId = id;
         body.IdempotencyKey ??= Request.GetIdempotencyKey();
         return Ok(await _mediator.Send(body));
     }
+
+    /// <summary>
+    /// Files the contract of an approved reservation, to be printed and signed
+    /// by the client. Re-sending before the signed copy arrives replaces the
+    /// current version; earlier versions stay on the file.
+    /// </summary>
+    [HttpPost("{id:guid}/contract")]
+    [Authorize(Roles = RoleGroups.ReservationDeciders)]
+    [ProducesResponseType(typeof(UploadReservationContractResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UploadContract(Guid id, IFormFile? file)
+        => Ok(await _mediator.Send(new UploadReservationContractCommand { ReservationId = id, File = file, Signed = false }));
+
+    /// <summary>Files the scan of the contract the client signed on paper. Closes the contract step.</summary>
+    [HttpPost("{id:guid}/contract/signed")]
+    [Authorize(Roles = RoleGroups.ReservationDeciders)]
+    [ProducesResponseType(typeof(UploadReservationContractResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> UploadSignedContract(Guid id, IFormFile? file)
+        => Ok(await _mediator.Send(new UploadReservationContractCommand { ReservationId = id, File = file, Signed = true }));
 
     /// <summary>
     /// A (new) link the buyer uses to choose their own password, for a reservation whose buyer has no account yet.
@@ -188,7 +215,7 @@ public class ReservationsController : ControllerBase
         => Ok(await _mediator.Send(new ProjectAPI.Api.Application.Reservations.GetProspects.GetProspectsQuery { Search = search, ProjectId = projectId }));
 
     [HttpPost("{id:guid}/reject")]
-    [Authorize(Roles = RoleGroups.Admins)] // §6.3 "V périmètre".
+    [Authorize(Roles = RoleGroups.ReservationDeciders)]
     public async Task<IActionResult> Reject(Guid id, [FromBody] RejectReservationCommand body)
     {
         body.ReservationId = id;
@@ -200,7 +227,7 @@ public class ReservationsController : ControllerBase
     /// The unit stays blocked.
     /// </summary>
     [HttpPost("{id:guid}/request-changes")]
-    [Authorize(Roles = RoleGroups.Admins)] // §12.2 — decision by the project admin.
+    [Authorize(Roles = RoleGroups.ReservationDeciders)] // §12.2 — a decision, like approve/reject.
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

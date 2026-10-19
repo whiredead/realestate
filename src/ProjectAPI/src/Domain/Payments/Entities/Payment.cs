@@ -46,6 +46,13 @@ public class Payment
 
     public string? Comment { get; set; }
 
+    /// <summary>
+    /// The evidence this entry was recorded on. Required for every payment
+    /// recorded through the API; null only on reversals and on entries that
+    /// predate the rule.
+    /// </summary>
+    public Guid? ProofId { get; set; }
+
     public string? CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 

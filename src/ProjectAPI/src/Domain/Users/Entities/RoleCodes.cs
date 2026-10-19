@@ -48,6 +48,13 @@ public static class RoleCodes
     /// <summary>Notary: own availability and their projects' notary appointments (§6.1).</summary>
     public const string Notary = "NOTARY";
 
+    /// <summary>
+    /// Sales administrator ("Admin des ventes"), project-scoped: decides on
+    /// submitted reservations, issues and files the signed contract, and keeps
+    /// the payment ledger of the projects they hold a membership on.
+    /// </summary>
+    public const string SalesAdmin = "SALES_ADMIN";
+
     /// <summary>Administrator of one or more assigned projects (§6.1).</summary>
     public const string ProjectAdmin = "PROJECT_ADMIN";
 
@@ -57,13 +64,13 @@ public static class RoleCodes
     /// <summary>Every role that may be stored on an account (VISITOR is not).</summary>
     public static readonly string[] Assignable =
     {
-        Prospect, Buyer, SalesAgent, Technician, TechLead, Notary, ProjectAdmin, GlobalAdmin
+        Prospect, Buyer, SalesAgent, SalesAdmin, Technician, TechLead, Notary, ProjectAdmin, GlobalAdmin
     };
 
     /// <summary>Roles that grant access to the internal CRM at all (§6.3).</summary>
     public static readonly string[] Internal =
     {
-        SalesAgent, Technician, TechLead, Notary, ProjectAdmin, GlobalAdmin
+        SalesAgent, SalesAdmin, Technician, TechLead, Notary, ProjectAdmin, GlobalAdmin
     };
 
     /// <summary>Either administrator level (§6.3 "Admin projet" / "Admin global").</summary>
@@ -77,7 +84,7 @@ public static class RoleCodes
     /// </summary>
     public static readonly string[] MembershipRoles =
     {
-        SalesAgent, Technician, TechLead, Notary, ProjectAdmin
+        SalesAgent, SalesAdmin, Technician, TechLead, Notary, ProjectAdmin
     };
 
     private static readonly IReadOnlyDictionary<string, string> LegacyMap =

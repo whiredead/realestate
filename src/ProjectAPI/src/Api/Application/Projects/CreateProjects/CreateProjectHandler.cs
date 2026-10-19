@@ -36,7 +36,8 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
     public static readonly (string Code, string LabelFr)[] DefaultDocumentRequirements =
     {
         ("CIN", "CIN ou passeport"),
-        ("RESERVATION_CONTRACT", "Contrat ou bulletin de réservation signé"),
+        // No contract here: the contract is filed by the sales admin after
+        // approval (POST /api/Reservations/{id}/contract), not by the agent.
         ("RESERVATION_PAYMENT_PROOF", "Justificatif de paiement de la réservation"),
     };
 
@@ -104,7 +105,7 @@ public class CreateProjectHandler : IRequestHandler<CreateProjectCommand, Create
         await _projectRepository.SaveAsync();
 
         // §12.1 — every project starts with the default reservation checklist
-        // (identity, signed reservation contract, proof of the deposit). The
+        // (identity, proof of the deposit). The
         // project admin can then change it per project; without a default, a
         // new project required nothing and any file could be submitted bare.
         var now0 = DateTime.UtcNow;

@@ -90,6 +90,13 @@ public class Project
     public int WarrantyMonths { get; set; } = 12;
 
     /// <summary>
+    /// Opened by the project admin when the project is ready for notarial
+    /// deeds. Closed (the default), no notary appointment can be requested or
+    /// confirmed on any of its reservations.
+    /// </summary>
+    public bool NotaryAppointmentsOpen { get; set; }
+
+    /// <summary>
     /// Gets or sets the list of image URLs associated with the project.
     /// </summary>
     public List<string> Images { get; set; } = new List<string>();

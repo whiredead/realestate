@@ -90,6 +90,7 @@ public class ApplicationDbContext : IdentityDbContext<
     public DbSet<PaymentInstallment> PaymentInstallments { get; set; }
     public DbSet<Payment> Payments { get; set; }
     public DbSet<PaymentAllocation> PaymentAllocations { get; set; }
+    public DbSet<PaymentProof> PaymentProofs { get; set; }
 
     // Construction tracking and land title (spec §15, §16, §48.7)
     public DbSet<ConstructionMilestone> ConstructionMilestones { get; set; }
@@ -176,6 +177,7 @@ public class ApplicationDbContext : IdentityDbContext<
         builder.ApplyConfiguration(new PaymentInstallmentConfiguration());
         builder.ApplyConfiguration(new PaymentConfiguration());
         builder.ApplyConfiguration(new PaymentAllocationConfiguration());
+        builder.ApplyConfiguration(new PaymentProofConfiguration());
         builder.ApplyConfiguration(new ConstructionMilestoneConfiguration());
         builder.ApplyConfiguration(new ConstructionUpdateConfiguration());
         builder.ApplyConfiguration(new UnitTitleStateConfiguration());

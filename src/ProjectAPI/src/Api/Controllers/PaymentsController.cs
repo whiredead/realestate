@@ -1,5 +1,6 @@
 using ProjectAPI.Api.Application.Payments.CreatePaymentSchedule;
 using ProjectAPI.Api.Application.Payments.GetPaymentSchedule;
+using ProjectAPI.Api.Application.Payments.PaymentProofs;
 using ProjectAPI.Api.Application.Payments.RecordPayment;
 using ProjectAPI.Api.Application.Payments.RejectPayment;
 using ProjectAPI.Api.Application.Payments.ReversePayment;
@@ -56,9 +57,33 @@ public class PaymentsController : ControllerBase
         return Ok(await _mediator.Send(body));
     }
 
-    /// <summary>Records a received payment (§14.3).</summary>
+    /// <summary>
+    /// Uploads the evidence of a payment (photo or document) to the private
+    /// payment-proofs container. Send the returned id as ProofId when recording.
+    /// </summary>
+    [HttpPost("reservations/{reservationId:guid}/proofs")]
+    [Authorize(Roles = RoleGroups.PaymentManagers)]
+    [ProducesResponseType(typeof(PaymentProofResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    [RequestSizeLimit(25 * 1024 * 1024)]
+    public async Task<IActionResult> UploadProof(Guid reservationId, IFormFile? file)
+        => Ok(await _mediator.Send(new UploadPaymentProofCommand { ReservationId = reservationId, File = file }));
+
+    /// <summary>Streams a payment proof to a caller entitled to the ledger (the buyer reads their own).</summary>
+    [HttpGet("proofs/{proofId:guid}/content")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> DownloadProof(Guid proofId)
+    {
+        var file = await _mediator.Send(new DownloadPaymentProofQuery { ProofId = proofId });
+        return File(file.Content, file.ContentType, file.FileName);
+    }
+
+    /// <summary>Records a received payment (§14.3). A proof (ProofId) is mandatory.</summary>
     [HttpPost("reservations/{reservationId:guid}/payments")]
-    [Authorize(Roles = RoleGroups.Admins)] // §6.3 "C/M périmètre".
+    [Authorize(Roles = RoleGroups.PaymentManagers)] // §6.3 "C/M périmètre".
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
@@ -71,7 +96,7 @@ public class PaymentsController : ControllerBase
 
     /// <summary>Reverses a validated payment (§14.3). The original is never edited.</summary>
     [HttpPost("{paymentId:guid}/reverse")]
-    [Authorize(Roles = RoleGroups.Admins)] // §14.3 — reversal is an admin action.
+    [Authorize(Roles = RoleGroups.PaymentManagers)] // §14.3 — reversal is an administrative action.
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -83,7 +108,7 @@ public class PaymentsController : ControllerBase
 
     /// <summary>Confirms a pending-validation payment (§14.3) — the missing second step of "declare, then confirm".</summary>
     [HttpPost("{paymentId:guid}/validate")]
-    [Authorize(Roles = RoleGroups.Admins)] // §6.3 "C/M périmètre".
+    [Authorize(Roles = RoleGroups.PaymentManagers)] // §6.3 "C/M périmètre".
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -95,7 +120,7 @@ public class PaymentsController : ControllerBase
 
     /// <summary>Refuses a pending-validation payment (§14.3) — the other missing half of "declare, then confirm/refuse".</summary>
     [HttpPost("{paymentId:guid}/reject")]
-    [Authorize(Roles = RoleGroups.Admins)] // §6.3 "C/M périmètre".
+    [Authorize(Roles = RoleGroups.PaymentManagers)] // §6.3 "C/M périmètre".
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]

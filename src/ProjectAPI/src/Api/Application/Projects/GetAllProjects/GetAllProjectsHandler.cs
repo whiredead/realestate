@@ -83,6 +83,7 @@ public class GetAllProjectsHandler : IRequestHandler<GetAllProjectsQuery, Pagina
                 OverAllProgress = project.OverAllProgress,
                 NumberLikes = project.NumberLikes,
                 WarrantyMonths = project.WarrantyMonths,
+                NotaryAppointmentsOpen = project.NotaryAppointmentsOpen,
                 IsLiked = project.IsLiked,
                 QuartierId = project.QuartierId,
                 QuartierName = project.QuartierName,

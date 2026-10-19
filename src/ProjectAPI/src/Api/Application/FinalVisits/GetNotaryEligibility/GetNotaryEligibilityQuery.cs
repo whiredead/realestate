@@ -34,6 +34,12 @@ public class NotaryEligibilityResponse
     public string TitleStatus { get; set; } = string.Empty;
     public bool TitleAllowsAppointment { get; set; }
 
+    /// <summary>The client's signed contract is on file.</summary>
+    public bool ContractSigned { get; set; }
+
+    /// <summary>The project admin has opened notary appointments on the project.</summary>
+    public bool ProjectNotaryAppointmentsOpen { get; set; }
+
     public DateTime CalculatedAt { get; set; }
 }
 
@@ -42,11 +48,14 @@ public class GetNotaryEligibilityHandler
 {
     private readonly ApplicationDbContext _db;
     private readonly ProjectScopeService _projectScope;
+    private readonly Common.Notary.NotaryEligibilityService _eligibility;
 
-    public GetNotaryEligibilityHandler(ApplicationDbContext db, ProjectScopeService projectScope)
+    public GetNotaryEligibilityHandler(
+        ApplicationDbContext db, ProjectScopeService projectScope, Common.Notary.NotaryEligibilityService eligibility)
     {
         _db = db;
         _projectScope = projectScope;
+        _eligibility = eligibility;
     }
 
     public async Task<NotaryEligibilityResponse> Handle(GetNotaryEligibilityQuery request, CancellationToken ct)
@@ -114,6 +123,13 @@ public class GetNotaryEligibilityHandler
             response.Reasons.Add(
                 $"Le titre foncier doit être disponible, remis au notaire ou complété (statut actuel : {titleStatus}).");
         }
+
+        // Same gates EnsureEligibleAsync applies at creation and confirmation.
+        var gates = await _eligibility.DossierGatesAsync(reservation.Id, reservation.UnitId, ct);
+        response.ContractSigned = gates.ContractSigned;
+        response.ProjectNotaryAppointmentsOpen = gates.ProjectAppointmentsOpen;
+        response.Reasons.AddRange(gates.Reasons);
+        response.CanRequestAppointment = response.CanRequestAppointment && gates.Reasons.Count == 0;
 
         return response;
     }

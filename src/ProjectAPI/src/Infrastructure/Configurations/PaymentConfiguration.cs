@@ -99,6 +99,40 @@ public class PaymentConfiguration : IEntityTypeConfiguration<Payment>
                .WithOne(a => a.Payment)
                .HasForeignKey(a => a.PaymentId)
                .OnDelete(DeleteBehavior.NoAction);
+
+        // One proof backs one payment: the same receipt cannot justify two entries.
+        builder.HasOne<PaymentProof>()
+               .WithMany()
+               .HasForeignKey(p => p.ProofId)
+               .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasIndex(p => p.ProofId)
+               .IsUnique()
+               .HasFilter("[ProofId] IS NOT NULL")
+               .HasDatabaseName("IX_Payments_Proof");
+    }
+}
+
+/// <summary>Payment evidence files (receipt photos, transfer slips) — kept for the financial trail.</summary>
+public class PaymentProofConfiguration : IEntityTypeConfiguration<PaymentProof>
+{
+    public void Configure(EntityTypeBuilder<PaymentProof> builder)
+    {
+        builder.ToTable("PaymentProofs");
+        builder.HasKey(p => p.Id);
+
+        builder.Property(p => p.BlobName).HasMaxLength(500).IsRequired();
+        builder.Property(p => p.FileName).HasMaxLength(255).IsRequired();
+        builder.Property(p => p.ContentType).HasMaxLength(150).IsRequired();
+        builder.Property(p => p.UploadedBy).HasMaxLength(450);
+
+        builder.HasOne<Domain.Reservations.Entities.Reservation>()
+               .WithMany()
+               .HasForeignKey(p => p.ReservationId)
+               .OnDelete(DeleteBehavior.NoAction);
+
+        builder.HasIndex(p => p.ReservationId)
+               .HasDatabaseName("IX_PaymentProofs_Reservation");
     }
 }
 

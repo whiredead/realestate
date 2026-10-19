@@ -59,6 +59,35 @@ public class RecordPaymentHandler : IRequestHandler<RecordPaymentCommand, Record
         var reservation = await _db.Set<Reservation>().FirstOrDefaultAsync(r => r.Id == request.ReservationId, ct)
             ?? throw new NotFoundException($"Reservation {request.ReservationId} not found.");
 
+        // Every payment is recorded on evidence: a proof uploaded for THIS
+        // reservation and not already backing another entry (also enforced by
+        // the unique index IX_Payments_Proof).
+        if (request.ProofId is not Guid proofId || proofId == Guid.Empty)
+        {
+            throw new Common.Exceptions.ValidationException(new[]
+            {
+                new ValidationFailure(nameof(request.ProofId), "Un justificatif de paiement (photo ou document) est obligatoire.")
+            });
+        }
+
+        var proofReservationId = await _db.Set<PaymentProof>()
+            .Where(p => p.Id == proofId)
+            .Select(p => (Guid?)p.ReservationId)
+            .FirstOrDefaultAsync(ct);
+        if (proofReservationId != request.ReservationId)
+        {
+            throw new BusinessRuleException(
+                BusinessErrorCodes.ValidationFailed,
+                "Justificatif introuvable pour cette réservation : déposez-le à nouveau.");
+        }
+        if (await _db.Set<Payment>().AnyAsync(p => p.ProofId == proofId, ct))
+        {
+            throw new BusinessRuleException(
+                BusinessErrorCodes.ValidationFailed,
+                "Ce justificatif est déjà rattaché à un autre paiement.",
+                StatusCodes.Status409Conflict);
+        }
+
         var payment = new Payment
         {
             Id = Guid.NewGuid(),
@@ -71,6 +100,7 @@ public class RecordPaymentHandler : IRequestHandler<RecordPaymentCommand, Record
             Source = "WEB",
             Status = request.ValidateImmediately ? PaymentStatus.Validated : PaymentStatus.PendingValidation,
             Comment = request.Comment,
+            ProofId = proofId,
             CreatedBy = request.CreatedBy,
             CreatedAt = DateTime.UtcNow
         };

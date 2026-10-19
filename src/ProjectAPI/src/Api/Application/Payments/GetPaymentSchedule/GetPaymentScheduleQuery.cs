@@ -73,6 +73,11 @@ public class PaymentScheduleResponse
         public string Status { get; set; } = string.Empty;
         public bool IsReversal { get; set; }
         public string? Comment { get; set; }
+
+        /// <summary>Evidence the entry was recorded on; download via GET /api/payments/proofs/{id}/content.</summary>
+        public Guid? ProofId { get; set; }
+        public string? ProofFileName { get; set; }
+        public string? ProofContentType { get; set; }
     }
 }
 
@@ -100,6 +105,10 @@ public class GetPaymentScheduleHandler : IRequestHandler<GetPaymentScheduleQuery
             .Where(p => p.ReservationId == request.ReservationId)
             .ToListAsync(ct);
 
+        var proofs = await _db.Set<PaymentProof>()
+            .Where(p => p.ReservationId == request.ReservationId)
+            .ToDictionaryAsync(p => p.Id, ct);
+
         var response = new PaymentScheduleResponse
         {
             CalculatedAt = now,
@@ -117,7 +126,10 @@ public class GetPaymentScheduleHandler : IRequestHandler<GetPaymentScheduleQuery
                     MethodCode = p.MethodCode,
                     Status = p.Status.ToString(),
                     IsReversal = p.ReversalOfPaymentId != null,
-                    Comment = p.Comment
+                    Comment = p.Comment,
+                    ProofId = p.ProofId,
+                    ProofFileName = p.ProofId is Guid id && proofs.TryGetValue(id, out var proof) ? proof.FileName : null,
+                    ProofContentType = p.ProofId is Guid pid && proofs.TryGetValue(pid, out var pr) ? pr.ContentType : null
                 })
                 .ToList()
         };

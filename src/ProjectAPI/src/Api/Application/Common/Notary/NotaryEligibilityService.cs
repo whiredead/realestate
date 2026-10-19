@@ -2,7 +2,11 @@ using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Exceptions;
 using ProjectAPI.Domain.Construction.Entities;
 using ProjectAPI.Domain.FinalVisits.Entities;
+using ProjectAPI.Domain.Immeubles.Entities;
+using ProjectAPI.Domain.Projects.Entities;
+using ProjectAPI.Domain.Reservations.Entities;
 using ProjectAPI.Infrastructure.Context;
+using UnitEntity = ProjectAPI.Domain.Immeubles.Entities.Unit;
 
 namespace ProjectAPI.Api.Application.Common.Notary;
 
@@ -87,14 +91,52 @@ public class NotaryEligibilityService
         var titleStatus = titleState?.Status ?? TitleStatus.NotAvailable;
         var titleAllows = TitleStateMachine.AllowsNotaryAppointment(titleStatus);
 
-        if (!eligibility.CanRequestAppointment || !titleAllows)
+        var reasons = new List<string>(eligibility.CanRequestAppointment ? Array.Empty<string>() : eligibility.Reasons);
+        if (!titleAllows)
         {
-            var reasons = new List<string>(eligibility.Reasons);
-            if (!titleAllows)
-            {
-                reasons.Add($"Le titre foncier doit être disponible, remis au notaire ou complété (statut actuel : {titleStatus}).");
-            }
+            reasons.Add($"Le titre foncier doit être disponible, remis au notaire ou complété (statut actuel : {titleStatus}).");
+        }
+        reasons.AddRange((await DossierGatesAsync(reservationId, unitId, ct)).Reasons);
+
+        if (reasons.Count > 0)
+        {
             throw BusinessRuleException.NotaryNotEligible(reasons);
         }
     }
+
+    /// <summary>
+    /// The two commercial gates of a notary appointment: the client's signed
+    /// contract is on file, and the project admin has opened notary
+    /// appointments on the project.
+    /// </summary>
+    public async Task<NotaryDossierGates> DossierGatesAsync(Guid reservationId, Guid unitId, CancellationToken ct)
+    {
+        var reasons = new List<string>();
+
+        var contractStatus = await _db.Set<Reservation>()
+            .Where(r => r.Id == reservationId)
+            .Select(r => r.ContractStatus)
+            .FirstOrDefaultAsync(ct);
+        var contractSigned = contractStatus == ReservationContractStatus.Signed;
+        if (!contractSigned)
+        {
+            reasons.Add("Le contrat signé par le client doit être déposé sur le dossier.");
+        }
+
+        var projectOpen = await (
+            from u in _db.Set<UnitEntity>()
+            join im in _db.Set<Immeuble>() on u.ProjectId equals im.Id
+            join p in _db.Set<Project>() on im.ProjectId equals p.Id
+            where u.Id == unitId
+            select p.NotaryAppointmentsOpen).FirstOrDefaultAsync(ct);
+        if (!projectOpen)
+        {
+            reasons.Add("Les rendez-vous notaire ne sont pas encore ouverts sur ce projet.");
+        }
+
+        return new NotaryDossierGates(contractSigned, projectOpen, reasons);
+    }
 }
+
+/// <summary>Result of <see cref="NotaryEligibilityService.DossierGatesAsync"/>.</summary>
+public sealed record NotaryDossierGates(bool ContractSigned, bool ProjectAppointmentsOpen, List<string> Reasons);

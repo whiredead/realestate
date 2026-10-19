@@ -71,13 +71,17 @@ public class GetReservationByIdHandler : IRequestHandler<GetReservationByIdQuery
             ValidatedAt = reservation.ValidatedAt,
             ValidatedBy = reservation.ValidatedBy,
             AdminNote = reservation.AdminNote,
+            ContractStatus = reservation.ContractStatus,
+            ContractIssuedAt = reservation.ContractIssuedAt,
+            ContractSignedAt = reservation.ContractSignedAt,
             Documents = reservation.Documents.Select(d => new ReservationDocumentResponse
             {
                 Id = d.Id,
                 Name = d.FileName,             // adjust to your entity
                 Url = d.Url,               // adjust to your entity
                 UploadedAt = d.UploadedAt, // adjust to your entity
-                UploadedBy = d.UploadedBy  // optional
+                UploadedBy = d.UploadedBy,  // optional
+                DocumentType = d.DocumentType
             }).ToList(),
 
             CatalogPrice = reservation.CatalogPrice,

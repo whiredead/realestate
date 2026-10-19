@@ -2360,6 +2360,9 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<DateTime>("PaymentDate")
                         .HasColumnType("datetime2");
 
+                    b.Property<Guid?>("ProofId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<Guid>("ReservationId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2381,6 +2384,11 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .HasColumnType("nvarchar(max)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ProofId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_Payments_Proof")
+                        .HasFilter("[ProofId] IS NOT NULL");
 
                     b.HasIndex("ReservationId")
                         .HasDatabaseName("IX_Payments_Reservation");
@@ -2473,6 +2481,48 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                             t.HasCheckConstraint("CK_PaymentInstallments_Percentage", "[Percentage] >= 0 AND [Percentage] <= 100");
                         });
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentProof", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("BlobName")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("FileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<Guid>("ReservationId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("UploadedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("UploadedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReservationId")
+                        .HasDatabaseName("IX_PaymentProofs_Reservation");
+
+                    b.ToTable("PaymentProofs", (string)null);
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentSchedule", b =>
@@ -2649,6 +2699,9 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
+
+                    b.Property<bool>("NotaryAppointmentsOpen")
+                        .HasColumnType("bit");
 
                     b.Property<long>("NumberLikes")
                         .HasColumnType("bigint");
@@ -3048,6 +3101,10 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Property<int>("SortOrder")
                         .HasColumnType("int");
 
+                    b.Property<string>("Tone")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Category", "Code")
@@ -3120,6 +3177,23 @@ namespace ProjectAPI.Infrastructure.Migrations
 
                     b.Property<decimal?>("CatalogPrice")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime?>("ContractIssuedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ContractIssuedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<DateTime?>("ContractSignedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("ContractSignedBy")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<int>("ContractStatus")
+                        .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
@@ -4397,6 +4471,11 @@ namespace ProjectAPI.Infrastructure.Migrations
 
             modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.Payment", b =>
                 {
+                    b.HasOne("ProjectAPI.Domain.Payments.Entities.PaymentProof", null)
+                        .WithMany()
+                        .HasForeignKey("ProofId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("ProjectAPI.Domain.Payments.Entities.Payment", null)
                         .WithMany()
                         .HasForeignKey("ReversalOfPaymentId")
@@ -4430,6 +4509,15 @@ namespace ProjectAPI.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Schedule");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Payments.Entities.PaymentProof", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Reservations.Entities.Reservation", null)
+                        .WithMany()
+                        .HasForeignKey("ReservationId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.Projects.Entities.EspaceTempsReel", b =>

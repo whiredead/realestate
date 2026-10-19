@@ -21,6 +21,9 @@ public class ProjectDrillDownResponse
     public string? Type { get; set; }
     public string StatusGlobal { get; set; } = string.Empty;
     public decimal OverAllProgress { get; set; }
+
+    /// <summary>Notary appointments opened on this project by its admin.</summary>
+    public bool NotaryAppointmentsOpen { get; set; }
     public List<string> Images { get; set; } = new();
 
     /// <summary>Roll-up across every immeuble in this project — the project-level tile.</summary>

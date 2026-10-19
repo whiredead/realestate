@@ -168,6 +168,9 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                         ValidatedAt = reservation.ValidatedAt,
                         ValidatedBy = reservation.ValidatedBy,
                         AdminNote = reservation.AdminNote,
+                        ContractStatus = reservation.ContractStatus,
+                        ContractIssuedAt = reservation.ContractIssuedAt,
+                        ContractSignedAt = reservation.ContractSignedAt,
 
                         // Documents projection — adjust properties to match your entity
                         Documents = reservation.Documents.Select(d => new ReservationDocumentResponse
@@ -176,7 +179,8 @@ namespace ProjectAPI.Api.Application.Reservations.GetReservations
                             Name = d.FileName,           // adjust if different
                             Url = d.Url,             // adjust if different
                             UploadedAt = d.UploadedAt, // adjust if different
-                            UploadedBy = d.UploadedBy  // optional
+                            UploadedBy = d.UploadedBy,  // optional
+                            DocumentType = d.DocumentType
                         }).ToList()
                     };
                 })

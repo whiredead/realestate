@@ -81,7 +81,7 @@ public class RegisterValidator : AbstractValidator<RegisterCommand>
     private static readonly string[] AllowedRoles =
     {
         // Spec §6.1 codes
-        RoleCodes.Prospect, RoleCodes.SalesAgent,
+        RoleCodes.Prospect, RoleCodes.SalesAgent, RoleCodes.SalesAdmin,
         RoleCodes.Technician, RoleCodes.TechLead, RoleCodes.Notary,
         RoleCodes.ProjectAdmin, RoleCodes.GlobalAdmin,
 
