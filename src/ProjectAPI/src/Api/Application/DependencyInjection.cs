@@ -36,6 +36,9 @@ public static class DependencyInjection
             // §7 — applies only to commands implementing IIdempotentRequest;
             // runs after validation so a malformed request never consumes a key.
             cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(Common.Idempotency.IdempotencyBehaviour<,>));
+            // §7 audit trail — last, closest to the handler: a replayed idempotent call or a
+            // request refused by validation is not an action and writes no row.
+            cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(Common.Audit.AuditBehaviour<,>));
         });
 
         // Keeps the legacy Purchase totals in step with the payment ledger (§14.3).

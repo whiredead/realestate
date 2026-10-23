@@ -1,8 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using ProjectAPI.Api.Application.Common.Notifications;
 using ProjectAPI.Api.Application.Common.Units;
+using ProjectAPI.Domain.Audit.Entities;
 using ProjectAPI.Domain.Immeubles.Entities;
 using ProjectAPI.Domain.Reservations.Entities;
+using ProjectAPI.Infrastructure.Auditing;
 using ProjectAPI.Infrastructure.Context;
 
 namespace ProjectAPI.Api.BackgroundJobs;
@@ -71,6 +73,7 @@ public class ReservationExpiryJob : BackgroundService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var notifications = scope.ServiceProvider.GetRequiredService<INotificationService>();
         var unitStatus = scope.ServiceProvider.GetRequiredService<IUnitStatusService>();
+        var audit = scope.ServiceProvider.GetRequiredService<IAuditContext>();
 
         var now = DateTime.UtcNow;
 
@@ -83,27 +86,43 @@ public class ReservationExpiryJob : BackgroundService
 
         if (due.Count == 0) return;
 
+        // One save per reservation so each expiry is its own audit row, attributed to the
+        // system and to the right project (§7: every transition is audited, jobs included).
         foreach (var reservation in due)
         {
-            // Go through the matrix so the job cannot bypass the lifecycle rules.
-            ReservationStateMachine.EnsureCanTransition(reservation.Status, ReservationStatus.Expired);
-            reservation.Status = ReservationStatus.Expired;
+            audit.Begin(new AuditInvocation
+            {
+                Action = "EXPIRE_RESERVATION",
+                Category = AuditCategories.Business,
+                Request = new { reservation.Id },
+                ActorLabel = AuditActors.System
+            });
+            try
+            {
+                // Go through the matrix so the job cannot bypass the lifecycle rules.
+                ReservationStateMachine.EnsureCanTransition(reservation.Status, ReservationStatus.Expired);
+                reservation.Status = ReservationStatus.Expired;
 
-            // Was flipping the reservation to Expired without ever releasing
-            // the unit — UnitCommercialStatus stayed at HoldPendingApproval
-            // forever, permanently stranding the unit off-market. Mirrors
-            // RejectReservationHandler/CancelReservationHandler's own release
-            // call, which this job never had despite its own header comment
-            // promising it ("Expires overdue reservations and releases their units").
-            await unitStatus.TransitionAsync(
-                reservation.UnitId,
-                UnitCommercialStatus.Available,
-                UnitStatusCause.ReservationExpired,
-                reservationId: reservation.Id,
-                ct: ct);
+                // Was flipping the reservation to Expired without ever releasing
+                // the unit — UnitCommercialStatus stayed at HoldPendingApproval
+                // forever, permanently stranding the unit off-market. Mirrors
+                // RejectReservationHandler/CancelReservationHandler's own release
+                // call, which this job never had despite its own header comment
+                // promising it ("Expires overdue reservations and releases their units").
+                await unitStatus.TransitionAsync(
+                    reservation.UnitId,
+                    UnitCommercialStatus.Available,
+                    UnitStatusCause.ReservationExpired,
+                    reservationId: reservation.Id,
+                    ct: ct);
+
+                await db.SaveChangesAsync(ct);
+            }
+            finally
+            {
+                audit.End();
+            }
         }
-
-        await db.SaveChangesAsync(ct);
 
         // §6.2 — notify the owning agent so they know the file was released,
         // not just the buyer (who may have no account, per §1.1).

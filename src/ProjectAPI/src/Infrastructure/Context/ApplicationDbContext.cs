@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using ProjectAPI.Domain.Audit.Entities;
 using ProjectAPI.Domain.Appointments.Entities;
 using ProjectAPI.Domain.Common.Idempotency;
 using ProjectAPI.Domain.Construction.Entities;
@@ -49,6 +50,8 @@ public class ApplicationDbContext : IdentityDbContext<
     public DbSet<PermissionEndpoint> PermissionEndpoints { get; set; }
     public DbSet<UserPermissionOverride> UserPermissionOverrides { get; set; }
     public DbSet<SessionRefreshToken> SessionRefreshTokens { get; set; }
+    public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<AuditLogSubject> AuditLogSubjects { get; set; }
     public DbSet<Unit> Units { get; set; }
     public DbSet<Floor> Floors { get; set; }
     public DbSet<ImmeubleAssignment> Assignments { get; set; }
@@ -247,6 +250,8 @@ public class ApplicationDbContext : IdentityDbContext<
         builder.ApplyConfiguration(new AccountInvitationConfiguration());
         builder.ApplyConfiguration(new InternalInvitationConfiguration());
         builder.ApplyConfiguration(new InternalInvitationProjectAssignmentConfiguration());
+        builder.ApplyConfiguration(new AuditLogConfiguration());
+        builder.ApplyConfiguration(new AuditLogSubjectConfiguration());
     }
     /// <summary>
     /// Constructor for ApplicationDbContext.

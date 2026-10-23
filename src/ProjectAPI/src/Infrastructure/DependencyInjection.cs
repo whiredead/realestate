@@ -88,8 +88,12 @@ public static class DependencyInjection
     }
     private static void ConfigureDbContexts(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("SqlPrimary")), ServiceLifetime.Scoped);
+        // §7 audit trail: the interceptor writes the audit row in the same save as the change.
+        services.AddScoped<Auditing.IAuditContext, Auditing.AuditContext>();
+        services.AddScoped<Auditing.AuditSaveChangesInterceptor>();
+        services.AddDbContext<ApplicationDbContext>((sp, options) =>
+            options.UseSqlServer(configuration.GetConnectionString("SqlPrimary"))
+                .AddInterceptors(sp.GetRequiredService<Auditing.AuditSaveChangesInterceptor>()), ServiceLifetime.Scoped);
     }
     private static void ConfigureCustomServices(this IServiceCollection services)
     {

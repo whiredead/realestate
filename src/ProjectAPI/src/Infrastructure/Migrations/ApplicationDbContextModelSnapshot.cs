@@ -567,6 +567,107 @@ namespace ProjectAPI.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Audit.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ActorLabel")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ActorRoles")
+                        .HasMaxLength(256)
+                        .HasColumnType("nvarchar(256)");
+
+                    b.Property<string>("ActorUserId")
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Changes")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Detail")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("EntityId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("EntityType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("IpAddress")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Outcome")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid?>("ProjectId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("RequestId")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ActorUserId", "OccurredAt");
+
+                    b.HasIndex("Category", "OccurredAt");
+
+                    b.HasIndex("ProjectId", "OccurredAt");
+
+                    b.ToTable("AuditLogs", (string)null);
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Audit.Entities.AuditLogSubject", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AuditLogId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("EntityId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AuditLogId");
+
+                    b.HasIndex("EntityType", "EntityId");
+
+                    b.ToTable("AuditLogSubjects", (string)null);
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Common.Idempotency.IdempotencyKeyRecord", b =>
                 {
                     b.Property<Guid>("Id")
@@ -4252,6 +4353,15 @@ namespace ProjectAPI.Infrastructure.Migrations
                     b.Navigation("NotaryAppointment");
                 });
 
+            modelBuilder.Entity("ProjectAPI.Domain.Audit.Entities.AuditLogSubject", b =>
+                {
+                    b.HasOne("ProjectAPI.Domain.Audit.Entities.AuditLog", null)
+                        .WithMany("Subjects")
+                        .HasForeignKey("AuditLogId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("ProjectAPI.Domain.Crm.Entities.AccountInvitation", b =>
                 {
                     b.HasOne("ProjectAPI.Domain.Crm.Entities.CrmContact", "CrmContact")
@@ -4974,6 +5084,11 @@ namespace ProjectAPI.Infrastructure.Migrations
             modelBuilder.Entity("ProjectAPI.Domain.Appointments.Entities.NotaryAppointment", b =>
                 {
                     b.Navigation("AssignmentHistory");
+                });
+
+            modelBuilder.Entity("ProjectAPI.Domain.Audit.Entities.AuditLog", b =>
+                {
+                    b.Navigation("Subjects");
                 });
 
             modelBuilder.Entity("ProjectAPI.Domain.FinalVisits.Entities.FinalVisitCase", b =>
