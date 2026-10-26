@@ -12,12 +12,22 @@ namespace ProjectAPI.Api.Application.Common.Audit;
 /// </summary>
 public static partial class AuditPolicy
 {
+    /// <summary>
+    /// The journal keeps business changes only. Sign-ins, password resets and the other
+    /// <see cref="Security"/> events, and the consultations listed in <see cref="Access"/>,
+    /// are not recorded; switch these on to journal them again.
+    /// </summary>
+    public const bool RecordSecurityEvents = false;
+    public const bool RecordConsultations = false;
+
     /// <summary>Personal preferences and technical state: not business acts.</summary>
     public static readonly IReadOnlySet<string> Excluded = new HashSet<string>(StringComparer.Ordinal)
     {
         "MarkNotificationReadCommand",
         "AddLikedProjectCommand", "RemoveLikedProjectCommand", "UpdateLikedProjectCommand",
         "SubmitFeedbackCommand",
+        // Sign-outs and the technical refresh of the permission catalogue: not worth a journal line.
+        "LogoutSessionCommand", "SyncPermissionCatalogCommand",
     };
 
     /// <summary>Mutations that do not follow the *Command naming.</summary>
@@ -30,7 +40,7 @@ public static partial class AuditPolicy
     public static readonly IReadOnlySet<string> Security = new HashSet<string>(StringComparer.Ordinal)
     {
         "LoginCommand", "RegisterCommand", "ConfirmEmailCommand", "ForgotPasswordCommand", "ResetPasswordCommand",
-        "AdminChangePasswordCommand", "DemandeCodeCommand", "VerifyCodeCommand", "LogoutSessionCommand", "RefreshSessionCommand",
+        "AdminChangePasswordCommand", "DemandeCodeCommand", "VerifyCodeCommand", "RefreshSessionCommand",
     };
 
     /// <summary>

@@ -39,7 +39,7 @@ public class AuditBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest, T
         var type = request.GetType();
 
         // Consultation of a buyer's personal data: journaled once the read succeeded.
-        if (AuditPolicy.Access.TryGetValue(type.Name, out var access))
+        if (AuditPolicy.RecordConsultations && AuditPolicy.Access.TryGetValue(type.Name, out var access))
         {
             var result = await next();
             if (IsStaff()) await WriteAccessEventAsync(request, access);
@@ -50,6 +50,8 @@ public class AuditBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest, T
         if (_audit.Current is not null || !AuditPolicy.IsAudited(type)) return await next();
 
         var security = AuditPolicy.IsSecurity(type);
+        // Security events are not journaled (business changes only): their command runs unaudited.
+        if (security && !AuditPolicy.RecordSecurityEvents) return await next();
         var http = _http.HttpContext;
         var invocation = new AuditInvocation
         {
