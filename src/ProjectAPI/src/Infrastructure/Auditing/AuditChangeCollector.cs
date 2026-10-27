@@ -75,7 +75,7 @@ public static class AuditChangeCollector
                 if (SecretProperties.Contains(name) || p.Metadata.IsPrimaryKey() || p.Metadata.ClrType == typeof(byte[])) continue;
                 if (e.State == EntityState.Modified)
                 {
-                    if (!p.IsModified || Equals(p.OriginalValue, p.CurrentValue)) continue;
+                    if (!p.IsModified || SameValue(p.OriginalValue, p.CurrentValue)) continue;
                     fields[name] = new AuditFieldChange(Format(p.OriginalValue), Format(p.CurrentValue));
                 }
                 else if (p.CurrentValue is not null && !p.Metadata.IsShadowProperty())
@@ -135,6 +135,12 @@ public static class AuditChangeCollector
             case "Appointment": refs.Appointments.Add(g); break;
         }
     }
+
+    /// <summary>Equal values, including a list re-saved with the same items (EF marks a new list instance as modified).</summary>
+    private static bool SameValue(object? a, object? b) =>
+        Equals(a, b)
+        || (a is System.Collections.IEnumerable x && b is System.Collections.IEnumerable y && a is not string && b is not string
+            && x.Cast<object?>().SequenceEqual(y.Cast<object?>()));
 
     private static object? Format(object? value) => value switch
     {

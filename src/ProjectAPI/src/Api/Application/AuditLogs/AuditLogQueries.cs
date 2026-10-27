@@ -116,6 +116,11 @@ public class GetAuditLogsHandler : IRequestHandler<GetAuditLogsQuery, PaginatedR
                 TargetComment = a.EntityType == "ClaimComment"
                     ? _db.ClaimComments.Where(m => m.Id.ToString() == a.EntityId).Select(m => _db.AfterSaleClaims.Where(c => c.Id == m.ClaimId).Select(c => c.Title).FirstOrDefault()).FirstOrDefault()
                     : null,
+                // Catalogue records read by their own name.
+                TargetQuartier = a.EntityType == "Quartier" ? _db.Set<ProjectAPI.Domain.Projects.Entities.Quartier>().Where(q => q.Id.ToString() == a.EntityId).Select(q => q.Name).FirstOrDefault() : null,
+                TargetTypeBien = a.EntityType == "TypeBien" ? _db.TypeBiens.Where(t => t.Id.ToString() == a.EntityId).Select(t => t.Name).FirstOrDefault() : null,
+                TargetImmeuble = a.EntityType == "Immeuble" ? _db.Immeubles.Where(i => i.Id.ToString() == a.EntityId).Select(i => i.Name).FirstOrDefault() : null,
+                TargetUnit = a.EntityType == "Unit" ? _db.Units.Where(u => u.Id.ToString() == a.EntityId).Select(u => u.UnitNumber).FirstOrDefault() : null,
                 TargetVisitReport = a.EntityType == "AppointmentVisitReport"
                     ? _db.AppointmentVisitReports.Where(v => v.Id.ToString() == a.EntityId).Select(v => _db.Appointments.Where(p => p.Id == v.AppointmentId).Select(p => p.Name + " " + p.LastName).FirstOrDefault()).FirstOrDefault()
                     : null
@@ -128,7 +133,7 @@ public class GetAuditLogsHandler : IRequestHandler<GetAuditLogsQuery, PaginatedR
             r.Log.ActorUserId,
             r.Actor is null ? r.Log.ActorLabel : $"{r.Actor.FirstName} {r.Actor.LastName}".Trim(),
             r.Actor?.Email ?? r.Log.ActorLabel,
-            r.Log.ActorRoles, r.Log.EntityType, r.Log.EntityId, (r.TargetUser ?? r.TargetProject ?? r.TargetReservation ?? r.TargetAppointment ?? r.TargetClaim ?? r.TargetComment ?? r.TargetVisitReport)?.Trim(), r.Log.ProjectId, r.ProjectName,
+            r.Log.ActorRoles, r.Log.EntityType, r.Log.EntityId, (r.TargetUser ?? r.TargetProject ?? r.TargetReservation ?? r.TargetAppointment ?? r.TargetClaim ?? r.TargetComment ?? r.TargetVisitReport ?? r.TargetQuartier ?? r.TargetTypeBien ?? r.TargetImmeuble ?? r.TargetUnit)?.Trim(), r.Log.ProjectId, r.ProjectName,
             ParseChanges(r.Log.Changes), r.Log.Detail, r.Log.IpAddress)).ToList();
 
         return new PaginatedResponse<AuditLogDto>(data, request.PageNumber, request.PageSize, total);
